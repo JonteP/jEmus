@@ -1,0 +1,29 @@
+exceptions first:
+BRK, JSR(abs), RTI, RTS
+TXA, TXS, TAX, TSX, DEX, NOP
+
+mode = op & 0x03
+opcode=(op>>2) & 0x07
+addmode=(op>>5) & 0x07
+
+switch (mode)
+
+	case 0:
+	if (addmode == 4)
+		conditional branch
+	if (addmode == 2)
+		register instructions
+	if (addmode == 6)
+		flag instructions
+
+	case 1:
+	regular
+
+	case 2:
+	if (opcode == 4 && addmode == 5)
+		zpy
+	if (opcode == 5 && addmode == 5)
+		zpy
+	if (opcode == 5 && addmode == 7)
+		absy	
+
