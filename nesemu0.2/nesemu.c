@@ -29,7 +29,7 @@ int psize, csize;
 int8_t sp_cnt;
 uint8_t mm1_shift = 0,  mm1_buff, wram, prg_bank, chr_bank, prg_size, chr_size;
 uint8_t oamaddr, mirrmode, p, attsrc, npal, nattsrc, nnpal, vraminc, rw,
-		vval, isnmi, mapper, flagbuff, sp_buff[5], pcbuff;
+		vval, isnmi, mapper, flagbuff, sp_buff[5];
 uint8_t vblank_period = 0, isvblank = 0, spritezero = 0, vbuff = 0, ppureg = 0,
 		quit = 0, w = 0, s = 0, ctrb = 0, ctrb2 = 0, ctr1 = 0, ctr2 = 0, nmiset = 1, nmi_output = 0,
 		nmi_disable = 0, a = 0x00, x = 0x00, y = 0x00, vblank_wait = 0, throttle = 1;
@@ -39,7 +39,7 @@ uint8_t *prg, *chr, *tilesrc, *ntilesrc, *tiledest, *pmap, *objsrc, *addval, *de
 uint8_t *bpattern = &vram[0], *spattern = &vram[0x1000], *name = &vram[0x2000], *attrib, *palette = &vram[0x3f00],
 		*palette_mirror = &vram[0x3f20];
 uint16_t pc, tmp, addr, namet, namev, scrollx = 0, cpu_wait = 0, nmi_wait = 0, ppudot = 0;
-uint16_t nmi = 0xfffa, rst = 0xfffc, irq = 0xfffe, scanline = 0, sp = 0x1fd;
+uint16_t nmi = 0xfffa, rst = 0xfffc, irq = 0xfffe, scanline = 0, sp = 0x1fd, pcbuff, sp_add;
 uint32_t frame = 0, ppucc = 0, cpucc = 0;
 
 FILE *rom, *logfile;
