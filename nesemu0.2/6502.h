@@ -33,13 +33,19 @@ static inline void adc(), and(), asl(), branch(), bit(), brkop(), clc(), cld(),
 		sed(), sei(), sta(), stx(), sty(), tax(), tay(), tsx(), txa(), txs(),
 		tya(), none();
 
-uint8_t mode, opcode, addmode, *addval, addcycle;
+uint8_t mode, opcode, addmode, addcycle;
 
 int test = 0;
 
 void opdecode(uint8_t op) {
 	test++;
 	addcycle = 0;
+	sp_cnt = 0;
+	addr = 0;
+	rw = 0;
+	dest = &vval; /* dummy pointer */
+	pcbuff = pc;
+	flagbuff = flag;
 	if (pc < 0x8000)
 		printf("PC out of bounds!\n");
 	static void (*addp0[8])() = {immed,zpage,accum,absol,absy,zpagex,zpagey,absx};
@@ -206,39 +212,38 @@ void indy() {
 
 		/* OPCODES */
 void adc() {
-	memread();
+	rw = 1;
+	dest = &a;
 	tmp = a + vval + (flag & 1);
-	bitset(&flag, (a ^ tmp) & (vval ^ tmp) & 0x80, 6);
-	bitset(&flag, tmp > 0xff, 0);
-	a = tmp;
-	bitset(&flag, a == 0, 1);
-	bitset(&flag, a >= 0x80, 7);
-	cpu_wait += addcycle*3;
-	cpucc += addcycle;
+	bitset(&flagbuff, (a ^ tmp) & (vval ^ tmp) & 0x80, 6);
+	bitset(&flagbuff, tmp > 0xff, 0);
+	vval = tmp;
+	bitset(&flagbuff, vval == 0, 1);
+	bitset(&flagbuff, vval >= 0x80, 7);
 }
 
 void and() {
-	memread();
-	a &= vval;
-	bitset(&flag, a == 0, 1);
-	bitset(&flag, a >= 0x80, 7);
-	cpu_wait += addcycle*3;
-	cpucc += addcycle;
+	rw = 1;
+	dest = &a;
+	vval = (a & *addval);
+	bitset(&flagbuff, vval == 0, 1);
+	bitset(&flagbuff, vval >= 0x80, 7);
 }
 
 void asl() {
-	bitset(&flag, *addval & 0x80, 0);
+	rw = 2;
+	dest = addval;
+	bitset(&flagbuff, *addval & 0x80, 0);
 	vval = *addval << 1;
-	bitset(&flag, vval == 0, 1);
-	bitset(&flag, vval >= 0x80, 7);
-	memwrite();
+	bitset(&flagbuff, vval == 0, 1);
+	bitset(&flagbuff, vval >= 0x80, 7);
 }
 
 void bit() {
-	memread();
-	bitset(&flag, !(a & vval), 1);
-	bitset(&flag, vval & 0x80, 7);
-	bitset(&flag, vval & 0x40, 6);
+	rw = 1;
+	bitset(&flagbuff, !(a & *addval), 1);
+	bitset(&flagbuff, *addval & 0x80, 7);
+	bitset(&flagbuff, *addval & 0x40, 6);
 }
 
 void branch() {
@@ -248,110 +253,113 @@ void branch() {
 			cpu_wait += 3;
 			cpucc += 1;
 		}
-		pc += (int8_t) cpu[pc] + 1;
+		pcbuff = pc + (int8_t) cpu[pc] + 1;
 		cpu_wait += 3;
 		cpucc += 1;
-	} else {
-		pc++;
 	}
+	pc++;
 }
 
+/* TODO */
 void brkop() { /* does not care about the I flag */
 	pc++;
-		isnmi = 0;
-		donmi();
+	isnmi = 0;
+	donmi();
 }
 
 void clc() {
-	bitset(&flag, 0, 0);
+	bitset(&flagbuff, 0, 0);
 }
 
 void cld() {
-	bitset(&flag, 0, 3);
+	bitset(&flagbuff, 0, 3);
 }
 
 void cli() {
-	bitset(&flag, 0, 2);
+	bitset(&flagbuff, 0, 2);
 }
 
 void clv() {
-	bitset(&flag, 0, 6);
+	bitset(&flagbuff, 0, 6);
 }
 
 void cmp() {
-	memread();
-	bitset(&flag, (a - vval) & 0x80, 7);
-	bitset(&flag, a == vval, 1);
-	bitset(&flag, a >= vval, 0);
-	cpu_wait += addcycle*3;
-	cpucc += addcycle;
+	rw = 1;
+	bitset(&flagbuff, (a - *addval) & 0x80, 7);
+	bitset(&flagbuff, a == *addval, 1);
+	bitset(&flagbuff, a >= *addval, 0);
 }
 
 void cpx() {
-	memread();
-	bitset(&flag, (x - vval) & 0x80, 7);
-	bitset(&flag, x == vval, 1);
-	bitset(&flag, x >= vval, 0);
+	rw = 1;
+	bitset(&flagbuff, (x - *addval) & 0x80, 7);
+	bitset(&flagbuff, x == *addval, 1);
+	bitset(&flagbuff, x >= *addval, 0);
 }
 
 void cpy() {
-	memread();
-	bitset(&flag, (y - vval) & 0x80, 7);
-	bitset(&flag, y == vval, 1);
-	bitset(&flag, y >= vval, 0);
+	rw = 1;
+	bitset(&flagbuff, (y - *addval) & 0x80, 7);
+	bitset(&flagbuff, y == *addval, 1);
+	bitset(&flagbuff, y >= *addval, 0);
 }
 
 void dec() {
+	rw = 2;
+	dest = addval;
 	vval = *addval-1;
-	bitset(&flag, vval == 0, 1);
-	bitset(&flag, vval >= 0x80, 7);
-	memwrite();
+	bitset(&flagbuff, vval == 0, 1);
+	bitset(&flagbuff, vval >= 0x80, 7);
 }
 
 void dex() {
-	x--;
-	bitset(&flag, x == 0, 1);
-	bitset(&flag, x >= 0x80, 7);
+	dest = &x;
+	vval = x - 1;
+	bitset(&flagbuff, vval == 0, 1);
+	bitset(&flagbuff, vval >= 0x80, 7);
 }
 
 void dey() {
-	y--;
-	bitset(&flag, y == 0, 1);
-	bitset(&flag, y >= 0x80, 7);
+	dest = &y;
+	vval = y - 1;
+	bitset(&flagbuff, vval == 0, 1);
+	bitset(&flagbuff, vval >= 0x80, 7);
 }
 
 void eor() {
-	memread();
-	a ^= vval;
-	bitset(&flag, a == 0, 1);
-	bitset(&flag, a >= 0x80, 7);
-	cpu_wait += addcycle*3;
-	cpucc += addcycle;
+	rw = 1;
+	dest = &a;
+	vval = a ^ *addval;
+	bitset(&flagbuff, vval == 0, 1);
+	bitset(&flagbuff, vval >= 0x80, 7);
 }
 
 void inc() {
+	rw = 2;
+	dest = addval;
 	vval = *addval + 1;
-	bitset(&flag, vval == 0, 1);
-	bitset(&flag, vval >= 0x80, 7);
-	memwrite();
+	bitset(&flagbuff, vval == 0, 1);
+	bitset(&flagbuff, vval >= 0x80, 7);
 }
 
 void inx() {
-	x++;
-	bitset(&flag, x == 0, 1);
-	bitset(&flag, x >= 0x80, 7);
+	dest = &x;
+	vval = x + 1;
+	bitset(&flagbuff, vval == 0, 1);
+	bitset(&flagbuff, vval >= 0x80, 7);
 }
 
 void iny() {
-	y++;
-	bitset(&flag, y == 0, 1);
-	bitset(&flag, y >= 0x80, 7);
+	dest = &y;
+	vval = y + 1;
+	bitset(&flagbuff, vval == 0, 1);
+	bitset(&flagbuff, vval >= 0x80, 7);
 }
 
 void jmpa() {
 	addr = cpu[pc++];
 	addr += cpu[pc++] << 8;
-	pc = addr;
+	pcbuff = addr;
 }
 
 void jmpi() {
@@ -359,42 +367,39 @@ void jmpi() {
 	tmp = (cpu[pc] << 8);
 	addr = cpu[tmp | vval];
 	addr += cpu[tmp | ((vval+1) & 0xff)] << 8;
-	pc = addr;
+	pcbuff = addr;
 }
 
 void jsr() {
-	cpu[sp--] = ((pc + 1) & 0xff00) >> 8;
-	cpu[sp--] = ((pc + 1) & 0xff);
+	sp_cnt = 2;
+	sp_buff[0] = ((pc + 1) & 0x00ff);
+	sp_buff[1] = ((pc + 1) & 0xff00) >> 8;
 	addr = cpu[pc++];
 	addr += cpu[pc++] << 8;
-	pc = addr;
+	pcbuff = addr;
 }
 
 void lda() {
-	memread();
-	a = vval;
-	bitset(&flag, a == 0, 1);
-	bitset(&flag, a >= 0x80, 7);
-	cpu_wait += addcycle*3;
-	cpucc += addcycle;
+	rw = 1;
+	dest = &a;
+	vval = *addval;
+	bitset(&flagbuff, a == 0, 1);
+	bitset(&flagbuff, a >= 0x80, 7);
 }
 
 void ldx() {
-	memread();
-	x = vval;
-	bitset(&flag, x == 0, 1);
-	bitset(&flag, x >= 0x80, 7);
-	cpu_wait += addcycle*3;
-	cpucc += addcycle;
-	if (addr == 0x2002)
-		printf("1st read of vblank flag at PPU cycle: %i, frame %i\n",ppucc+cpu_wait,frame);
+	rw = 1;
+	dest = &x;
+	vval = *addval;
+	bitset(&flagbuff, x == 0, 1);
+	bitset(&flagbuff, x >= 0x80, 7);
 }
 
 void ldy() {
 	memread();
 	y = vval;
-	bitset(&flag, y == 0, 1);
-	bitset(&flag, y >= 0x80, 7);
+	bitset(&flagbuff, y == 0, 1);
+	bitset(&flagbuff, y >= 0x80, 7);
 	cpu_wait += addcycle*3;
 	cpucc += addcycle;
 	if (addr == 0x2002)
@@ -402,18 +407,18 @@ void ldy() {
 }
 
 void lsr() {
-	bitset(&flag, *addval & 1, 0);
+	bitset(&flagbuff, *addval & 1, 0);
 	vval = *addval >> 1;
-	bitset(&flag, vval == 0, 1);
-	bitset(&flag, vval >= 0x80, 7);
+	bitset(&flagbuff, vval == 0, 1);
+	bitset(&flagbuff, vval >= 0x80, 7);
 	memwrite();
 }
 
 void ora() {
 	memread();
 	a |= vval;
-	bitset(&flag, a == 0, 1);
-	bitset(&flag, a >= 0x80, 7);
+	bitset(&flagbuff, a == 0, 1);
+	bitset(&flagbuff, a >= 0x80, 7);
 	cpu_wait += addcycle*3;
 	cpucc += addcycle;
 }
@@ -429,41 +434,41 @@ void php() {
 void pla() {
 	sp++;
 	a = cpu[sp];
-	bitset(&flag, a == 0, 1);
-	bitset(&flag, a >= 0x80, 7);
+	bitset(&flagbuff, a == 0, 1);
+	bitset(&flagbuff, a >= 0x80, 7);
 }
 
 void plp() {
 	sp++;
 	flag = cpu[sp];
-	bitset(&flag, 1, 5);
-	bitset(&flag,0,4); /* b flag should be discarded */
+	bitset(&flagbuff, 1, 5);
+	bitset(&flagbuff,0,4); /* b flag should be discarded */
 }
 
 void rol() {
 	vval = *addval << 1;
 	bitset(&vval, flag & 1, 0);
-	bitset(&flag, *addval & 0x80, 0);
-	bitset(&flag, vval == 0, 1);
-	bitset(&flag, vval >= 0x80, 7);
+	bitset(&flagbuff, *addval & 0x80, 0);
+	bitset(&flagbuff, vval == 0, 1);
+	bitset(&flagbuff, vval >= 0x80, 7);
 	memwrite();
 }
 
 void ror() {
 	vval = *addval >> 1;
 	bitset(&vval, flag & 1, 7);
-	bitset(&flag, *addval & 1, 0);
-	bitset(&flag, vval == 0, 1);
-	bitset(&flag, vval >= 0x80, 7);
+	bitset(&flagbuff, *addval & 1, 0);
+	bitset(&flagbuff, vval == 0, 1);
+	bitset(&flagbuff, vval >= 0x80, 7);
 	memwrite();
 }
 
 void rti() {
 	sp++;
 	flag = cpu[sp++];
-	bitset(&flag, 1, 5); /* bit 5 always set */
-/*	bitset(&flag, 0, 4);  b flag should be discarded */
-/*	bitset(&flag, 0, 2);  interrupt should not be cleared */
+	bitset(&flagbuff, 1, 5); /* bit 5 always set */
+/*	bitset(&flagbuff, 0, 4);  b flag should be discarded */
+/*	bitset(&flagbuff, 0, 2);  interrupt should not be cleared */
 	pc = cpu[sp++];
 	pc += (cpu[sp] << 8);
 }
@@ -478,25 +483,25 @@ void rts() {
 void sbc() {
 	memread();
 	tmp = a + (vval ^ 0xff) + (flag & 1);
-	bitset(&flag, (a ^ tmp) & (vval ^ a) & 0x80, 6);
-	bitset(&flag, tmp > 0xff, 0);
+	bitset(&flagbuff, (a ^ tmp) & (vval ^ a) & 0x80, 6);
+	bitset(&flagbuff, tmp > 0xff, 0);
 	a = tmp;
-	bitset(&flag, a == 0, 1);
-	bitset(&flag, a >= 0x80, 7);
+	bitset(&flagbuff, a == 0, 1);
+	bitset(&flagbuff, a >= 0x80, 7);
 	cpu_wait += addcycle*3;
 	cpucc += addcycle;
 }
 
 void sec() {
-	bitset(&flag, 1, 0);
+	bitset(&flagbuff, 1, 0);
 }
 
 void sed() {
-	bitset(&flag, 1, 3);
+	bitset(&flagbuff, 1, 3);
 }
 
 void sei() {
-	bitset(&flag, 1, 2);
+	bitset(&flagbuff, 1, 2);
 }
 
 void sta() {
@@ -516,26 +521,26 @@ void sty() {
 
 void tax() {
 	x = a;
-	bitset(&flag, a == 0, 1);
-	bitset(&flag, a >= 0x80, 7);
+	bitset(&flagbuff, a == 0, 1);
+	bitset(&flagbuff, a >= 0x80, 7);
 }
 
 void tay() {
 	y = a;
-	bitset(&flag, a == 0, 1);
-	bitset(&flag, a >= 0x80, 7);
+	bitset(&flagbuff, a == 0, 1);
+	bitset(&flagbuff, a >= 0x80, 7);
 }
 
 void tsx() {
 	x = (sp & 0xff);
-	bitset(&flag, x == 0, 1);
-	bitset(&flag, x >= 0x80, 7);
+	bitset(&flagbuff, x == 0, 1);
+	bitset(&flagbuff, x >= 0x80, 7);
 }
 
 void txa() {
 	a = x;
-	bitset(&flag, a == 0, 1);
-	bitset(&flag, a >= 0x80, 7);
+	bitset(&flagbuff, a == 0, 1);
+	bitset(&flagbuff, a >= 0x80, 7);
 }
 
 void txs() {
@@ -544,8 +549,8 @@ void txs() {
 
 void tya() {
 	a = y;
-	bitset(&flag, a == 0, 1);
-	bitset(&flag, a >= 0x80, 7);
+	bitset(&flagbuff, a == 0, 1);
+	bitset(&flagbuff, a >= 0x80, 7);
 }
 
 void none() {
