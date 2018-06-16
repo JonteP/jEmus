@@ -75,7 +75,7 @@ int main() {
 /* parse iNES header ppu_vbl_nmi/rom_singles/05-nmi_timing */
 
 	rom = fopen("/home/jonas/eclipse-workspace/"
-			"nestest.nes", "rb");
+			"nrom/burger.nes", "rb");
 	if (rom == NULL) {
 		printf("Error: No such file\n");
 		exit(EXIT_FAILURE);
@@ -144,7 +144,7 @@ int main() {
 		if (scanline == 262) {
 			scanline = 0;
 			frame++;
-			printf("Frame is %i\n",frame);
+		/*	printf("Frame is %i\n",frame); */
 			ppucc = 0;
 		/*	printf("PPU Cycles: %i\tCPU cycles: %i\n",ppucc,cpucc-(cpu_wait/3));
 			cpucc = (cpu_wait/3); */
@@ -152,14 +152,14 @@ int main() {
 				ppudot++;
 		}
 		if (scanline == 241 && ppudot == 1) {
-			printf("VBLANK at PPU cycle: %i\n",ppucc);
+		/*	printf("VBLANK at PPU cycle: %i\n",ppucc); */
 			isvblank = 1; /* set vblank */
-			printf("VBLANK flag is set\n");
+		/*	printf("VBLANK flag is set\n"); */
 			vblank_period = 1;
 		} else if (scanline == 261) {
 			if (ppudot == 1) {
 				isvblank = 0; /* clear vblank */
-				printf("VBLANK flag is clear\n");
+			/*	printf("VBLANK flag is clear\n"); */
 				io_handle();
 				render_frame();
 				if (throttle) {
@@ -237,12 +237,12 @@ int main() {
 			} else if (sp_cnt < 0)
 				sp -= sp_cnt;
 
-			fprintf(logfile,"%04X %02X\t\t A:%02X X=%02X Y:%02X P:%02X SP:%02X CYC:%i\n",pc,cpu[pc],a,x,y,flag,sp,ppudot);
+		/*	fprintf(logfile,"%04X %02X\t\t A:%02X X=%02X Y:%02X P:%02X SP:%02X CYC:%i\n",pc,cpu[pc],a,x,y,flag,sp,ppudot); */
 			if (vblank_wait) {
 				vblank_wait = 0;
 				cpu_wait += 7 * 3;
 				donmi();
-				printf("NMI triggered at PPU cycle: %i, plus: %i\n",ppucc, cpu_wait);
+			/*	printf("NMI triggered at PPU cycle: %i, plus: %i\n",ppucc, cpu_wait); */
 				nmi_allow = 0;
 			} else
 				opdecode(cpu[pc++]);

@@ -640,9 +640,11 @@ void memread() {
 	/*	if (scanline == 240 && (ppudot + cpu_wait) == 343)
 			isvblank = 0; */
 		vval = (isvblank<<7) | (spritezero<<6) | (spriteof<<5) | (ppureg & 0x1f);
+		if (vval & 0x80)
+			flag |= 0x82;
 	/*	printf("Reads VBLANK flag at PPU cycle: %i\n",ppucc); */
 		isvblank = 0;
-		printf("VBLANK flag is clear PPU cycle %i\n",ppucc);
+	/* 	printf("VBLANK flag is clear PPU cycle %i\n",ppucc);*/
 		w = 0;
 		break;
 	case 0x2004:
