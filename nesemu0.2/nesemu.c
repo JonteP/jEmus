@@ -31,7 +31,7 @@ uint8_t mm1_shift = 0,  mm1_buff, wram, prg_bank, chr_bank, prg_size, chr_size;
 uint8_t oamaddr, mirrmode, p, attsrc, npal, nattsrc, nnpal, vraminc, rw,
 		vval, isnmi, mapper, flagbuff, sp_buff[5];
 uint8_t vblank_period = 0, isvblank = 0, spritezero = 0, vbuff = 0, ppureg = 0,
-		quit = 0, w = 0, s = 0, ctrb = 0, ctrb2 = 0, ctr1 = 0, ctr2 = 0, nmiset = 1, nmi_output = 0,
+		quit = 0, w = 0, s = 0, ctrb = 0, ctrb2 = 0, ctr1 = 0, ctr2 = 0, nmi_allow = 1, nmi_output = 0,
 		nmi_disable = 0, a = 0x00, x = 0x00, y = 0x00, vblank_wait = 0, throttle = 1;
 uint8_t header[0x10], oam[0x100] = { 0 }, vram[0x4000] = { 0 }, flag = 0x34,
 		cpu[0x10000] = { 0 }, dots[256] = {1}, spritebuff[8], spriteof = 0;
@@ -39,7 +39,7 @@ uint8_t *prg, *chr, *tilesrc, *ntilesrc, *tiledest, *pmap, *objsrc, *addval, *de
 uint8_t *bpattern = &vram[0], *spattern = &vram[0x1000], *name = &vram[0x2000], *attrib, *palette = &vram[0x3f00],
 		*palette_mirror = &vram[0x3f20];
 uint16_t pc, tmp, addr, namet, namev, scrollx = 0, cpu_wait = 0, nmi_wait = 0, ppudot = 0;
-uint16_t nmi = 0xfffa, rst = 0xfffc, irq = 0xfffe, scanline = 0, sp = 0x1fd, pcbuff, sp_add;
+uint16_t nmi = 0xfffa, rst = 0xfffc, irq = 0xfffe, scanline = 0, sp = 0x1fd, pcbuff, sp_add = 0x1fd;
 uint32_t frame = 0, ppucc = 0, cpucc = 0;
 
 FILE *rom, *logfile;
@@ -72,11 +72,10 @@ static inline void render_line();
 static inline void render_frame();
 
 int main() {
-	nmi_wait = 7*3; /* takes 7 cpu cycles */
 /* parse iNES header ppu_vbl_nmi/rom_singles/05-nmi_timing */
 
 	rom = fopen("/home/jonas/eclipse-workspace/"
-			"ppu_vbl_nmi/rom_singles/02-vbl_set_time.nes", "rb");
+			"nrom/dk.nes", "rb");
 	if (rom == NULL) {
 		printf("Error: No such file\n");
 		exit(EXIT_FAILURE);
@@ -140,11 +139,13 @@ int main() {
 	while (quit == 0) {
 		if (ppudot == 341) {
 			scanline++;
+			printf("Scanline is: %i\n",scanline);
 			ppudot = 0;
 		}
 		if (scanline == 262) {
 			scanline = 0;
 			frame++;
+			printf("Frame is %i\n",frame);
 			ppucc = 0;
 		/*	printf("PPU Cycles: %i\tCPU cycles: %i\n",ppucc,cpucc-(cpu_wait/3));
 			cpucc = (cpu_wait/3); */
@@ -152,8 +153,7 @@ int main() {
 				ppudot++;
 		}
 		if (scanline == 241 && ppudot == 1) {
-			if (frame == 94)
-				printf("VBLANK at PPU cycle: %i\n",ppucc);
+			printf("VBLANK at PPU cycle: %i\n",ppucc);
 			isvblank = 1; /* set vblank */
 			vblank_period = 1;
 		} else if (scanline == 261) {
@@ -192,7 +192,7 @@ int main() {
 			if ((cpu[0x2001] & 0x18) && ppudot >= 257 && ppudot <= 320)
 				/* (reset OAM) */
 				oamaddr = 0; /* only if rendering active? */
-			nmiset = 1;
+			nmi_allow = 1;
 			vblank_period = 0;
 		} else if (scanline < 240) {
 			if ((cpu[0x2001] & 0x18) && ppudot == 256) {
@@ -220,21 +220,37 @@ int main() {
 						oamaddr = 0; /* only if rendering active? */
 		}
 
-		if (cpu_wait <= 0) {
-			if (vblank_wait)
+		if (cpu_wait == 0) {
+			pc = pcbuff;
+			sp = sp_add;
+			flag = flagbuff;
+			if (rw == 1)
+				memread();
+			else if (rw == 2)
+				memwrite();
+			*dest = vval;
+			if (sp_cnt > 0) {
+				for (int i = 0;i<sp_cnt;i++) {
+					cpu[sp--] = sp_buff[i];
+				}
+			} else if (sp_cnt < 0)
+				sp -= sp_cnt;
+
+		/*	fprintf(logfile,"%04X %02X\t\t A:%02X X=%02X Y:%02X P:%02X SP:%02X CYC:%i\n",pc,cpu[pc],a,x,y,flag,sp,ppudot); */
+			if (vblank_wait) {
 				vblank_wait = 0;
-		/*	if (frame < 100)
-				fprintf(logfile,"Op=%02X PPU=%i CYC=%02i Frame=%i  %04X\n",cpu[pc],ppucc,ppudot,frame,pc); */
-			opdecode(cpu[pc++]);
+				cpu_wait += 7 * 3;
+				donmi();
+				printf("NMI triggered at PPU cycle: %i, plus: %i\n",ppucc, cpu_wait);
+				nmi_allow = 0;
+			} else
+				opdecode(cpu[pc++]);
 			if (sp<0x100 || sp>0x1ff)
 				printf("Error: Stack pointer\n");
 		}
 		/* Interrupt handling */
-		if (nmi_output && isvblank && nmiset && !vblank_wait) {
-			cpu_wait += 7 * 3;
-			donmi();
-			printf("NMI triggered at PPU cycle: %i, plus: %i\n",ppucc, cpu_wait);
-			nmiset = 0;
+		if (nmi_output && isvblank && nmi_allow) {
+			vblank_wait = 1;
 		}
 		cpu_wait--;
 		ppudot++;
@@ -550,6 +566,10 @@ void io_handle() {
 }
 
 void soft_reset () {
-	 pc = (cpu[rst + 1] << 8) + cpu[rst];
-	 bitset(&flag, 1, 2); /* set I flag */
+	pc = (cpu[rst + 1] << 8) + cpu[rst];
+	dest = &vval; /* dummy pointer */
+	pcbuff = pc;
+	sp_add = sp;
+	flagbuff = flag;
+	bitset(&flag, 1, 2); /* set I flag */
 }

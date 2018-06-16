@@ -1,7 +1,7 @@
 #include <stdint.h>
 
 extern uint8_t a, x, y, flag, vval, rw, oamaddr, mirrmode, w, vraminc, s, ctrb, ctrb2,
-			ctr1, ctr2, nmi_output, nmiset, nmi_disable, isvblank, spritezero, ppureg,
+			ctr1, ctr2, nmi_output, nmi_allow, nmi_disable, isvblank, spritezero, ppureg,
 			vbuff, spriteof, vblank_wait, isnmi, vblank_period, mapper, flagbuff;
 extern uint8_t mm1_shift, mm1_buff, wram, prg_bank, chr_bank, prg_size, chr_size;
 extern uint8_t *attrib, *bpattern, *spattern, *name, *prg, *chr, *addval, *dest;

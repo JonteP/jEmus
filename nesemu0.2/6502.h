@@ -4,22 +4,22 @@
 #include "globals.h"
 
 						 /* 0 |1 |2 |3 |4 |5 |6 |7 |8 |9 |a |b |c |d |e |f */
-static uint8_t ctable[] = { 7, 6, 0, 0, 0, 3, 5, 0, 3, 2, 2, 0, 0, 4, 6, 0,/* 0 */
-							2, 5, 0, 0, 0, 4, 6, 0, 2, 4, 0, 0, 0, 4, 7, 0,/* 1 */
+static uint8_t ctable[] = { 7, 6, 0, 0, 3, 3, 5, 0, 3, 2, 2, 0, 4, 4, 6, 0,/* 0 */
+							2, 5, 0, 0, 4, 4, 6, 0, 2, 4, 2, 0, 4, 4, 7, 0,/* 1 */
 							6, 6, 0, 0, 3, 3, 5, 0, 4, 2, 2, 0, 4, 4, 6, 0,/* 2 */
-							2, 5, 0, 0, 0, 4, 6, 0, 2, 4, 0, 0, 0, 4, 7, 0,/* 3 */
-							6, 6, 0, 0, 5, 3, 5, 0, 3, 2, 2, 0, 3, 4, 6, 0,/* 4 */
-							2, 5, 0, 0, 0, 4, 6, 0, 2, 4, 0, 0, 0, 4, 7, 0,/* 5 */
-							6, 6, 0, 0, 0, 3, 5, 0, 4, 2, 2, 0, 5, 4, 6, 0,/* 6 */
-							2, 5, 0, 0, 0, 4, 6, 0, 2, 4, 0, 0, 0, 4, 7, 0,/* 7 */
-							0, 6, 0, 0, 3, 3, 3, 0, 2, 0, 2, 0, 4, 4, 4, 0,/* 8 */
+							2, 5, 0, 0, 4, 4, 6, 0, 2, 4, 2, 0, 4, 4, 7, 0,/* 3 */
+							6, 6, 0, 0, 3, 3, 5, 0, 3, 2, 2, 0, 3, 4, 6, 0,/* 4 */
+							2, 5, 0, 0, 4, 4, 6, 0, 2, 4, 2, 0, 4, 4, 7, 0,/* 5 */
+							6, 6, 0, 0, 3, 3, 5, 0, 4, 2, 2, 0, 5, 4, 6, 0,/* 6 */
+							2, 5, 0, 0, 4, 4, 6, 0, 2, 4, 2, 0, 4, 4, 7, 0,/* 7 */
+							2, 6, 2, 0, 3, 3, 3, 0, 2, 2, 2, 0, 4, 4, 4, 0,/* 8 */
 							2, 6, 0, 0, 4, 4, 4, 0, 2, 5, 2, 0, 0, 5, 0, 0,/* 9 */
 							2, 6, 2, 0, 3, 3, 3, 0, 2, 2, 2, 0, 4, 4, 4, 0,/* a */
 							2, 5, 0, 0, 4, 4, 4, 0, 2, 4, 2, 0, 4, 4, 4, 0,/* b */
-							2, 6, 0, 0, 3, 3, 5, 0, 2, 2, 2, 0, 4, 4, 6, 0,/* c */
-							2, 5, 0, 0, 0, 4, 6, 0, 2, 4, 0, 0, 0, 4, 7, 0,/* d */
-							2, 6, 0, 0, 3, 3, 5, 0, 2, 2, 2, 0, 4, 4, 6, 0,/* e */
-							2, 5, 0, 0, 0, 4, 6, 0, 2, 4, 0, 0, 0, 4, 7, 0 /* f */
+							2, 6, 2, 0, 3, 3, 5, 0, 2, 2, 2, 0, 4, 4, 6, 0,/* c */
+							2, 5, 0, 0, 4, 4, 6, 0, 2, 4, 2, 0, 4, 4, 7, 0,/* d */
+							2, 6, 2, 0, 3, 3, 5, 0, 2, 2, 2, 0, 4, 4, 6, 0,/* e */
+							2, 5, 0, 0, 4, 4, 6, 0, 2, 4, 2, 0, 4, 4, 7, 0 /* f */
 							};
 
 static inline void opdecode(uint8_t);
@@ -38,6 +38,7 @@ uint8_t mode, opcode, addmode, addcycle;
 int test = 0;
 
 void opdecode(uint8_t op) {
+/*	printf("Opcode: %02X at PC: %04X\n",op,pc); */
 	test++;
 	addcycle = 0;
 	sp_cnt = 0;
@@ -47,7 +48,7 @@ void opdecode(uint8_t op) {
 	pcbuff = pc;
 	sp_add = sp;
 	flagbuff = flag;
-	if (pc < 0x8000)
+	if (pcbuff < 0x8000)
 		printf("PC out of bounds!\n");
 	static void (*addp0[8])() = {immed,zpage,accum,absol,absy,zpagex,zpagey,absx};
 	static void (*addp1[8])() = {indx,zpage,immed,absol,indy,zpagex,absy,absx};
@@ -66,20 +67,47 @@ void opdecode(uint8_t op) {
 		if (opcode == 0 && addmode == 0) {
 			brkop();
 			break;
+		} else if (opcode == 0 && (addmode == 1 || addmode == 5)) {
+			pcbuff++;
+			break;
+		} else if (opcode == 0 && addmode == 3) {
+			pcbuff += 2; /* (TOP) TODO: extra cycles */
+			break;
 		} else if (opcode == 1 && addmode == 0) {
 			jsr();
+			break;
+		} else if (opcode == 1 && addmode == 5) {
+			pcbuff++;
 			break;
 		} else if (opcode == 2 && addmode == 0) {
 			rti();
 			break;
+		} else if (opcode == 2 && (addmode == 1 || addmode == 5)) {
+			pcbuff++;
+			break;
 		} else if (opcode == 2 && addmode == 3) {
 			jmpa();
+			break;
+		} else if (opcode == 3 && addmode == 0) {
+			rts();
+			break;
+		} else if (opcode == 3 && (addmode == 1 || addmode == 5)) {
+			pcbuff++;
 			break;
 		} else if (opcode == 3 && addmode == 3) {
 			jmpi();
 			break;
-		} else if (opcode == 3 && addmode == 0) {
-			rts();
+		} else if (opcode == 4 && addmode == 0) {
+			pcbuff++;
+			break;
+		} else if (opcode == 6 && addmode == 5) {
+			pcbuff++;
+			break;
+		} else if (opcode == 7 && addmode == 5) {
+			pcbuff++;
+			break;
+		} else if ((opcode == 0 || opcode == 1 || opcode == 2 || opcode == 3 || opcode == 6 || opcode == 7) && addmode == 7) {
+			pcbuff += 2; /* (TOP) TODO: extra cycles */
 			break;
 		} else if (addmode == 2) {
 			(*opp0ex2[opcode])();
@@ -95,11 +123,18 @@ void opdecode(uint8_t op) {
 		(*opp0[opcode])();
 		break;
 	case 1:
+		if (opcode == 4 && addmode == 2) {
+			pcbuff++;
+			break;
+		}
 		(*addp1[addmode])();
 		(*opp1[opcode])();
 		break;
 	case 2:
-		if (opcode == 4 && addmode == 2) {
+		if 		  (opcode == 4 && addmode == 0) {
+			pcbuff++;
+			break;
+		} else if (opcode == 4 && addmode == 2) {
 			txa();
 			break;
 		} else if (opcode == 4 && addmode == 6) {
@@ -111,10 +146,18 @@ void opdecode(uint8_t op) {
 		} else if (opcode == 5 && addmode == 6) {
 			tsx();
 			break;
+		} else if (opcode == 6 && addmode == 0) {
+			pcbuff++;
+			break;
 		} else if (opcode == 6 && addmode == 2) {
 			dex();
 			break;
+		} else if (opcode == 7 && addmode == 0) {
+			pcbuff++;
+			break;
 		} else if (opcode == 7 && addmode == 2)
+			break;
+		  else if ((opcode == 0 || opcode == 1 || opcode == 2 || opcode == 3 || opcode == 6 || opcode == 7) && addmode == 6)
 			break;
 		  else if (opcode == 4 && addmode == 5)
 			addmode = 6;
@@ -141,37 +184,37 @@ void accum() {
 }
 
 void immed() {
-	addr = pc++;
+	addr = pcbuff++;
 	addval = &cpu[addr];
 }
 
 void zpage() {
-	addr = cpu[pc++];
+	addr = cpu[pcbuff++];
 	addval = &cpu[addr];
 }
 
 void zpagex() {
-	addr = cpu[pc++];
+	addr = cpu[pcbuff++];
 	addr = ((addr + x) & 0xff);
 	addval = &cpu[addr];
 }
 
 void zpagey() {
-	addr = cpu[pc++];
+	addr = cpu[pcbuff++];
 	addr = ((addr + y) & 0xff);
 	addval = &cpu[addr];
 }
 
 void absol() {
-	addr = cpu[pc++];
-	addr += cpu[pc++] << 8;
+	addr = cpu[pcbuff++];
+	addr += cpu[pcbuff++] << 8;
 	mirror();
 	addval = &cpu[addr];
 }
 
 void absx() {
-	addr = cpu[pc++];
-	addr += cpu[pc++] << 8;
+	addr = cpu[pcbuff++];
+	addr += cpu[pcbuff++] << 8;
 	addr += x;
 	if ((addr & 0xff) < x) {
 		addcycle = 1;
@@ -181,8 +224,8 @@ void absx() {
 }
 
 void absy() {
-	addr = cpu[pc++];
-	addr += cpu[pc++] << 8;
+	addr = cpu[pcbuff++];
+	addr += cpu[pcbuff++] << 8;
 	addr += y;
 	if ((addr & 0xff) < y) {
 		addcycle = 1;
@@ -192,7 +235,7 @@ void absy() {
 }
 
 void indx() {
-	vval = cpu[pc++];
+	vval = cpu[pcbuff++];
 	addr = cpu[((vval+x) & 0xff)];
 	addr += cpu[((vval+x+1) & 0xff)] << 8;
 	mirror();
@@ -200,7 +243,7 @@ void indx() {
 }
 
 void indy() {
-	vval = cpu[pc++];
+	vval = cpu[pcbuff++];
 	addr = cpu[vval++];
 	addr += cpu[(vval & 0xff)] << 8;
 	addr = ((addr + y) & 0xffff);
@@ -254,20 +297,20 @@ void bit() {
 void branch() {
 	uint8_t reflag[4] = { 7, 6, 0, 1 };
 	if (((flag >> reflag[(opcode >> 1) & 3]) & 1) == (opcode & 1)) {
-		if (((pc + 1) & 0xff00)	!= ((pc + ((int8_t) cpu[pc] + 1)) & 0xff00)) {
+		if (((pcbuff + 1) & 0xff00)	!= ((pcbuff + ((int8_t) cpu[pcbuff] + 1)) & 0xff00)) {
 			cpu_wait += 3;
 			cpucc += 1;
 		}
-		pcbuff = pc + (int8_t) cpu[pc] + 1;
+		pcbuff = pcbuff + (int8_t) cpu[pcbuff] + 1;
 		cpu_wait += 3;
 		cpucc += 1;
-	}
-	pc++;
+	} else
+		pcbuff++;
 }
 
 /* TODO */
 void brkop() { /* does not care about the I flag */
-	pc++;
+	pcbuff++;
 	isnmi = 0;
 	donmi();
 }
@@ -366,14 +409,14 @@ void iny() {
 }
 
 void jmpa() {
-	addr = cpu[pc++];
-	addr += cpu[pc++] << 8;
+	addr = cpu[pcbuff++];
+	addr += cpu[pcbuff++] << 8;
 	pcbuff = addr;
 }
 
 void jmpi() {
-	vval = cpu[pc++];
-	tmp = (cpu[pc] << 8);
+	vval = cpu[pcbuff++];
+	tmp = (cpu[pcbuff] << 8);
 	addr = cpu[tmp | vval];
 	addr += cpu[tmp | ((vval+1) & 0xff)] << 8;
 	pcbuff = addr;
@@ -381,19 +424,20 @@ void jmpi() {
 
 void jsr() {
 	sp_cnt = 2;
-	sp_buff[0] = ((pc + 1) & 0xff00) >> 8;
-	sp_buff[1] = ((pc + 1) & 0x00ff);
-	addr = cpu[pc++];
-	addr += cpu[pc++] << 8;
+	sp_buff[0] = ((pcbuff + 1) & 0xff00) >> 8;
+	sp_buff[1] = ((pcbuff + 1) & 0x00ff);
+	addr = cpu[pcbuff++];
+	addr += cpu[pcbuff++] << 8;
 	pcbuff = addr;
+	printf("push at jsr\n");
 }
 
 void lda() {
 	rw = 1;
 	dest = &a;
 	vval = *addval;
-	bitset(&flagbuff, a == 0, 1);
-	bitset(&flagbuff, a >= 0x80, 7);
+	bitset(&flagbuff, vval == 0, 1);
+	bitset(&flagbuff, vval >= 0x80, 7);
 	cpu_wait += addcycle*3;
 	cpucc += addcycle;
 }
@@ -402,8 +446,8 @@ void ldx() {
 	rw = 1;
 	dest = &x;
 	vval = *addval;
-	bitset(&flagbuff, x == 0, 1);
-	bitset(&flagbuff, x >= 0x80, 7);
+	bitset(&flagbuff, vval == 0, 1);
+	bitset(&flagbuff, vval >= 0x80, 7);
 	cpu_wait += addcycle*3;
 	cpucc += addcycle;
 }
@@ -412,8 +456,8 @@ void ldy() {
 	rw = 1;
 	dest = &y;
 	vval = *addval;
-	bitset(&flagbuff, y == 0, 1);
-	bitset(&flagbuff, y >= 0x80, 7);
+	bitset(&flagbuff, vval == 0, 1);
+	bitset(&flagbuff, vval >= 0x80, 7);
 	cpu_wait += addcycle*3;
 	cpucc += addcycle;
 }
@@ -431,8 +475,8 @@ void ora() {
 	rw = 1;
 	dest = &a;
 	vval = a | *addval;
-	bitset(&flagbuff, a == 0, 1);
-	bitset(&flagbuff, a >= 0x80, 7);
+	bitset(&flagbuff, vval == 0, 1);
+	bitset(&flagbuff, vval >= 0x80, 7);
 	cpu_wait += addcycle*3;
 	cpucc += addcycle;
 }
@@ -440,27 +484,30 @@ void ora() {
 void pha() {
 	sp_cnt = 1;
 	sp_buff[0] = a;
+	printf("push at pha\n");
 }
 
 void php() {
 	sp_cnt = 1;
 	sp_buff[0] = (flag | 0x30); /* bit 4 is set if from an instruction */
+	printf("push at php\n");
 }
 
 void pla() {
 	dest = &a;
 	sp_cnt = -1;
-	sp_buff[0] = cpu[sp];
-	bitset(&flagbuff, sp_buff[0] == 0, 1);
-	bitset(&flagbuff, sp_buff[0] >= 0x80, 7);
+	vval = cpu[sp+1];
+	bitset(&flagbuff, vval == 0, 1);
+	bitset(&flagbuff, vval >= 0x80, 7);
+	printf("pull at pla\n");
 }
 
 void plp() {
-	dest = &flag;
 	sp_cnt = -1;
-	sp_buff[0] = cpu[sp];
-	bitset(&sp_buff[0], 1, 5);
-	bitset(&sp_buff[0],0,4); /* b flag should be discarded */
+	flagbuff = cpu[sp+1];
+	bitset(&flagbuff, 1, 5);
+	bitset(&flagbuff, 0, 4); /* b flag should be discarded */
+	printf("pull at plp\n");
 }
 
 void rol() {
@@ -485,18 +532,20 @@ void ror() {
 
 void rti() {
 	sp_cnt = -3;
-	flagbuff = cpu[sp];
+	flagbuff = cpu[sp+1];
 	bitset(&flagbuff, 1, 5); /* bit 5 always set */
 /*	bitset(&flagbuff, 0, 4);  b flag should be discarded */
-	pcbuff = cpu[sp+1];
-	pcbuff += (cpu[sp+2] << 8);
+	pcbuff = cpu[sp+2];
+	pcbuff += (cpu[sp+3] << 8);
+	printf("pull at rti\n");
 }
 
 void rts() {
 	sp_cnt = -2;
-	addr = cpu[sp];
-	addr += cpu[sp+1] << 8;
+	addr = cpu[sp+1];
+	addr += cpu[sp+2] << 8;
 	pcbuff = addr + 1;
+	printf("pull at rts\n");
 }
 
 void sbc() {
@@ -506,8 +555,8 @@ void sbc() {
 	bitset(&flagbuff, (a ^ tmp) & (*addval ^ a) & 0x80, 6);
 	bitset(&flagbuff, tmp > 0xff, 0);
 	vval = tmp;
-	bitset(&flagbuff, a == 0, 1);
-	bitset(&flagbuff, a >= 0x80, 7);
+	bitset(&flagbuff, vval == 0, 1);
+	bitset(&flagbuff, vval >= 0x80, 7);
 	cpu_wait += addcycle*3;
 	cpucc += addcycle;
 }
@@ -586,7 +635,6 @@ void none() {
 							}
 
 void memread() {
-	vval = *addval;
 	switch (addr) {
 	case 0x2002:
 	/*	if (scanline == 240 && (ppudot + cpu_wait) == 343)
@@ -645,9 +693,9 @@ void memwrite() {
 		if (nmi_output)
 			printf("NMI_output set to: %i at PPU cycle: %i\n",nmi_output,ppucc);
 		if (nmi_output == 0)
-			nmiset = 1;
-		if (nmi_output && isvblank)
-			vblank_wait = 1;
+			nmi_allow = 1;
+		/*if (nmi_output && isvblank)
+			vblank_wait = 1; */
 		break;
 	case 0x2001:
 		ppureg = vval;
@@ -768,5 +816,4 @@ void memwrite() {
 				mm1_shift++;
 		}
 	}
-		*addval = vval;
 }
