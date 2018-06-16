@@ -236,7 +236,7 @@ int main() {
 			} else if (sp_cnt < 0)
 				sp -= sp_cnt;
 
-		/*	fprintf(logfile,"%04X %02X\t\t A:%02X X=%02X Y:%02X P:%02X SP:%02X CYC:%i\n",pc,cpu[pc],a,x,y,flag,sp,ppudot); */
+			fprintf(logfile,"%04X %02X\t\t A:%02X X=%02X Y:%02X P:%02X SP:%02X CYC:%i\n",pc,cpu[pc],a,x,y,flag,sp,ppudot);
 			if (vblank_wait) {
 				vblank_wait = 0;
 				cpu_wait += 7 * 3;
