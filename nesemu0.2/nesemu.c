@@ -75,7 +75,7 @@ int main() {
 /* parse iNES header ppu_vbl_nmi/rom_singles/05-nmi_timing */
 
 	rom = fopen("/home/jonas/eclipse-workspace/"
-			"nrom/dk.nes", "rb");
+			"nestest.nes", "rb");
 	if (rom == NULL) {
 		printf("Error: No such file\n");
 		exit(EXIT_FAILURE);
@@ -139,7 +139,6 @@ int main() {
 	while (quit == 0) {
 		if (ppudot == 341) {
 			scanline++;
-			printf("Scanline is: %i\n",scanline);
 			ppudot = 0;
 		}
 		if (scanline == 262) {
@@ -155,10 +154,12 @@ int main() {
 		if (scanline == 241 && ppudot == 1) {
 			printf("VBLANK at PPU cycle: %i\n",ppucc);
 			isvblank = 1; /* set vblank */
+			printf("VBLANK flag is set\n");
 			vblank_period = 1;
 		} else if (scanline == 261) {
 			if (ppudot == 1) {
 				isvblank = 0; /* clear vblank */
+				printf("VBLANK flag is clear\n");
 				io_handle();
 				render_frame();
 				if (throttle) {

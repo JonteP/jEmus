@@ -642,6 +642,7 @@ void memread() {
 		vval = (isvblank<<7) | (spritezero<<6) | (spriteof<<5) | (ppureg & 0x1f);
 	/*	printf("Reads VBLANK flag at PPU cycle: %i\n",ppucc); */
 		isvblank = 0;
+		printf("VBLANK flag is clear PPU cycle %i\n",ppucc);
 		w = 0;
 		break;
 	case 0x2004:
@@ -691,9 +692,11 @@ void memwrite() {
 		vraminc = ((vval >> 2) & 1) * 31 + 1;
 		nmi_output = ((vval>>7)&1);
 		if (nmi_output)
-			printf("NMI_output set to: %i at PPU cycle: %i\n",nmi_output,ppucc);
-		if (nmi_output == 0)
+			printf("NMI_output is set at PPU cycle: %i\n",ppucc);
+		if (nmi_output == 0) {
+			printf("NMI_output is clear at PPU cycle: %i\n",ppucc);
 			nmi_allow = 1;
+		}
 		/*if (nmi_output && isvblank)
 			vblank_wait = 1; */
 		break;
