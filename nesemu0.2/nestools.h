@@ -1,3 +1,5 @@
+#ifndef NESTOOLS_H_
+#define NESTOOLS_H_
 #include <stdint.h>
 #include <stdlib.h>
 #include "globals.h"
@@ -24,3 +26,5 @@ void soft_reset () {
 	pc = (cpu[rst + 1] << 8) + cpu[rst];
 	bitset(&flag, 1, 2); /* set I flag */
 }
+
+#endif

@@ -1,3 +1,4 @@
+#include "ppu.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -7,18 +8,10 @@
 #include "SDL.h"
 #include "nestools.h"
 
-
-
-#define WWIDTH 1024
-#define WHEIGHT 768
-#define SWIDTH 256
-#define SHEIGHT 240
-#define WPOSX 100
-#define WPOSY 100
-#define FRAMETIME 16667 /*16667*/
-
-static inline void render_frame(), render_line(), io_handle(), draw_nt();
-
+static inline void render_frame(), render_line(), io_handle(), y_scroll();
+uint8_t throttle = 1;
+uint16_t ppudot = 0, scanline = 0;
+uint32_t frame = 0;
 clock_t start, diff;
 SDL_Window *win;
 SDL_Renderer *renderer;
@@ -26,19 +19,25 @@ SDL_Texture *bitmapTex;
 SDL_Surface *bitmapSurface, *nameSurface;
 SDL_Event event;
 SDL_Color colors[64];
-
-uint8_t colarray[] = { 124, 124, 124, 0, 0, 252, 0, 0, 188, 68, 40, 188, 148, 0,
-		132, 168, 0, 32, 168, 16, 0, 136, 20, 0, 80, 48, 0, 0, 120, 0, 0, 104,
-		0, 0, 88, 0, 0, 64, 88, 0, 0, 0, 0, 0, 0, 0, 0, 0, 188, 188, 188, 0,
-		120, 248, 0, 88, 248, 104, 68, 252, 216, 0, 204, 228, 0, 88, 248, 56, 0,
-		228, 92, 16, 172, 124, 0, 0, 184, 0, 0, 168, 0, 0, 168, 68, 0, 136, 136,
-		0, 0, 0, 0, 0, 0, 0, 0, 0, 248, 248, 248, 60, 188, 252, 104, 136, 252,
-		152, 120, 248, 248, 120, 248, 248, 88, 152, 248, 120, 88, 252, 160, 68,
-		248, 184, 0, 184, 248, 24, 88, 216, 84, 88, 248, 152, 0, 232, 216, 120,
-		120, 120, 0, 0, 0, 0, 0, 0, 252, 252, 252, 164, 228, 252, 184, 184, 248,
-		216, 184, 248, 248, 184, 248, 248, 164, 192, 240, 208, 176, 252, 224,
-		168, 248, 216, 120, 216, 248, 120, 184, 248, 184, 184, 248, 216, 0, 252,
-		252, 248, 216, 248, 0, 0, 0, 0, 0, 0 };
+					/*       00      |      01      |      02      |      03      |*/
+					/*  R  | G  | B  | R  | G  | B  | R  | G  | B  | R  | G  | B  |*/
+uint8_t colarray[] = { 124, 124, 124,   0,   0, 252,   0,   0, 188,  68,  40, 188, /* 0x00 */
+					   148,   0, 132, 168,   0,  32, 168,  16,   0, 136,  20,   0, /* 0x04 */
+					    80,  48,   0,   0, 120,   0,   0, 104,   0,   0,  88,   0, /* 0x08 */
+					     0,  64,  88,   0,   0,   0,   0,   0,   0,   0,   0,   0, /* 0x0c */
+					   188, 188, 188,   0, 120, 248,   0,  88, 248, 104,  68, 252, /* 0x10 */
+					   216,   0, 204, 228,   0,  88, 248,  56,   0, 228,  92,  16, /* 0x14 */
+					   172, 124,   0,   0, 184,   0,   0, 168,   0,   0, 168,  68, /* 0x18 */
+					     0, 136, 136,   0,   0,   0,   0,   0,   0,   0,   0,   0, /* 0x1c */
+					   248, 248, 248,  60, 188, 252, 104, 136, 252, 152, 120, 248, /* 0x20 */
+					   248, 120, 248, 248,  88, 152, 248, 120,  88, 252, 160,  68, /* 0x24 */
+					   248, 184,   0, 184, 248,  24,  88, 216,  84,  88, 248, 152, /* 0x28 */
+					     0, 232, 216, 120, 120, 120,   0,   0,   0,   0,   0,   0, /* 0x2c */
+					   252, 252, 252, 164, 228, 252, 184, 184, 248, 216, 184, 248, /* 0x30 */
+					   248, 184, 248, 248, 164, 192, 240, 208, 176, 252, 224, 168, /* 0x34 */
+					   248, 216, 120, 216, 248, 120, 184, 248, 184, 184, 248, 216, /* 0x38 */
+					     0, 252, 252, 248, 216, 248,   0,   0,   0,   0,   0,   0  /* 0x3c */
+					};
 
 void init_time () {
 	start = clock();
@@ -56,11 +55,15 @@ void run_ppu (uint16_t ntimes) {
 		if (frame%2 && (cpu[0x2001] & 0x18))
 			ppudot++;
 	}
+
+/* VBLANK ONSET */
 	if (scanline == 241 && ppudot == 1) {
 		isvblank = 1; /* set vblank */
 		vblank_period = 1;
+
+/* PRERENDER SCANLINE */
 	} else if (scanline == 261) {
-		if (ppudot == 2) { /* TODO: incorrect */
+		if (ppudot == 1) { /* TODO: incorrect */
 			isvblank = 0; /* clear vblank */
 			io_handle();
 			render_frame();
@@ -70,64 +73,61 @@ void run_ppu (uint16_t ntimes) {
 				start = clock();
 			}
 			spritezero = 0;
+			nmi_allow = 1;
+			vblank_period = 0;
 		}
-		if ((cpu[0x2001] & 0x18) && ppudot == 256) {
-			/* dot 256 (y scroll) */
-					if ((namev & 0x7000) != 0x7000)
-						namev += 0x1000;
-					else {
-						namev &= ~0x7000;
-						uint8_t coarsey = ((namev & 0x3e0) >> 5);
-						if (coarsey == 29) {
-							coarsey = 0;
-							namev ^= 0x0800;
-					  } else if (coarsey == 31)
-							coarsey = 0;
-						 else
-							coarsey++;
-							namev = (namev & ~0x03e0) | (coarsey << 5);
-					}
+		if (cpu[0x2001] & 0x18) {
+			if (ppudot == 256) {
+				y_scroll();
+		  } else if (ppudot >= 257 && ppudot <= 320) {
+			  /* (reset OAM) */
+			  oamaddr = 0; /* only if rendering active? */
+			  if (ppudot == 257)
+				  namev = (namev & 0xfbe0) | (namet & 0x41f); /* reset x scroll */
+			  else if (ppudot >= 280 && ppudot <= 304)
+				  namev = (namev & 0x841f) | (namet & 0x7be0); /* reset Y scroll */
+		  }
 		}
-		if ((cpu[0x2001] & 0x18) && ppudot == 257)
-			namev = (namev & 0xfbe0) | (namet & 0x41f); /* reset x scroll */
-		if ((cpu[0x2001] & 0x18) && ppudot >= 280 && ppudot <= 304)
-			namev = (namev & 0x841f) | (namet & 0x7be0); /* reset Y scroll */
-		if ((cpu[0x2001] & 0x18) && ppudot >= 257 && ppudot <= 320)
-			/* (reset OAM) */
-			oamaddr = 0; /* only if rendering active? */
-		nmi_allow = 1;
-		vblank_period = 0;
+
+/* RESET CLOCK COUNTER HERE... */
 	} else if (scanline == 240 && ppudot == 0) {
 		ppucc = 0;
-	} else if (scanline < 240) {
-		if ((cpu[0x2001] & 0x18) && ppudot == 256) {
+
+/* RENDERED LINES */
+	} else if ((scanline < 240) && (cpu[0x2001] & 0x18)) {
+		if (ppudot == 256) {
 			render_line();
-			/* dot 256 (y scroll) */
-					if ((namev & 0x7000) != 0x7000)
-						namev += 0x1000;
-					else {
-						namev &= ~0x7000;
-						uint8_t coarsey = ((namev & 0x3e0) >> 5);
-						if (coarsey == 29) {
-							coarsey = 0;
-							namev ^= 0x0800;
-					  } else if (coarsey == 31)
-							coarsey = 0;
-						 else
-							coarsey++;
-							namev = (namev & ~0x03e0) | (coarsey << 5);
-					}
-	   } if ((cpu[0x2001] & 0x18) && ppudot == 257)
-			/* (x position) */
-			namev = (namev & 0xfbe0) | (namet & 0x41f); /* only if rendering enabled */
-		 if ((cpu[0x2001] & 0x18) && ppudot >= 257 && ppudot <= 320)
-					/* (reset OAM) */
-					oamaddr = 0; /* only if rendering active? */
+			y_scroll();
+		} else if (ppudot >= 257 && ppudot <= 320) {
+			/* (reset OAM) */
+			if (ppudot == 257)
+				/* (x position) */
+				namev = (namev & 0xfbe0) | (namet & 0x41f); /* only if rendering enabled */
+			oamaddr = 0; /* only if rendering active? */
+		}
 	}
+
 	cpu_wait--;
 	ntimes--;
 	ppudot++;
 	ppucc++;
+	}
+}
+
+void y_scroll() {
+	if ((namev & 0x7000) != 0x7000)
+		namev += 0x1000;
+	else {
+		namev &= ~0x7000;
+		uint8_t coarsey = ((namev & 0x3e0) >> 5);
+		if (coarsey == 29) {
+			coarsey = 0;
+			namev ^= 0x0800;
+	  } else if (coarsey == 31)
+			coarsey = 0;
+	    else
+			coarsey++;
+			namev = (namev & ~0x03e0) | (coarsey << 5);
 	}
 }
 
@@ -171,8 +171,8 @@ void render_frame() {
 }
 
 void render_line() {
-uint8_t	nsprites = 0;
-uint8_t pmap[SWIDTH] = {0};
+uint8_t	nsprites = 0, *objsrc, spritebuff[8], *tiledest, *tilesrc, *ntilesrc, npal, nnpal, attsrc, nattsrc;
+uint8_t pmap[SWIDTH] = {0}, *palette = &vram[0x3f00];
 uint8_t blank_line[SWIDTH] = {palette[0]};
 /* fill sprite buffer */
 	if (cpu[0x2001] & 0x10) {
@@ -239,7 +239,7 @@ uint8_t blank_line[SWIDTH] = {palette[0]};
 			npal = (objsrc[2] & 3) + 4;
 			for (int pcol = 0; pcol < 8; pcol++) {
 				if ( (objsrc[3]+pcol) > 7 * (1-( (cpu[0x2001]>>2)&1) ) ) { /* check if outside left column mask */
-					p = ((((tilesrc[ (yoff&7) + flipy * (7 - 2 * (yoff&7))]
+					uint8_t p = ((((tilesrc[ (yoff&7) + flipy * (7 - 2 * (yoff&7))]
 						>>  (7 - pcol - flipx * (7 - 2 * pcol))) & 1) ? 1 : 0)
 				   + (((tilesrc[((yoff&7) + flipy * (7 - 2 * (yoff&7))) + 8]
 								>> (7 - pcol - flipx * (7 - 2 * pcol))) & 1) ? 2 : 0));
@@ -389,9 +389,9 @@ void io_handle() {
 	}
 }
 
-
+/*
 static inline void draw_nt() {
-	/* render background */
+	 render background
 
 		for (int ntable = 0; ntable < 4; ntable++) {
 
@@ -406,7 +406,7 @@ static inline void draw_nt() {
 					npal = (attsrc >> (((ncol % 4) - (ncol % 2))
 									+ (((nrow % 4) - (nrow % 2)) * 2))) & 3;
 					for (int rr = 0; rr < 8; rr++) {
-		/* TODO: AND palette with 0x30 in greyscale mode */
+		 TODO: AND palette with 0x30 in greyscale mode
 						tiledest[SWIDTH*2 * rr] = palette[npal * 4
 								+ (((tilesrc[rr] & 0x80) ? 1 : 0)
 										+ ((tilesrc[rr + 8] & 0x80) ? 2 : 0))];
@@ -447,3 +447,4 @@ static inline void draw_nt() {
 		SDL_LockSurface(bitmapSurface);
 
 }
+*/

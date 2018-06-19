@@ -1,9 +1,13 @@
+#include "6502.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>	/* memcpy */
 #include "globals.h"
 #include "nestools.h"
+#include "ppu.h"
+
+extern void opdecode(uint8_t);
 
 						 /* 0 |1 |2 |3 |4 |5 |6 |7 |8 |9 |a |b |c |d |e |f */
 static uint8_t ctable[] = { 7, 6, 0, 0, 3, 3, 5, 0, 3, 2, 2, 0, 4, 4, 6, 0,/* 0 */
@@ -34,7 +38,9 @@ static inline void adc(), and(), asl(), branch(), bit(), brkop(), clc(), cld(),
 		sed(), sei(), sta(), stx(), sty(), tax(), tay(), tsx(), txa(), txs(),
 		tya(), none();
 
-uint8_t mode, opcode, addmode, addcycle;
+uint8_t mm1_shift = 0, mm1_buff, wram, prg_bank, chr_bank, prg_size, chr_size; /* mapper 1 */
+uint8_t mode, opcode, addmode, addcycle, *addval, tmpval8, vbuff = 0, s = 0, vraminc, ppureg = 0, w = 0;
+uint16_t addr, tmpval16;
 
 int test = 0;
 
@@ -230,17 +236,17 @@ void absy() {
 }
 
 void indx() {
-	vval = cpu[pc++];
-	addr = cpu[((vval+x) & 0xff)];
-	addr += cpu[((vval+x+1) & 0xff)] << 8;
+	tmpval8 = cpu[pc++];
+	addr = cpu[((tmpval8+x) & 0xff)];
+	addr += cpu[((tmpval8+x+1) & 0xff)] << 8;
 	mirror();
 	addval = &cpu[addr];
 }
 
 void indy() {
-	vval = cpu[pc++];
-	addr = cpu[vval++];
-	addr += cpu[(vval & 0xff)] << 8;
+	tmpval8 = cpu[pc++];
+	addr = cpu[tmpval8++];
+	addr += cpu[(tmpval8 & 0xff)] << 8;
 	addr = ((addr + y) & 0xffff);
 	if ((addr & 0xff) < y) {
 		addcycle = 1;
@@ -255,10 +261,10 @@ void adc() {
 	cpucc += addcycle;
 	run_ppu(cpu_wait);
 	memread();
-	tmp = a + vval + (flag & 1);
-	bitset(&flag, (a ^ tmp) & (vval ^ tmp) & 0x80, 6);
-	bitset(&flag, tmp > 0xff, 0);
-	a = tmp;
+	tmpval16 = a + tmpval8 + (flag & 1);
+	bitset(&flag, (a ^ tmpval16) & (tmpval8 ^ tmpval16) & 0x80, 6);
+	bitset(&flag, tmpval16 > 0xff, 0);
+	a = tmpval16;
 	bitset(&flag, a == 0, 1);
 	bitset(&flag, a >= 0x80, 7);
 }
@@ -268,7 +274,7 @@ void and() {
 	cpucc += addcycle;
 	run_ppu(cpu_wait);
 	memread();
-	a &= vval;
+	a &= tmpval8;
 	bitset(&flag, a == 0, 1);
 	bitset(&flag, a >= 0x80, 7);
 }
@@ -276,18 +282,18 @@ void and() {
 void asl() {
 	run_ppu(cpu_wait);
 	bitset(&flag, *addval & 0x80, 0);
-	vval = *addval << 1;
-	bitset(&flag, vval == 0, 1);
-	bitset(&flag, vval >= 0x80, 7);
+	tmpval8 = *addval << 1;
+	bitset(&flag, tmpval8 == 0, 1);
+	bitset(&flag, tmpval8 >= 0x80, 7);
 	memwrite();
 }
 
 void bit() {
 	run_ppu(cpu_wait);
 	memread();
-	bitset(&flag, !(a & vval), 1);
-	bitset(&flag, vval & 0x80, 7);
-	bitset(&flag, vval & 0x40, 6);
+	bitset(&flag, !(a & tmpval8), 1);
+	bitset(&flag, tmpval8 & 0x80, 7);
+	bitset(&flag, tmpval8 & 0x40, 6);
 }
 
 void branch() {
@@ -332,32 +338,32 @@ void cmp() {
 	cpucc += addcycle;
 	run_ppu(cpu_wait);
 	memread();
-	bitset(&flag, (a - vval) & 0x80, 7);
-	bitset(&flag, a == vval, 1);
-	bitset(&flag, a >= vval, 0);
+	bitset(&flag, (a - tmpval8) & 0x80, 7);
+	bitset(&flag, a == tmpval8, 1);
+	bitset(&flag, a >= tmpval8, 0);
 }
 
 void cpx() {
 	run_ppu(cpu_wait);
 	memread();
-	bitset(&flag, (x - vval) & 0x80, 7);
-	bitset(&flag, x == vval, 1);
-	bitset(&flag, x >= vval, 0);
+	bitset(&flag, (x - tmpval8) & 0x80, 7);
+	bitset(&flag, x == tmpval8, 1);
+	bitset(&flag, x >= tmpval8, 0);
 }
 
 void cpy() {
 	run_ppu(cpu_wait);
 	memread();
-	bitset(&flag, (y - vval) & 0x80, 7);
-	bitset(&flag, y == vval, 1);
-	bitset(&flag, y >= vval, 0);
+	bitset(&flag, (y - tmpval8) & 0x80, 7);
+	bitset(&flag, y == tmpval8, 1);
+	bitset(&flag, y >= tmpval8, 0);
 }
 
 void dec() {
 	run_ppu(cpu_wait);
-	vval = *addval-1;
-	bitset(&flag, vval == 0, 1);
-	bitset(&flag, vval >= 0x80, 7);
+	tmpval8 = *addval-1;
+	bitset(&flag, tmpval8 == 0, 1);
+	bitset(&flag, tmpval8 >= 0x80, 7);
 	memwrite();
 }
 
@@ -378,16 +384,16 @@ void eor() {
 	cpucc += addcycle;
 	run_ppu(cpu_wait);
 	memread();
-	a ^= vval;
+	a ^= tmpval8;
 	bitset(&flag, a == 0, 1);
 	bitset(&flag, a >= 0x80, 7);
 }
 
 void inc() {
 	run_ppu(cpu_wait);
-	vval = *addval + 1;
-	bitset(&flag, vval == 0, 1);
-	bitset(&flag, vval >= 0x80, 7);
+	tmpval8 = *addval + 1;
+	bitset(&flag, tmpval8 == 0, 1);
+	bitset(&flag, tmpval8 >= 0x80, 7);
 	memwrite();
 }
 
@@ -410,10 +416,10 @@ void jmpa() {
 }
 
 void jmpi() {
-	vval = cpu[pc++];
-	tmp = (cpu[pc] << 8);
-	addr = cpu[tmp | vval];
-	addr += cpu[tmp | ((vval+1) & 0xff)] << 8;
+	tmpval8 = cpu[pc++];
+	tmpval16 = (cpu[pc] << 8);
+	addr = cpu[tmpval16 | tmpval8];
+	addr += cpu[tmpval16 | ((tmpval8+1) & 0xff)] << 8;
 	pc = addr;
 }
 
@@ -430,7 +436,7 @@ void lda() {
 	cpucc += addcycle;
 	run_ppu(cpu_wait);
 	memread();
-	a = vval;
+	a = tmpval8;
 	bitset(&flag, a == 0, 1);
 	bitset(&flag, a >= 0x80, 7);
 }
@@ -440,7 +446,7 @@ void ldx() {
 	cpucc += addcycle;
 	run_ppu(cpu_wait);
 	memread();
-	x = vval;
+	x = tmpval8;
 	bitset(&flag, x == 0, 1);
 	bitset(&flag, x >= 0x80, 7);
 }
@@ -450,7 +456,7 @@ void ldy() {
 	cpucc += addcycle;
 	run_ppu(cpu_wait);
 	memread();
-	y = vval;
+	y = tmpval8;
 	bitset(&flag, y == 0, 1);
 	bitset(&flag, y >= 0x80, 7);
 }
@@ -458,9 +464,9 @@ void ldy() {
 void lsr() {
 	run_ppu(cpu_wait);
 	bitset(&flag, *addval & 1, 0);
-	vval = *addval >> 1;
-	bitset(&flag, vval == 0, 1);
-	bitset(&flag, vval >= 0x80, 7);
+	tmpval8 = *addval >> 1;
+	bitset(&flag, tmpval8 == 0, 1);
+	bitset(&flag, tmpval8 >= 0x80, 7);
 	memwrite();
 }
 
@@ -469,7 +475,7 @@ void ora() {
 	cpucc += addcycle;
 	run_ppu(cpu_wait);
 	memread();
-	a |= vval;
+	a |= tmpval8;
 	bitset(&flag, a == 0, 1);
 	bitset(&flag, a >= 0x80, 7);
 }
@@ -485,8 +491,8 @@ void php() {
 void pla() {
 	sp++;
 	a = cpu[sp];
-	bitset(&flagbuff, a == 0, 1);
-	bitset(&flagbuff, a >= 0x80, 7);
+	bitset(&flag, a == 0, 1);
+	bitset(&flag, a >= 0x80, 7);
 }
 
 void plp() {
@@ -498,21 +504,21 @@ void plp() {
 
 void rol() {
 	run_ppu(cpu_wait);
-	vval = *addval << 1;
-	bitset(&vval, flag & 1, 0);
+	tmpval8 = *addval << 1;
+	bitset(&tmpval8, flag & 1, 0);
 	bitset(&flag, *addval & 0x80, 0);
-	bitset(&flag, vval == 0, 1);
-	bitset(&flag, vval >= 0x80, 7);
+	bitset(&flag, tmpval8 == 0, 1);
+	bitset(&flag, tmpval8 >= 0x80, 7);
 	memwrite();
 }
 
 void ror() {
 	run_ppu(cpu_wait);
-	vval = *addval >> 1;
-	bitset(&vval, flag & 1, 7);
+	tmpval8 = *addval >> 1;
+	bitset(&tmpval8, flag & 1, 7);
 	bitset(&flag, *addval & 1, 0);
-	bitset(&flag, vval == 0, 1);
-	bitset(&flag, vval >= 0x80, 7);
+	bitset(&flag, tmpval8 == 0, 1);
+	bitset(&flag, tmpval8 >= 0x80, 7);
 	memwrite();
 }
 
@@ -520,7 +526,7 @@ void rti() {
 	sp++;
 	flag = cpu[sp++];
 	bitset(&flag, 1, 5); /* bit 5 always set */
-/*	bitset(&flagbuff, 0, 4);  b flag should be discarded */
+/*	bitset(&flag, 0, 4);  b flag should be discarded */
 	pc = cpu[sp++];
 	pc += (cpu[sp] << 8);
 }
@@ -537,10 +543,10 @@ void sbc() {
 	cpucc += addcycle;
 	run_ppu(cpu_wait);
 	memread();
-	tmp = a + (vval ^ 0xff) + (flag & 1);
-	bitset(&flag, (a ^ tmp) & (vval ^ a) & 0x80, 6);
-	bitset(&flag, tmp > 0xff, 0);
-	a = tmp;
+	tmpval16 = a + (tmpval8 ^ 0xff) + (flag & 1);
+	bitset(&flag, (a ^ tmpval16) & (tmpval8 ^ a) & 0x80, 6);
+	bitset(&flag, tmpval16 > 0xff, 0);
+	a = tmpval16;
 	bitset(&flag, a == 0, 1);
 	bitset(&flag, a >= 0x80, 7);
 }
@@ -558,17 +564,17 @@ void sei() {
 }
 
 void sta() {
-	vval = a;
+	tmpval8 = a;
 	memwrite();
 }
 
 void stx() {
-	vval = x;
+	tmpval8 = x;
 	memwrite();
 }
 
 void sty() {
-	vval = y;
+	tmpval8 = y;
 	memwrite();
 }
 
@@ -611,12 +617,12 @@ void none() {
 							}
 
 void memread() {
-	vval = *addval;
+	tmpval8 = *addval;
 	switch (addr) {
 	case 0x2002:
-		if (ppucc == 343) /* suppress if read and set at same time (+1 cycle for cpu timing) */
+		if (ppucc == 342) /* suppress if read and set at same time (+1 cycle for cpu timing??) */
 			isvblank = 0;
-		vval = (isvblank<<7) | (spritezero<<6) | (spriteof<<5) | (ppureg & 0x1f);
+		tmpval8 = (isvblank<<7) | (spritezero<<6) | (spriteof<<5) | (ppureg & 0x1f);
 	/*	printf("Reads VBLANK flag at PPU cycle: %i\n",ppucc); */
 		isvblank = 0;
 	/* 	printf("VBLANK flag is clear PPU cycle %i\n",ppucc);*/
@@ -624,13 +630,13 @@ void memread() {
 		break;
 	case 0x2004:
 		/* TODO: read during rendering */
-		vval = oam[oamaddr];
+		tmpval8 = oam[oamaddr];
 		break;
 	case 0x2007:
 		if ((namev) < 0x3f00) {
 			if ((namev) >= 0x2000)
 				mirrmode ? (namev = (namev & 0xf7ff)) :	(namev = (namev & 0xfbff));
-			vval = vbuff;
+			tmpval8 = vbuff;
 			vbuff = vram[namev];
 		}
 		/* TODO: buffer update when reading palette */
@@ -638,17 +644,17 @@ void memread() {
 			namev = (namev & 0xff1f);
 			if (namev==0x3f10)
 				namev=0x3f00;
-			vval = vram[namev];
+			tmpval8 = vram[namev];
 		}
 		namev += vraminc;
 		break;
 	case 0x4016:
-		vval = ((ctr1 >> ctrb) & 1);
+		tmpval8 = ((ctr1 >> ctrb) & 1);
 		if (s == 0)
 			ctrb++;
 		break;
 	case 0x4017:
-		vval = ((ctr2 >> ctrb2) & 1);
+		tmpval8 = ((ctr2 >> ctrb2) & 1);
 		if (s == 0)
 			ctrb2++;
 		break;
@@ -656,19 +662,19 @@ void memread() {
 }
 
 void memwrite() {
-	*addval = vval;
+	*addval = tmpval8;
 	switch (addr) {
 	case 0x2000:
-		ppureg = vval;
+		ppureg = tmpval8;
 		namet &= 0xf3ff;
-		namet |= ((vval & 3)<<10);
-		bpattern = &vram[((vval >> 4) & 1)	* 0x1000];
-		if (!(vval & 0x20))
-			spattern = &vram[((vval >> 3) & 1)	* 0x1000];
+		namet |= ((tmpval8 & 3)<<10);
+		bpattern = &vram[((tmpval8 >> 4) & 1)	* 0x1000];
+		if (!(tmpval8 & 0x20))
+			spattern = &vram[((tmpval8 >> 3) & 1)	* 0x1000];
 		else
 			spattern = &vram[0];
-		vraminc = ((vval >> 2) & 1) * 31 + 1;
-		nmi_output = ((vval>>7)&1);
+		vraminc = ((tmpval8 >> 2) & 1) * 31 + 1;
+		nmi_output = ((tmpval8>>7)&1);
 		if (nmi_output && isvblank)
 			vblank_wait = 1;
 		if (nmi_output == 0) {
@@ -676,52 +682,52 @@ void memwrite() {
 		}
 		break;
 	case 0x2001:
-		ppureg = vval;
+		ppureg = tmpval8;
 		break;
 	case 0x2002:
-		vval = *addval; /* prevent writing to */
+		tmpval8 = *addval; /* prevent writing to */
 		break;
 	case 0x2003:
-		ppureg = vval;
-		oamaddr = vval;
+		ppureg = tmpval8;
+		oamaddr = tmpval8;
 		break;
 	case 0x2004:
-		ppureg = vval;
+		ppureg = tmpval8;
 		/* TODO: writing during rendering */
 		if (vblank_period) {
-			oam[oamaddr] = vval;
+			oam[oamaddr] = tmpval8;
 			oamaddr++;
 		}
 		break;
 	case 0x2005:
-		ppureg = vval;
+		ppureg = tmpval8;
 		if (w == 0) {
 			namet &= 0xffe0;
-			namet |= ((vval & 0xf8)>>3); /* coarse X scroll */
-			scrollx = (vval & 0x07); /* fine X scroll  */
+			namet |= ((tmpval8 & 0xf8)>>3); /* coarse X scroll */
+			scrollx = (tmpval8 & 0x07); /* fine X scroll  */
 			w = 1;
 		} else if (w == 1) {
 			namet &= 0x8c1f;
-			namet |= ((vval & 0xf8)<<2); /* coarse Y scroll */
-			namet |= ((vval & 0x07)<<12); /* fine Y scroll */
+			namet |= ((tmpval8 & 0xf8)<<2); /* coarse Y scroll */
+			namet |= ((tmpval8 & 0x07)<<12); /* fine Y scroll */
 			w = 0;
 		}
 		break;
 	case 0x2006:
-		ppureg = vval;
+		ppureg = tmpval8;
 		if (w == 0) {
 			namet &= 0x80ff;
-			namet |= ((vval & 0x3f) << 8);
+			namet |= ((tmpval8 & 0x3f) << 8);
 			w = 1;
 		} else if (w == 1) {
 			namet &= 0xff00;
-			namet |= vval;
+			namet |= tmpval8;
 			namev = namet;
 			w = 0;
 		}
 		break;
 	case 0x2007:
-		ppureg = vval;
+		ppureg = tmpval8;
 		if (namev >= 0x2000) {
 			if ((namev) < 0x3f00)
 				mirrmode ? (namev = (namev & 0xf7ff)) :	(namev = (namev & 0xfbff));
@@ -729,19 +735,19 @@ void memwrite() {
 			 	namev = (namev & 0x3f1f);
 			}
 			if (namev==0x3f10) /* TODO: complete mirroring behavior */
-				vram[0x3f00] = vval;
+				vram[0x3f00] = tmpval8;
 			else
-				vram[namev] = vval;
+				vram[namev] = tmpval8;
 		}
 				namev += vraminc;
 		break;
 	case 0x4014:
-		ppureg = vval;
-		tmp = ((vval << 8) & 0xff00);
+		ppureg = tmpval8;
+		tmpval16 = ((tmpval8 << 8) & 0xff00);
 		for (int i = 0; i < 256; i++) {
 			if (oamaddr > 255)
 				oamaddr = 0;
-			oam[oamaddr] = cpu[tmp++];
+			oam[oamaddr] = cpu[tmpval16++];
 			oamaddr++;
 		}
 		if (cpucc%2) {
@@ -752,8 +758,8 @@ void memwrite() {
 		cpucc += 513;
 		break;
 	case 0x4016:
-		ppureg = vval;
-		s = (vval & 1);
+		ppureg = tmpval8;
+		s = (tmpval8 & 1);
 		if (s == 1) {
 			ctrb = 0;
 			ctrb2 = 0;
@@ -761,11 +767,11 @@ void memwrite() {
 		break;
 	}
 	if (addr >= 0x8000 && mapper == 1) {
-		if (vval & 0x80) {
+		if (tmpval8 & 0x80) {
 			mm1_shift = 0;
 			mm1_buff = 0;
 		} else {
-			mm1_buff = (mm1_buff & ~(1<<mm1_shift)) | ((vval & 1)<<mm1_shift);
+			mm1_buff = (mm1_buff & ~(1<<mm1_shift)) | ((tmpval8 & 1)<<mm1_shift);
 			if (mm1_shift == 4) {
 				switch ((addr>>13) & 3) {
 				case 0: /* Control register */
