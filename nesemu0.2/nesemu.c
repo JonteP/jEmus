@@ -16,16 +16,16 @@ const uint16_t block = 0x2000;
 
 int psize, csize;
 
-uint8_t oamaddr, mirrmode, isnmi, mapper;
-uint8_t vblank_period = 0, isvblank = 0, spritezero = 0,
-		quit = 0, ctrb = 0, ctrb2 = 0, ctr1 = 0, ctr2 = 0, nmi_allow = 1, nmi_output = 0,
-		a = 0x00, x = 0x00, y = 0x00, vblank_wait = 0;
+uint8_t oamaddr, mirrmode, nmiVblankTriggered, mapper;
+uint8_t vblank_period = 0, ppuStatus_nmiOccurred = 0, spritezero = 0,
+		quit = 0, ctrb = 0, ctrb2 = 0, ctr1 = 0, ctr2 = 0, nmiAlreadyDone = 0, nmi_output = 0,
+		a = 0x00, x = 0x00, y = 0x00, nmiDelayed = 0;
 uint8_t header[0x10], oam[0x100] = { 0 }, vram[0x4000] = { 0 }, flag = 0x34,
 		cpu[0x10000] = { 0 }, spriteof = 0;
 uint8_t *prg, *chr, *bpattern = &vram[0], *spattern = &vram[0x1000];
 uint16_t pc, namet, namev, scrollx = 0, cpu_wait = 0, nmi_wait = 0;
 uint16_t nmi = 0xfffa, rst = 0xfffc, irq = 0xfffe, sp = 0x1fd;
-uint32_t ppucc = 0, cpucc = 0;
+int32_t cpucc = 0;
 
 FILE *rom, *logfile;
 
@@ -33,7 +33,7 @@ int main() {
 /* parse iNES header ppu_vbl_nmi/rom_singles/05-nmi_timing */
 
 	rom = fopen("/home/jonas/eclipse-workspace/"
-			"nrom/burger.nes", "rb");
+			"ppu_vbl_nmi/rom_singles/08-nmi_off_timing.nes", "rb");
 	if (rom == NULL) {
 		printf("Error: No such file\n");
 		exit(EXIT_FAILURE);
@@ -82,21 +82,21 @@ int main() {
 	init_time();
 
 	while (quit == 0) {
-
 		/*	fprintf(logfile,"%04X %02X\t\t A:%02X X=%02X Y:%02X P:%02X SP:%02X CYC:%i\n",pc,cpu[pc],a,x,y,flag,sp,ppudot); */
-			if (vblank_wait) {
-				vblank_wait = 0;
+			if (nmiDelayed) {
+				nmiDelayed = 0;
 			}
+			run_ppu(cpu_wait);
 			opdecode(cpu[pc++]);
 			if (sp<0x100 || sp>0x1ff)
 				printf("Error: Stack pointer\n");
-			run_ppu(cpu_wait);
 			/* Interrupt handling */
-			if (nmi_output && isvblank && nmi_allow && !vblank_wait) {
-				cpu_wait += 7 * 3;
-				run_ppu(cpu_wait);
+			if (nmi_output && nmiIsTriggered && !nmiAlreadyDone && !nmiDelayed) {
+				cpu_wait += (7 * 3);
 				donmi();
-				nmi_allow = 0;
+				/*run_ppu(cpu_wait); */
+				nmiAlreadyDone = 1;
+				nmiIsTriggered = 0;
 			}
 
 	}

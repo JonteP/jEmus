@@ -9,9 +9,10 @@
 #include "nestools.h"
 
 static inline void render_frame(), render_line(), io_handle(), y_scroll();
-uint8_t throttle = 1;
-uint16_t ppudot = 0, scanline = 0;
+uint8_t throttle = 1, nmiIsTriggered = 0, vblankSuppressed = 0;
+int16_t ppudot = -1, scanline = 0;
 uint32_t frame = 0;
+int32_t ppucc = -1;
 clock_t start, diff;
 SDL_Window *win;
 SDL_Renderer *renderer;
@@ -44,8 +45,12 @@ void init_time () {
 }
 
 void run_ppu (uint16_t ntimes) {
+
 	while (ntimes) {
-	if (ppudot == 341) {
+		ppudot++;
+		ppucc++;
+
+		if (ppudot == 341) {
 		scanline++;
 		ppudot = 0;
 	}
@@ -58,13 +63,19 @@ void run_ppu (uint16_t ntimes) {
 
 /* VBLANK ONSET */
 	if (scanline == 241 && ppudot == 1) {
-		isvblank = 1; /* set vblank */
+		if (!vblankSuppressed) {
+			ppuStatus_nmiOccurred = 1; /* set vblank */
+			if (nmi_output)
+				nmiIsTriggered = 1;
+		}
 		vblank_period = 1;
 
 /* PRERENDER SCANLINE */
 	} else if (scanline == 261) {
 		if (ppudot == 1) { /* TODO: incorrect */
-			isvblank = 0; /* clear vblank */
+			ppuStatus_nmiOccurred = 0; /* clear vblank */
+			nmiIsTriggered = 0;
+			vblankSuppressed = 0;
 			io_handle();
 			render_frame();
 			if (throttle) {
@@ -73,7 +84,7 @@ void run_ppu (uint16_t ntimes) {
 				start = clock();
 			}
 			spritezero = 0;
-			nmi_allow = 1;
+			nmiAlreadyDone = 0;
 			vblank_period = 0;
 		}
 		if (cpu[0x2001] & 0x18) {
@@ -94,11 +105,12 @@ void run_ppu (uint16_t ntimes) {
 		ppucc = 0;
 
 /* RENDERED LINES */
-	} else if ((scanline < 240) && (cpu[0x2001] & 0x18)) {
+	} else if (scanline < 240) {
 		if (ppudot == 256) {
 			render_line();
-			y_scroll();
-		} else if (ppudot >= 257 && ppudot <= 320) {
+			if (cpu[0x2001] & 0x18)
+				y_scroll();
+		} else if (ppudot >= 257 && ppudot <= 320  && (cpu[0x2001] & 0x18)) {
 			/* (reset OAM) */
 			if (ppudot == 257)
 				/* (x position) */
@@ -109,8 +121,6 @@ void run_ppu (uint16_t ntimes) {
 
 	cpu_wait--;
 	ntimes--;
-	ppudot++;
-	ppucc++;
 	}
 }
 
@@ -173,7 +183,6 @@ void render_frame() {
 void render_line() {
 uint8_t	nsprites = 0, *objsrc, spritebuff[8], *tiledest, *tilesrc, *ntilesrc, npal, nnpal, attsrc, nattsrc;
 uint8_t pmap[SWIDTH] = {0}, *palette = &vram[0x3f00];
-uint8_t blank_line[SWIDTH] = {palette[0]};
 /* fill sprite buffer */
 	if (cpu[0x2001] & 0x10) {
 		for (uint8_t i = (oamaddr>>2); i < 64; i++) {
@@ -224,8 +233,13 @@ uint8_t blank_line[SWIDTH] = {palette[0]};
 				}
 		}
 
-	} else
-		memcpy(&tiledest[0], &blank_line[0], SWIDTH);
+	} else {
+	/*memcpy(&tiledest[0], &blank_line[0], SWIDTH); */
+		for (int i=0;i<SWIDTH;i++) {
+			tiledest[i] = palette[0];
+		}
+	}
+
 
 /* render sprites */
 	if (cpu[0x2001] & 0x10) {

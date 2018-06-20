@@ -313,7 +313,7 @@ void branch() {
 /* TODO */
 void brkop() { /* does not care about the I flag */
 	pc++;
-	isnmi = 0;
+	nmiVblankTriggered = 0;
 	donmi();
 }
 
@@ -620,11 +620,15 @@ void memread() {
 	tmpval8 = *addval;
 	switch (addr) {
 	case 0x2002:
-		if (ppucc == 342) /* suppress if read and set at same time (+1 cycle for cpu timing??) */
-			isvblank = 0;
-		tmpval8 = (isvblank<<7) | (spritezero<<6) | (spriteof<<5) | (ppureg & 0x1f);
-	/*	printf("Reads VBLANK flag at PPU cycle: %i\n",ppucc); */
-		isvblank = 0;
+		if (ppucc == 342 || ppucc == 343) {/* suppress if read and set at same time */
+			nmiIsTriggered = 0;
+		} else if (ppucc == 341) {
+			ppuStatus_nmiOccurred = 0;
+			vblankSuppressed = 1;
+		}
+		tmpval8 = (ppuStatus_nmiOccurred<<7) | (spritezero<<6) | (spriteof<<5) | (ppureg & 0x1f);
+		/*printf("Reads VBLANK flag at PPU cycle: %i\n",ppucc); */
+		ppuStatus_nmiOccurred = 0;
 	/* 	printf("VBLANK flag is clear PPU cycle %i\n",ppucc);*/
 		w = 0;
 		break;
@@ -675,10 +679,12 @@ void memwrite() {
 			spattern = &vram[0];
 		vraminc = ((tmpval8 >> 2) & 1) * 31 + 1;
 		nmi_output = ((tmpval8>>7)&1);
-		if (nmi_output && isvblank)
-			vblank_wait = 1;
+		if (nmi_output && ppuStatus_nmiOccurred) {
+			nmiDelayed = 1;
+			nmiIsTriggered = 1;
+		}
 		if (nmi_output == 0) {
-			nmi_allow = 1;
+			nmiAlreadyDone = 0;
 		}
 		break;
 	case 0x2001:

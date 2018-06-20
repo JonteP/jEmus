@@ -2,16 +2,18 @@
 #define PPU_H_
 #include <stdint.h>
 
-#define WWIDTH 320
-#define WHEIGHT 240
+#define WWIDTH 1024
+#define WHEIGHT 768
 #define SWIDTH 256
 #define SHEIGHT 240
 #define WPOSX 100
 #define WPOSY 100
 #define FRAMETIME 16667
 
-extern inline void init_graphs(int, int, int, int, int, int), init_time();
-extern inline void run_ppu(uint16_t), kill_graphs();
+extern inline void init_graphs(int, int, int, int, int, int), init_time(void);
+extern inline void run_ppu(uint16_t), kill_graphs(void);
+
+uint8_t nmiIsTriggered, vblankSuppressed;
 
 #endif
 
