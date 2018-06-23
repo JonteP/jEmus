@@ -30,10 +30,9 @@ int32_t cpucc = 0;
 FILE *rom, *logfile;
 
 int main() {
-/* parse iNES header ppu_vbl_nmi/rom_singles/05-nmi_timing */
 
 	rom = fopen("/home/jonas/eclipse-workspace/"
-			"ppu_vbl_nmi/rom_singles/08-nmi_off_timing.nes", "rb");
+			"mmc1/icarus.nes", "rb");
 	if (rom == NULL) {
 		printf("Error: No such file\n");
 		exit(EXIT_FAILURE);
@@ -45,6 +44,7 @@ int main() {
 			exit(EXIT_FAILURE);
 		}
 	}
+
 	/* read data from ROM */
 	psize = block * header[4] * 2;
 	csize = block * header[5];
@@ -63,7 +63,20 @@ int main() {
 			memcpy(&cpu[0xc000], &prg[0x00], psize);
 		memcpy(&vram[0], &chr[0], csize);
 		break;
-	case 1:		/* SxROM, MMC1 */
+	case 1:		/* SxROM, MMC1 - see also mappers 105, 155 */
+		memcpy(&cpu[0x8000], &prg[psize-0x8000], 0x8000);
+		memcpy(&vram[0], &chr[0], 0x2000);
+		break;
+	case 2:		/* UxROM - see also mappers 94, 180 */
+		memcpy(&cpu[0x8000], &prg[psize-0x8000], 0x8000);
+		memcpy(&vram[0], &chr[0], 0x2000);
+		break;
+	case 3:		/* NROM */
+		memcpy(&cpu[0x8000], &prg[0x00], psize);
+		if (psize == 0x4000)
+			memcpy(&cpu[0xc000], &prg[0x00], psize);
+		break;
+	case 7:		/* AxROM */
 		memcpy(&cpu[0x8000], &prg[psize-0x8000], 0x8000);
 		memcpy(&vram[0], &chr[0], 0x2000);
 		break;
@@ -90,11 +103,13 @@ int main() {
 			opdecode(cpu[pc++]);
 			if (sp<0x100 || sp>0x1ff)
 				printf("Error: Stack pointer\n");
+
 			/* Interrupt handling */
+			if (nmiIsTriggered >= ppucc-1) /* correct behavior? Probably depends on opcode */
+				nmiDelayed = 1;
 			if (nmi_output && nmiIsTriggered && !nmiAlreadyDone && !nmiDelayed) {
 				cpu_wait += (7 * 3);
 				donmi();
-				/*run_ppu(cpu_wait); */
 				nmiAlreadyDone = 1;
 				nmiIsTriggered = 0;
 			}

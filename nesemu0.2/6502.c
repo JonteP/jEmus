@@ -38,7 +38,7 @@ static inline void adc(), and(), asl(), branch(), bit(), brkop(), clc(), cld(),
 		sed(), sei(), sta(), stx(), sty(), tax(), tay(), tsx(), txa(), txs(),
 		tya(), none();
 
-uint8_t mm1_shift = 0, mm1_buff, wram, prg_bank, chr_bank, prg_size, chr_size; /* mapper 1 */
+uint8_t mm1_shift = 0, mm1_buff, wram, prg_bank, chr_bank, prg_size, chr_size, oneScreen; /* mapper 1 */
 uint8_t mode, opcode, addmode, addcycle, *addval, tmpval8, vbuff = 0, s = 0, vraminc, ppureg = 0, w = 0;
 uint16_t addr, tmpval16;
 
@@ -49,7 +49,7 @@ void opdecode(uint8_t op) {
 	test++;
 	addcycle = 0;
 	addr = 0;
-	if (pc < 0x8000)
+	if (pc < 0x8000 && mapper == 0)
 		printf("PC out of bounds!\n");
 	static void (*addp0[8])() = {immed,zpage,accum,absol,absy,zpagex,zpagey,absx};
 	static void (*addp1[8])() = {indx,zpage,immed,absol,indy,zpagex,absy,absx};
@@ -311,7 +311,7 @@ void branch() {
 }
 
 /* TODO */
-void brkop() { /* does not care about the I flag */
+void brkop() {
 	pc++;
 	nmiVblankTriggered = 0;
 	donmi();
@@ -615,7 +615,6 @@ void tya() {
 void none() {
 	printf("Warning: Illegal opcode!\n");
 							}
-
 void memread() {
 	tmpval8 = *addval;
 	switch (addr) {
@@ -666,7 +665,6 @@ void memread() {
 }
 
 void memwrite() {
-	*addval = tmpval8;
 	switch (addr) {
 	case 0x2000:
 		ppureg = tmpval8;
@@ -734,18 +732,17 @@ void memwrite() {
 		break;
 	case 0x2007:
 		ppureg = tmpval8;
-		if (namev >= 0x2000) {
-			if ((namev) < 0x3f00)
-				mirrmode ? (namev = (namev & 0xf7ff)) :	(namev = (namev & 0xfbff));
-			else if ((namev) >= 0x3f00) {
-			 	namev = (namev & 0x3f1f);
-			}
-			if (namev==0x3f10) /* TODO: complete mirroring behavior */
-				vram[0x3f00] = tmpval8;
-			else
-				vram[namev] = tmpval8;
+		/* TODO: improve mirroring behavior */
+		if ((namev) < 0x3f00 && (namev) >= 0x2000)
+			mirrmode ? (namev = (namev & 0xf7ff)) :	(namev = (namev & 0xfbff));
+		else if ((namev) >= 0x3f00) {
+		 	namev = (namev & 0x3f1f);
 		}
-				namev += vraminc;
+		if (namev==0x3f10) /* TODO: complete mirroring behavior */
+			vram[0x3f00] = tmpval8;
+		else
+			vram[namev] = tmpval8;
+		namev += vraminc;
 		break;
 	case 0x4014:
 		ppureg = tmpval8;
@@ -776,12 +773,15 @@ void memwrite() {
 		if (tmpval8 & 0x80) {
 			mm1_shift = 0;
 			mm1_buff = 0;
+			prg_bank = 1;
+			prg_size = 1;
 		} else {
 			mm1_buff = (mm1_buff & ~(1<<mm1_shift)) | ((tmpval8 & 1)<<mm1_shift);
 			if (mm1_shift == 4) {
 				switch ((addr>>13) & 3) {
 				case 0: /* Control register */
-					mirrmode = (mm1_buff & 1); /* TODO: implement extra modes */
+					mirrmode = ((~mm1_buff >> 0) & 1); /* TODO: implement extra modes */
+					oneScreen = ((~mm1_buff >> 1) & 1); /* TODO: implement extra modes */
 					prg_bank = ((mm1_buff >> 2) & 1); /* 0 low, 1 high */
 					prg_size = ((mm1_buff >> 3) & 1); /* 0 32k, 1 16k */
 					chr_size = ((mm1_buff >> 4) & 1); /* 0 8k,  1 4k */
@@ -789,13 +789,20 @@ void memwrite() {
 				case 1: /* CHR ROM low bank */
 					if (!chr_size)
 						memcpy(&vram[0], &chr[(mm1_buff & 1) * 0x2000], 0x2000);
+					else if (chr_size)
+						memcpy(&vram[0], &chr[mm1_buff * 0x1000], 0x1000);
 					break;
 				case 2: /* CHR ROM high bank (4k mode) */
+					if (chr_size)
+						memcpy(&vram[0x1000], &chr[mm1_buff * 0x1000], 0x1000);
 					break;
 				case 3: /* PRG ROM bank */
 					wram = ((mm1_buff >> 4) & 1);
-					if ((mm1_buff & 0xf) <= (psize>>14))
-						memcpy(&cpu[0x8000], &prg[(mm1_buff & 0xf) * 0x4000], 0x4000);
+					/* TODO: 32kb banks */
+					if (prg_size)
+						memcpy(&cpu[!prg_bank ? 0xc000 : 0x8000], &prg[(mm1_buff & 0xf) * 0x4000], 0x4000);
+					else if (!prg_size)
+						memcpy(&cpu[0x8000], &prg[(mm1_buff & 0xe) * 0x8000], 0x8000);
 					break;
 			}
 				mm1_shift = 0;
@@ -803,5 +810,16 @@ void memwrite() {
 			} else
 				mm1_shift++;
 		}
+	} else if (addr >= 0x8000 && mapper == 2) {
+		/* TODO: implement bus conflict */
+		memcpy(&cpu[0x8000], &prg[tmpval8 * 0x4000], 0x4000);
+	} else if (addr >= 0x8000 && mapper == 3) {
+		/* TODO: protection */
+		memcpy(&vram[0], &chr[(tmpval8 & 3) * 0x2000], 0x2000);
+	} else if (addr >= 0x8000 && mapper == 7) {
+		/* TODO: mirror mode */
+		memcpy(&cpu[0x8000], &chr[(tmpval8 & 7) * 0x8000], 0x8000);
 	}
+	if (addr < 0x8000)
+		*addval = tmpval8;
 }
