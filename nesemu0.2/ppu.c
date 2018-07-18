@@ -7,6 +7,9 @@
 #include "globals.h"
 #include "SDL.h"
 #include "nestools.h"
+#include "apu.h"
+
+
 
 static inline void render_frame(), render_line(), io_handle(), y_scroll();
 uint8_t throttle = 1, vblankSuppressed = 0;
@@ -20,6 +23,7 @@ SDL_Texture *bitmapTex;
 SDL_Surface *bitmapSurface, *nameSurface;
 SDL_Event event;
 SDL_Color colors[64];
+
 					/*       00      |      01      |      02      |      03      |*/
 					/*  R  | G  | B  | R  | G  | B  | R  | G  | B  | R  | G  | B  |*/
 uint8_t colarray[] = { 124, 124, 124,   0,   0, 252,   0,   0, 188,  68,  40, 188, /* 0x00 */
@@ -79,6 +83,8 @@ void run_ppu (uint16_t ntimes) {
 			vblankSuppressed = 0;
 			io_handle();
 			render_frame();
+		/*	if (waitBuffer) */
+				output_sound();
 			if (throttle) {
 				diff = clock() - start;
 				usleep(FRAMETIME - (diff % FRAMETIME));
@@ -119,9 +125,8 @@ void run_ppu (uint16_t ntimes) {
 			oamaddr = 0; /* only if rendering active? */
 		}
 	}
-
-	cpu_wait--;
 	ntimes--;
+	ppu_wait--;
 	}
 }
 
@@ -133,7 +138,8 @@ void y_scroll() {
 		uint8_t coarsey = ((namev & 0x3e0) >> 5);
 		if (coarsey == 29) {
 			coarsey = 0;
-			namev ^= 0x0800;
+			if (!mirrmode)
+				namev ^= 0x0800;
 	  } else if (coarsey == 31)
 			coarsey = 0;
 	    else
@@ -143,7 +149,7 @@ void y_scroll() {
 }
 
 void init_graphs(int wpx, int wpy, int ww, int wh, int sw, int sh) {
-	SDL_Init(SDL_INIT_VIDEO);
+	SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO);
 	win = SDL_CreateWindow("Nesemu", wpx, wpy, ww, wh, 0);
 	renderer = SDL_CreateRenderer(win, -1, SDL_RENDERER_ACCELERATED);
 	SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY,"0");
@@ -162,7 +168,9 @@ void kill_graphs () {
 	SDL_DestroyTexture(bitmapTex);
 	SDL_DestroyRenderer(renderer);
 	SDL_DestroyWindow(win);
-	atexit(SDL_Quit);
+	SDL_ClearQueuedAudio(1);
+	SDL_CloseAudio();
+	SDL_Quit();
 	exit(EXIT_SUCCESS);
 }
 
@@ -204,18 +212,20 @@ uint16_t pindx = 0;
 	if (cpu[0x2001] & 0x08) {
 						/*  left column mask  */
 		for (int ncol = 0; ncol < 32; ncol++) {
-			    tilesrc = bpattern + 16 * vram[0x2000 + (namev & ((mirrmode) ? 0x7ff : 0xbff))];
-				attsrc = vram[0x23c0 | (namev & ((mirrmode) ? 0x400 : 0x800 )) | ((namev >>4) & 0x38) | ((namev >> 2) & 0x07)];
+			    tilesrc = bpattern + 16 * vram[0x2000 | (namev&0x3ff) | (mirroring[mirrmode][((namev&0xc00)>>10)]<<10)];
+				attsrc = vram[0x23c0 | (mirroring[mirrmode][((namev&0xc00)>>10)]<<10) | ((namev >>4) & 0x38) | ((namev >> 2) & 0x07)];
 				/* X: shift right 1 AND 1 Y: shift right 4 AND 1 * 2*/
 				npal = ((attsrc >> (((namev >> 1) & 1) | ((namev >> 5) & 2) ) * 2) & 3);
 
 				if ((namev & 0x1f) == 0x1f) {
 					namev &= ~0x1f;
-					namev ^= 0x0400; /* switch nametable horizontally */
+					if (mirrmode == 1)
+						namev ^= 0x0400; /* switch nametable horizontally */
 				} else
 					namev++; /* next tile */
-			    ntilesrc = bpattern + 16 * vram[0x2000 + (namev & ((mirrmode) ? 0x7ff : 0xbff))];
-				nattsrc = vram[0x23c0 | (namev & ((mirrmode) ? 0x400 : 0x800 )) | ((namev >>4) & 0x38) | ((namev >> 2) & 0x07)];
+
+			    ntilesrc = bpattern + 16 * vram[0x2000 | (namev&0x3ff) | (mirroring[mirrmode][((namev&0xc00)>>10)]<<10)];
+				nattsrc = vram[0x23c0 | (mirroring[mirrmode][((namev&0xc00)>>10)]<<10) | ((namev >>4) & 0x38) | ((namev >> 2) & 0x07)];
 				nnpal = ((nattsrc >> (((namev >> 1) & 1) | ((namev >> 5) & 2) ) * 2) & 3);
 
 				for (int pcol = 0; pcol < 8; pcol++) {
@@ -296,7 +306,7 @@ void io_handle() {
 				break;
 			case SDL_SCANCODE_F3:
 				printf("Resetting\n");
-				soft_reset();
+				power_reset(1);
 				break;
 			case SDL_SCANCODE_F10:
 				throttle ^= 1;

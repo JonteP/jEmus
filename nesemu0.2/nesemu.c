@@ -8,6 +8,7 @@
 #include "nestools.h"
 #include "SDL.h"
 #include "ppu.h"
+#include "apu.h"
 #include "6502.h"
 
 /* constants */
@@ -23,16 +24,19 @@ uint8_t vblank_period = 0, ppuStatus_nmiOccurred = 0, spritezero = 0,
 uint8_t header[0x10], oam[0x100] = { 0 }, vram[0x4000] = { 0 }, flag = 0x34,
 		cpu[0x10000] = { 0 }, spriteof = 0;
 uint8_t *prg, *chr, *bpattern = &vram[0], *spattern = &vram[0x1000];
-uint16_t pc, namet, namev, scrollx = 0, cpu_wait = 0, nmi_wait = 0;
+uint16_t pc, namet, namev, nameadd, scrollx = 0, ppu_wait = 0, apu_wait = 0, nmi_wait = 0;
 uint16_t nmi = 0xfffa, rst = 0xfffc, irq = 0xfffe, sp = 0x1fd;
+uint8_t mirroring[4][4] = { { 0, 0, 1, 1 },
+							{ 0, 1, 0, 1 },
+							{ 0, 0, 0, 0 },
+							{ 1, 1, 1, 1 } };
 int32_t cpucc = 0;
 
 FILE *rom, *logfile;
 
 int main() {
-
 	rom = fopen("/home/jonas/eclipse-workspace/"
-			"mmc1/icarus.nes", "rb");
+			"mmc1/metroid.nes", "rb");
 	if (rom == NULL) {
 		printf("Error: No such file\n");
 		exit(EXIT_FAILURE);
@@ -55,6 +59,12 @@ int main() {
 	fclose(rom);
 
 	mirrmode = (header[6] & 1);
+	/* 0 = horizontal mirroring
+	 * 1 = vertical mirroring
+	 * 2 = one screen, low page
+	 * 3 = one screen, high page
+	 * 4 = 4 screen
+	 */
 	mapper = ((header[6] >> 4) & 0x0f) | (header[7] & 0xf0);
 	switch (mapper) {
 	case 0:		/* NROM */
@@ -77,7 +87,7 @@ int main() {
 			memcpy(&cpu[0xc000], &prg[0x00], psize);
 		break;
 	case 7:		/* AxROM */
-		memcpy(&cpu[0x8000], &prg[psize-0x8000], 0x8000);
+		memcpy(&cpu[0x8000], &prg[0], 0x8000);
 		memcpy(&vram[0], &chr[0], 0x2000);
 		break;
 	default:
@@ -90,8 +100,9 @@ int main() {
 	if (logfile==NULL)
 		printf("Error: Could not create logfile\n");
 
-	soft_reset();
+	power_reset(0);
 	init_graphs(WPOSX, WPOSY, WWIDTH, WHEIGHT, SWIDTH, SHEIGHT);
+	init_sounds();
 	init_time();
 
 	while (quit == 0) {
@@ -99,7 +110,8 @@ int main() {
 			if (nmiDelayed) {
 				nmiDelayed = 0;
 			}
-			run_ppu(cpu_wait);
+			run_ppu(ppu_wait);
+			run_apu(apu_wait);
 			opdecode(cpu[pc++]);
 			if (sp<0x100 || sp>0x1ff)
 				printf("Error: Stack pointer\n");
@@ -108,7 +120,8 @@ int main() {
 			if (nmiIsTriggered >= ppucc-1) /* correct behavior? Probably depends on opcode */
 				nmiDelayed = 1;
 			if (nmi_output && nmiIsTriggered && !nmiAlreadyDone && !nmiDelayed) {
-				cpu_wait += (7 * 3);
+				apu_wait += 7 * 2;
+				ppu_wait += 7 * 3;
 				donmi();
 				nmiAlreadyDone = 1;
 				nmiIsTriggered = 0;

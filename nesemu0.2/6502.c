@@ -6,6 +6,7 @@
 #include "globals.h"
 #include "nestools.h"
 #include "ppu.h"
+#include "apu.h"
 
 extern void opdecode(uint8_t);
 
@@ -28,7 +29,7 @@ static uint8_t ctable[] = { 7, 6, 0, 0, 3, 3, 5, 0, 3, 2, 2, 0, 4, 4, 6, 0,/* 0 
 							2, 5, 0, 0, 4, 4, 6, 0, 2, 4, 2, 0, 4, 4, 7, 0 /* f */
 							};
 
-static inline void mirror(), memread(), memwrite();;
+static inline void mirror(), memread(), memwrite();
 static inline void accum(), immed(), zpage(), zpagex(), zpagey(), absol(),
 		absx(), absy(), indx(), indy();
 static inline void adc(), and(), asl(), branch(), bit(), brkop(), clc(), cld(),
@@ -58,7 +59,8 @@ void opdecode(uint8_t op) {
 	static void (*opp0ex6[8])() = {clc,sec,cli,sei,tya,clv,cld,sed};
 	static void (*opp1[8])() = {ora,and,eor,adc,sta,lda,cmp,sbc};
 	static void (*opp2[8])() = {asl,rol,lsr,ror,stx,ldx,dec,inc};
-	cpu_wait += (ctable[op] * 3);
+	apu_wait += ctable[op];
+	ppu_wait += ctable[op] * 3;
 	cpucc += ctable[op];
 	mode = op & 0x03;
 	opcode = (op >> 5) & 0x07;
@@ -257,9 +259,10 @@ void indy() {
 
 		/* OPCODES */
 void adc() {
-	cpu_wait += addcycle*3;
+	apu_wait += addcycle;
+	ppu_wait += addcycle * 3;
 	cpucc += addcycle;
-	run_ppu(cpu_wait);
+	run_ppu(ppu_wait);
 	memread();
 	tmpval16 = a + tmpval8 + (flag & 1);
 	bitset(&flag, (a ^ tmpval16) & (tmpval8 ^ tmpval16) & 0x80, 6);
@@ -270,9 +273,10 @@ void adc() {
 }
 
 void and() {
-	cpu_wait += addcycle*3;
+	apu_wait += addcycle;
+	ppu_wait += addcycle * 3;
 	cpucc += addcycle;
-	run_ppu(cpu_wait);
+	run_ppu(ppu_wait);
 	memread();
 	a &= tmpval8;
 	bitset(&flag, a == 0, 1);
@@ -280,7 +284,7 @@ void and() {
 }
 
 void asl() {
-	run_ppu(cpu_wait);
+	run_ppu(ppu_wait);
 	bitset(&flag, *addval & 0x80, 0);
 	tmpval8 = *addval << 1;
 	bitset(&flag, tmpval8 == 0, 1);
@@ -289,7 +293,7 @@ void asl() {
 }
 
 void bit() {
-	run_ppu(cpu_wait);
+	run_ppu(ppu_wait);
 	memread();
 	bitset(&flag, !(a & tmpval8), 1);
 	bitset(&flag, tmpval8 & 0x80, 7);
@@ -300,17 +304,18 @@ void branch() {
 	uint8_t reflag[4] = { 7, 6, 0, 1 };
 	if (((flag >> reflag[(opcode >> 1) & 3]) & 1) == (opcode & 1)) {
 		if (((pc + 1) & 0xff00)	!= ((pc + ((int8_t) cpu[pc] + 1)) & 0xff00)) {
-			cpu_wait += 3;
+			apu_wait += 1;
+			ppu_wait += 3;
 			cpucc += 1;
 		}
 		pc = pc + (int8_t) cpu[pc] + 1;
-		cpu_wait += 3;
+		apu_wait += 1;
+		ppu_wait += 3;
 		cpucc += 1;
 	} else
 		pc++;
 }
 
-/* TODO */
 void brkop() {
 	pc++;
 	nmiVblankTriggered = 0;
@@ -334,9 +339,10 @@ void clv() {
 }
 
 void cmp() {
-	cpu_wait += addcycle*3;
+	apu_wait += addcycle;
+	ppu_wait += addcycle * 3;
 	cpucc += addcycle;
-	run_ppu(cpu_wait);
+	run_ppu(ppu_wait);
 	memread();
 	bitset(&flag, (a - tmpval8) & 0x80, 7);
 	bitset(&flag, a == tmpval8, 1);
@@ -344,7 +350,7 @@ void cmp() {
 }
 
 void cpx() {
-	run_ppu(cpu_wait);
+	run_ppu(ppu_wait);
 	memread();
 	bitset(&flag, (x - tmpval8) & 0x80, 7);
 	bitset(&flag, x == tmpval8, 1);
@@ -352,7 +358,7 @@ void cpx() {
 }
 
 void cpy() {
-	run_ppu(cpu_wait);
+	run_ppu(ppu_wait);
 	memread();
 	bitset(&flag, (y - tmpval8) & 0x80, 7);
 	bitset(&flag, y == tmpval8, 1);
@@ -360,7 +366,7 @@ void cpy() {
 }
 
 void dec() {
-	run_ppu(cpu_wait);
+	run_ppu(ppu_wait);
 	tmpval8 = *addval-1;
 	bitset(&flag, tmpval8 == 0, 1);
 	bitset(&flag, tmpval8 >= 0x80, 7);
@@ -380,9 +386,10 @@ void dey() {
 }
 
 void eor() {
-	cpu_wait += addcycle*3;
+	apu_wait += addcycle;
+	ppu_wait += addcycle * 3;
 	cpucc += addcycle;
-	run_ppu(cpu_wait);
+	run_ppu(ppu_wait);
 	memread();
 	a ^= tmpval8;
 	bitset(&flag, a == 0, 1);
@@ -390,7 +397,7 @@ void eor() {
 }
 
 void inc() {
-	run_ppu(cpu_wait);
+	run_ppu(ppu_wait);
 	tmpval8 = *addval + 1;
 	bitset(&flag, tmpval8 == 0, 1);
 	bitset(&flag, tmpval8 >= 0x80, 7);
@@ -432,9 +439,10 @@ void jsr() {
 }
 
 void lda() {
-	cpu_wait += addcycle*3;
+	apu_wait += addcycle;
+	ppu_wait += addcycle * 3;
 	cpucc += addcycle;
-	run_ppu(cpu_wait);
+	run_ppu(ppu_wait);
 	memread();
 	a = tmpval8;
 	bitset(&flag, a == 0, 1);
@@ -442,9 +450,10 @@ void lda() {
 }
 
 void ldx() {
-	cpu_wait += addcycle*3;
+	apu_wait += addcycle;
+	ppu_wait += addcycle * 3;
 	cpucc += addcycle;
-	run_ppu(cpu_wait);
+	run_ppu(ppu_wait);
 	memread();
 	x = tmpval8;
 	bitset(&flag, x == 0, 1);
@@ -452,9 +461,10 @@ void ldx() {
 }
 
 void ldy() {
-	cpu_wait += addcycle*3;
+	apu_wait += addcycle;
+	ppu_wait += addcycle * 3;
 	cpucc += addcycle;
-	run_ppu(cpu_wait);
+	run_ppu(ppu_wait);
 	memread();
 	y = tmpval8;
 	bitset(&flag, y == 0, 1);
@@ -462,7 +472,7 @@ void ldy() {
 }
 
 void lsr() {
-	run_ppu(cpu_wait);
+	run_ppu(ppu_wait);
 	bitset(&flag, *addval & 1, 0);
 	tmpval8 = *addval >> 1;
 	bitset(&flag, tmpval8 == 0, 1);
@@ -471,9 +481,10 @@ void lsr() {
 }
 
 void ora() {
-	cpu_wait += addcycle*3;
+	apu_wait += addcycle;
+	ppu_wait += addcycle * 3;
 	cpucc += addcycle;
-	run_ppu(cpu_wait);
+	run_ppu(ppu_wait);
 	memread();
 	a |= tmpval8;
 	bitset(&flag, a == 0, 1);
@@ -503,7 +514,7 @@ void plp() {
 }
 
 void rol() {
-	run_ppu(cpu_wait);
+	run_ppu(ppu_wait);
 	tmpval8 = *addval << 1;
 	bitset(&tmpval8, flag & 1, 0);
 	bitset(&flag, *addval & 0x80, 0);
@@ -513,7 +524,7 @@ void rol() {
 }
 
 void ror() {
-	run_ppu(cpu_wait);
+	run_ppu(ppu_wait);
 	tmpval8 = *addval >> 1;
 	bitset(&tmpval8, flag & 1, 7);
 	bitset(&flag, *addval & 1, 0);
@@ -539,9 +550,10 @@ void rts() {
 }
 
 void sbc() {
-	cpu_wait += addcycle*3;
+	apu_wait += addcycle;
+	ppu_wait += addcycle * 3;
 	cpucc += addcycle;
-	run_ppu(cpu_wait);
+	run_ppu(ppu_wait);
 	memread();
 	tmpval16 = a + (tmpval8 ^ 0xff) + (flag & 1);
 	bitset(&flag, (a ^ tmpval16) & (tmpval8 ^ a) & 0x80, 6);
@@ -636,11 +648,11 @@ void memread() {
 		tmpval8 = oam[oamaddr];
 		break;
 	case 0x2007:
-		if ((namev) < 0x3f00) {
-			if ((namev) >= 0x2000)
-				mirrmode ? (namev = (namev & 0xf7ff)) :	(namev = (namev & 0xfbff));
+		if (namev < 0x3f00) {
 			tmpval8 = vbuff;
 			vbuff = vram[namev];
+			if (namev >= 0x2000)
+				vbuff = vram[(namev&0x23ff) | (mirroring[mirrmode][((namev&0xc00)>>10)]<<10)];
 		}
 		/* TODO: buffer update when reading palette */
 		else if ((namev) >= 0x3f00) {
@@ -650,6 +662,11 @@ void memread() {
 			tmpval8 = vram[namev];
 		}
 		namev += vraminc;
+		break;
+	case 0x4015: /* APU status read */
+		tmpval8 = (dmcInt ? 0x80 : 0) | (frameInt ? 0x40 : 0) | (dmcBytesLeft ? 0x10 : 0) | (noiseLength ? 0x08 : 0) | (triLength ? 0x04 : 0) | (pulse2Length ? 0x02 : 0) | (pulse1Length ? 0x01 : 0);
+		/* TODO: timing related inhibition of frameInt clear */
+		frameInt = 0;
 		break;
 	case 0x4016:
 		tmpval8 = ((ctr1 >> ctrb) & 1);
@@ -732,17 +749,109 @@ void memwrite() {
 		break;
 	case 0x2007:
 		ppureg = tmpval8;
-		/* TODO: improve mirroring behavior */
-		if ((namev) < 0x3f00 && (namev) >= 0x2000)
-			mirrmode ? (namev = (namev & 0xf7ff)) :	(namev = (namev & 0xfbff));
-		else if ((namev) >= 0x3f00) {
+		if ((namev < 0x3f00) && (namev >= 0x2000)) {
+			vram[(namev&0x23ff) | (mirroring[mirrmode][((namev&0xc00)>>10)]<<10)] = tmpval8;
+		} else if ((namev) >= 0x3f00) {
 		 	namev = (namev & 0x3f1f);
-		}
-		if (namev==0x3f10) /* TODO: complete mirroring behavior */
-			vram[0x3f00] = tmpval8;
-		else
+			if (namev==0x3f10) /* TODO: complete mirroring behavior */
+				vram[0x3f00] = tmpval8;
+			else
+				vram[namev] = tmpval8;
+
+		} else
 			vram[namev] = tmpval8;
 		namev += vraminc;
+		break;
+	case 0x4000: /* Pulse 1 duty, envel., volume */
+		pulse1Control = tmpval8;
+		env1Divide = (pulse1Control&0xf);
+		break;
+	case 0x4001: /* Pulse 1 sweep, period, negate, shift */
+		sweep1 = tmpval8;
+		sweep1Divide = ((sweep1>>4)&7);
+		sweep1Shift = (sweep1&7);
+		sweep1Reload = 1;
+		break;
+	case 0x4002: /* Pulse 1 timer low */
+			pulse1Timer = (pulse1Timer&0x700) | tmpval8;
+		break;
+	case 0x4003: /* Pulse 1 length counter, timer high */
+		if (apuStatus & 1)
+			pulse1Length = lengthTable[((tmpval8>>3)&0x1f)];
+		pulse1Timer = (pulse1Timer&0xff) | ((tmpval8 & 7)<<8);
+		env1Start = 1;
+		pulse1Duty = 0;
+		break;
+	case 0x4004: /* Pulse 2 duty, envel., volume */
+		pulse2Control = tmpval8;
+		env2Divide = (pulse2Control&0xf);
+		break;
+	case 0x4005: /* Pulse 2 sweep, period, negate, shift */
+		sweep2 = tmpval8;
+		sweep2Divide = ((sweep2>>4)&7);
+		sweep2Shift = (sweep2&7);
+		sweep2Reload = 1;
+		break;
+	case 0x4006: /* Pulse 2 timer low */
+			pulse2Timer = (pulse2Timer&0x700) | tmpval8;
+		break;
+	case 0x4007: /* Pulse 2 length counter, timer high */
+		if (apuStatus & 2)
+			pulse2Length = lengthTable[((tmpval8>>3)&0x1f)];
+		pulse2Timer = (pulse2Timer&0xff) | ((tmpval8 & 7)<<8);
+		env2Start = 1;
+		pulse2Duty = 0;
+		break;
+	case 0x4008: /* Triangle misc. */
+		if (apuStatus & 4) {
+			triControl = tmpval8;
+		}
+		break;
+	case 0x400a: /* Triangle timer low */
+		if (apuStatus & 4) {
+			triTimer = (triTimer&0x700) | tmpval8;
+			triTemp = triTimer;
+		}
+		break;
+	case 0x400b: /* Triangle length, timer high */
+		if (apuStatus & 4) {
+			triLength = lengthTable[((tmpval8>>3)&0x1f)];
+			triTimer = (triTimer&0xff) | ((tmpval8 & 7)<<8);
+			triTemp = triTimer;
+			triLinReload = 1;
+		}
+		break;
+	case 0x400c: /* Noise misc. */
+		noiseControl = tmpval8;
+		envNoiseDivide = (noiseControl&0xf);
+		break;
+	case 0x400e: /* Noise loop, period */
+		noiseTimer = noiseTable[(tmpval8&0xf)];
+		noiseMode = (tmpval8&0x80);
+		break;
+	case 0x400f: /* Noise length counter */
+		if (apuStatus & 8) {
+			noiseLength = lengthTable[((tmpval8>>3)&0x1f)];
+			envNoiseStart = 1;
+		}
+		break;
+	case 0x4010: /* DMC IRQ, loop, freq. */
+		dmcControl = tmpval8;
+		dmcRate = rateTable[(dmcControl&0xf)];
+		dmcTemp = dmcRate;
+		if (!(dmcControl&0x80))
+			dmcInt = 0;
+		break;
+	case 0x4011: /* DMC load counter */
+		dmcOutput = (tmpval8&0x7f);
+		break;
+	case 0x4012: /* DMC sample address */
+		dmcAddress = (0xc000 + (64 * tmpval8));
+		dmcCurAdd = dmcAddress;
+		break;
+	case 0x4013: /* DMC sample length */
+		dmcLength = ((16 * tmpval8) + 1);
+		dmcBytesLeft = dmcLength;
 		break;
 	case 0x4014:
 		ppureg = tmpval8;
@@ -754,11 +863,29 @@ void memwrite() {
 			oamaddr++;
 		}
 		if (cpucc%2) {
-			cpu_wait += 3;
+			apu_wait += 1;
+			ppu_wait += 3;
 			cpucc += 1;
 		}
-		cpu_wait += 513 * 3;
+		apu_wait += 513;
+		ppu_wait += 513 * 3;
 		cpucc += 513;
+		break;
+	case 0x4015: /* APU status */
+		dmcInt = 0;
+		apuStatus = tmpval8;
+		if (!(apuStatus&0x01))
+			pulse1Length = 0;
+		if (!(apuStatus&0x02))
+			pulse2Length = 0;
+		if (!(apuStatus&0x04))
+			triLength = 0;
+		if (!(apuStatus&0x08))
+			noiseLength = 0;
+		if (!(apuStatus&0x10))
+			dmcBytesLeft = 0;
+		else if (apuStatus&0x10)
+			dmc_fill_buffer();
 		break;
 	case 0x4016:
 		ppureg = tmpval8;
@@ -766,6 +893,17 @@ void memwrite() {
 		if (s == 1) {
 			ctrb = 0;
 			ctrb2 = 0;
+		}
+		break;
+	case 0x4017: /* APU frame counter */
+		apuFrameCounter = tmpval8;
+		frameCounter = 0; /* TODO: correct behavior */
+		apucc = 0;
+		if (apuFrameCounter&0x40)
+			frameInt = 0;
+		if (apuFrameCounter&0x80) {
+			quarter_frame();
+			half_frame();
 		}
 		break;
 	}
@@ -780,8 +918,20 @@ void memwrite() {
 			if (mm1_shift == 4) {
 				switch ((addr>>13) & 3) {
 				case 0: /* Control register */
-					mirrmode = ((~mm1_buff >> 0) & 1); /* TODO: implement extra modes */
-					oneScreen = ((~mm1_buff >> 1) & 1); /* TODO: implement extra modes */
+					switch (mm1_buff&3) {
+					case 0:
+						mirrmode = 2;
+						break;
+					case 1:
+						mirrmode = 3;
+						break;
+					case 2:
+						mirrmode = 1;
+						break;
+					case 3:
+						mirrmode = 0;
+						break;
+					}
 					prg_bank = ((mm1_buff >> 2) & 1); /* 0 low, 1 high */
 					prg_size = ((mm1_buff >> 3) & 1); /* 0 32k, 1 16k */
 					chr_size = ((mm1_buff >> 4) & 1); /* 0 8k,  1 4k */
@@ -817,8 +967,8 @@ void memwrite() {
 		/* TODO: protection */
 		memcpy(&vram[0], &chr[(tmpval8 & 3) * 0x2000], 0x2000);
 	} else if (addr >= 0x8000 && mapper == 7) {
-		/* TODO: mirror mode */
-		memcpy(&cpu[0x8000], &chr[(tmpval8 & 7) * 0x8000], 0x8000);
+		memcpy(&cpu[0x8000], &prg[(tmpval8 & 7) * 0x8000], 0x8000);
+		(tmpval8&0x10) ? (mirrmode = 3) : (mirrmode = 2);
 	}
 	if (addr < 0x8000)
 		*addval = tmpval8;
