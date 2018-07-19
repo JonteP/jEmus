@@ -9,12 +9,32 @@
 #define FRAME_COUNT 7456
 #define CHANNELS 1
 #define SAMPLES_PER_SEC 48000
-#define BUFFER_SIZE 8192
+#define BUFFER_SIZE (8192<<1)
 #define CPU_CLOCK 1789773
 #define SAMPLE_RATIO (CPU_CLOCK / SAMPLES_PER_SEC)
 
 static inline void do_irq();
 
+float pulse_table[31] = { 0.0116, 0.0229, 0.0340, 0.0448, 0.0554, 0.0657, 0.0757, 0.0856, 0.0952, 0.1046, 0.1139, 0.1229, 0.1317,
+						   0.1404, 0.1488, 0.1571, 0.1652, 0.1732, 0.1810, 0.1886, 0.1961, 0.2035, 0.2107, 0.2178, 0.2247, 0.2315,
+						   0.2382, 0.2447, 0.2512, 0.2575, 0.2637 };
+float tnd_table[203] =  { 0.0067, 0.0133, 0.0199, 0.0265, 0.0330, 0.0394, 0.0458, 0.0521, 0.0584, 0.0646, 0.0708, 0.0769, 0.0830,
+						   0.0891, 0.0951, 0.1010, 0.1069, 0.1128, 0.1186, 0.1243, 0.1300, 0.1357, 0.1414, 0.1470, 0.1525, 0.1580,
+						   0.1635, 0.1689, 0.1743, 0.1797, 0.1850, 0.1903, 0.1955, 0.2007, 0.2058, 0.2110, 0.2161, 0.2211, 0.2261,
+						   0.2311, 0.2360, 0.2410, 0.2458, 0.2507, 0.2555, 0.2603, 0.2650, 0.2697, 0.2744, 0.2790, 0.2836, 0.2882,
+						   0.2928, 0.2973, 0.3018, 0.3062, 0.3107, 0.3151, 0.3194, 0.3238, 0.3281, 0.3324, 0.3366, 0.3409, 0.3451,
+						   0.3493, 0.3534, 0.3575, 0.3616, 0.3657, 0.3697, 0.3738, 0.3778, 0.3817, 0.3857, 0.3896, 0.3935, 0.3973,
+						   0.4012, 0.4050, 0.4088, 0.4126, 0.4163, 0.4201, 0.4238, 0.4275, 0.4311, 0.4348, 0.4384, 0.4420, 0.4455,
+						   0.4491, 0.4526, 0.4561, 0.4596, 0.4631, 0.4665, 0.4700, 0.4734, 0.4768, 0.4801, 0.4835, 0.4868, 0.4901,
+						   0.4934, 0.4967, 0.4999, 0.5032, 0.5064, 0.5096, 0.5128, 0.5159, 0.5191, 0.5222, 0.5253, 0.5284, 0.5315,
+						   0.5346, 0.5376, 0.5406, 0.5436, 0.5466, 0.5496, 0.5526, 0.5555, 0.5584, 0.5613, 0.5642, 0.5671, 0.5700,
+						   0.5728, 0.5757, 0.5785, 0.5813, 0.5841, 0.5869, 0.5896, 0.5924, 0.5951, 0.5978, 0.6005, 0.6032, 0.6059,
+						   0.6085, 0.6112, 0.6138, 0.6165, 0.6191, 0.6217, 0.6242, 0.6268, 0.6294, 0.6319, 0.6344, 0.6369, 0.6394,
+						   0.6419, 0.6444, 0.6469, 0.6493, 0.6518, 0.6542, 0.6566, 0.6590, 0.6614, 0.6638, 0.6662, 0.6685, 0.6709,
+						   0.6732, 0.6756, 0.6779, 0.6802, 0.6825, 0.6847, 0.6870, 0.6893, 0.6915, 0.6938, 0.6960, 0.6982, 0.7004,
+						   0.7026, 0.7048, 0.7070, 0.7091, 0.7113, 0.7134, 0.7156, 0.7177, 0.7198, 0.7219, 0.7240, 0.7261, 0.7282,
+						   0.7303, 0.7323, 0.7344, 0.7364, 0.7384, 0.7405, 0.7425, 0.7445 };
+float pulseOutTmp = 0, tndOutTmp = 0;
 uint8_t apuStatus, apuFrameCounter, frameCounter = 0, pulse1Length = 0, waitBuffer = 0,
 		pulse2Length = 0, pulse1Control = 0, pulse2Control = 0, pulse1Mute = 0,
 		sweep1Divide = 0, sweep1Counter = 0, sweep1Reload = 0,
@@ -31,7 +51,7 @@ uint16_t pulse1Timer = 0, pulse2Timer = 0,
 		triTimer = 0, triTemp, noiseShift, noiseTimer, noiseTemp, dmcTemp,
 		dmcRate = 0, dmcAddress, dmcCurAdd, dmcLength = 0, dmcBytesLeft = 0;
 int16_t pulse1Temp = 0, pulse2Temp = 0;
-uint16_t pulseBuffer[BUFFER_SIZE] = {0};
+float pulseBuffer[BUFFER_SIZE] = {0};
 uint16_t apucc = 0;
 
 uint16_t tmpval1 = 0, tmpval2 = 0, tmpvalTri = 0, tmpcnt = 0, tmpvalNoise = 0, tmpvalDmc = 0;
@@ -50,7 +70,6 @@ uint16_t rateTable[0x10] = { 428, 380, 340, 320, 286, 254, 226, 214, 190, 160, 1
 uint16_t frameClock[5] = {7457, 14913, 22371, 29829, 37281};
 uint16_t frameReset[2] = {29830, 37282};
 SDL_AudioSpec AudioSettings = {0};
-int BytesPerSample = sizeof(int16_t) * CHANNELS;
 
 
 void run_apu(uint16_t ntimes) { /* apu cycle times */
@@ -75,9 +94,9 @@ void run_apu(uint16_t ntimes) { /* apu cycle times */
 
 		if (pulse1Length && (apuStatus&1)) {
 			if (pulse1Temp <= 0x7ff && pulse1Temp >= 8) {
-				tmpval1 += (pulse1Control&0x10) ? (dutySequence[(pulse1Control>>6)&3][pulse1Duty>>1] * pulse1Control&0xf) : (dutySequence[(pulse1Control>>6)&3][pulse1Duty>>1] * env1Decay);
+				tmpval1 = (pulse1Control&0x10) ? (dutySequence[(pulse1Control>>6)&3][pulse1Duty>>1] * pulse1Control&0xf) : (dutySequence[(pulse1Control>>6)&3][pulse1Duty>>1] * env1Decay);
 			} else
-				tmpval1 += 0;
+				tmpval1 = 0;
 			if (pulse1Temp < 0) {
 				pulse1Temp = pulse1Timer;
 				pulse1Duty--;
@@ -86,12 +105,13 @@ void run_apu(uint16_t ntimes) { /* apu cycle times */
 			}
 			pulse1Temp--;
 		} else
-			tmpval1 += 0;
+			tmpval1 = 0;
+
 		if (pulse2Length && (apuStatus&2)) {
 			if (pulse2Temp <= 0x7ff && pulse2Temp >= 8) {
-				tmpval2 += (pulse2Control&0x10) ? (dutySequence[(pulse2Control>>6)&3][pulse2Duty>>1] * pulse2Control&0xf) : (dutySequence[(pulse2Control>>6)&3][pulse2Duty>>1] * env2Decay);
+				tmpval2 = (pulse2Control&0x10) ? (dutySequence[(pulse2Control>>6)&3][pulse2Duty>>1] * pulse2Control&0xf) : (dutySequence[(pulse2Control>>6)&3][pulse2Duty>>1] * env2Decay);
 			} else
-				tmpval2 += 0;
+				tmpval2 = 0;
 			if (pulse2Temp < 0) {
 				pulse2Temp = pulse2Timer;
 				pulse2Duty--;
@@ -100,13 +120,16 @@ void run_apu(uint16_t ntimes) { /* apu cycle times */
 			}
 			pulse2Temp--;
 		} else
-			tmpval2 += 0;
+			tmpval2 = 0;
+
+		pulseOutTmp += pulse_table[tmpval1+tmpval2];
+
 		if (triLength && triLinear && (apuStatus&4)) {
 			if (triLength>=2 && triLinear>=2) {
-				tmpvalTri += triSequence[triSeq];
+				tmpvalTri = triSequence[triSeq];
 				triBuff = triSequence[triSeq];
 			} else
-				tmpvalTri += triBuff;
+				tmpvalTri = triBuff;
 			if (!triTemp) {
 				triTemp = triTimer;
 				triSeq--;
@@ -115,12 +138,13 @@ void run_apu(uint16_t ntimes) { /* apu cycle times */
 			}
 			triTemp--;
 		} else
-			tmpvalTri += triBuff;
+			tmpvalTri = triBuff;
+
 		if (noiseLength && (apuStatus&8)) {
 			if (!(noiseShift&1)) {
-				tmpvalNoise += (noiseControl&0x10) ? (noiseControl&0xf) : envNoiseDecay;
+				tmpvalNoise = (noiseControl&0x10) ? (noiseControl&0xf) : envNoiseDecay;
 			} else
-				tmpvalNoise += 0;
+				tmpvalNoise = 0;
 			if (!noiseTemp) {
 				noiseTemp = noiseTimer;
 				noiseShift = ((noiseShift>>1) | ((noiseMode ? ((noiseShift&1) ^ ((noiseShift>>1)&1)) : ((noiseShift&1) ^ ((noiseShift>>1)&1)))<<14));
@@ -128,10 +152,10 @@ void run_apu(uint16_t ntimes) { /* apu cycle times */
 			if (cpucc%2)
 				noiseTemp--;
 		} else
-			tmpvalNoise += 0;
+			tmpvalNoise = 0;
 
 		dmc_fill_buffer();
-		tmpvalDmc += dmcOutput;
+		tmpvalDmc = dmcOutput;
 		if (dmcInt || frameInt)
 			do_irq();
 		if (dmcBytesLeft) {
@@ -160,15 +184,14 @@ void run_apu(uint16_t ntimes) { /* apu cycle times */
 			dmcTemp--;
 		}
 
+		tndOutTmp += tnd_table[3 * tmpvalTri + 2 * tmpvalNoise + tmpvalDmc];
+
 		tmpcnt++;
 		if (tmpcnt==SAMPLE_RATIO) {
-			pulseBuffer[pulseSampleCounter] = ((tmpvalDmc/SAMPLE_RATIO)*250) + ((tmpvalNoise/SAMPLE_RATIO)*125) + ((tmpvalTri/SAMPLE_RATIO)*500) + ((tmpval1/SAMPLE_RATIO)*500) + ((tmpval2/SAMPLE_RATIO)*500);
+			pulseBuffer[pulseSampleCounter] = (pulseOutTmp/SAMPLE_RATIO) + (tndOutTmp/SAMPLE_RATIO);
+			pulseOutTmp = 0;
+			tndOutTmp = 0;
 			tmpcnt = 0;
-			tmpval1 = 0;
-			tmpval2 = 0;
-			tmpvalTri = 0;
-			tmpvalNoise = 0;
-			tmpvalDmc = 0;
 			pulseSampleCounter++;
 			if ((pulseSampleCounter >= (BUFFER_SIZE>>1)) && !waitBuffer)
 				waitBuffer = 1;
@@ -302,7 +325,7 @@ void quarter_frame () {
 
 void init_sounds () {
 	AudioSettings.freq = SAMPLES_PER_SEC;
-	AudioSettings.format = AUDIO_U16LSB;
+	AudioSettings.format = AUDIO_F32;
 	AudioSettings.channels = CHANNELS;
 	AudioSettings.callback = NULL;
 	AudioSettings.samples = BUFFER_SIZE>>3;
@@ -312,8 +335,8 @@ void init_sounds () {
 }
 
 void output_sound () {
-	uint16_t outBuffer = (BUFFER_SIZE>>1) - (SDL_GetQueuedAudioSize(1)>>1);
-	uint16_t *SoundBuffer = malloc(outBuffer*sizeof(uint16_t));
+	uint16_t outBuffer = (BUFFER_SIZE>>1) - (SDL_GetQueuedAudioSize(1)>>2);
+	float *SoundBuffer = malloc(outBuffer*sizeof(float));
 /*	for(int outSampleIndex = 0;outSampleIndex < BufferSize;++outSampleIndex) {
 	    for (int inSampleIndex = 0;inSampleIndex < 40;++inSampleIndex) {
 	    	tmpcounter++;
@@ -333,14 +356,14 @@ void output_sound () {
 	}
 
 /*	printf("%i\t%i\t%i\n",pulseSampleCounter,pulseQueueCounter,SDL_GetQueuedAudioSize(1)); */
-	SDL_QueueAudio(1, SoundBuffer, (outBuffer<<1));
+	SDL_QueueAudio(1, SoundBuffer, (outBuffer<<2));
 	free(SoundBuffer);
 }
 /*
-double createLowpass (final int order, final double fc, double fs) {
-    double cutoff = fc / fs;
-    double fir[order + 1];
-    double factor = 2.0 * cutoff;
+float createLowpass (final int order, final float fc, float fs) {
+    float cutoff = fc / fs;
+    float fir[order + 1];
+    float factor = 2.0 * cutoff;
     int half = order >> 1;
     for(int i = 0; i < fir.length; i++)
     {
@@ -349,17 +372,17 @@ double createLowpass (final int order, final double fc, double fs) {
     return fir;
 }
 
-double sinc(double x)
+float sinc(float x)
 {
     if(x != 0)
     {
-        double xpi = Math.PI * x;
+        float xpi = Math.PI * x;
         return Math.sin(xpi) / xpi;
     }
     return 1.0;
 }
 
-double[] windowBlackman(double fir)
+float[] windowBlackman(float fir)
 {
     int m = fir.length - 1;
     for(int i = 0; i < fir.length; i++)
