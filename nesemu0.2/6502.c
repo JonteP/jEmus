@@ -937,8 +937,10 @@ void memwrite() {
 					chr_size = ((mm1_buff >> 4) & 1); /* 0 8k,  1 4k */
 					break;
 				case 1: /* CHR ROM low bank */
-					if (!chr_size)
-						memcpy(&vram[0], &chr[(mm1_buff & 1) * 0x2000], 0x2000);
+					if (!chr_size) {
+						memcpy(&vram[0], &chr[(mm1_buff>>1) * 0x2000], 0x2000);
+						printf("%04x\n",mm1_buff);
+					}
 					else if (chr_size)
 						memcpy(&vram[0], &chr[mm1_buff * 0x1000], 0x1000);
 					break;

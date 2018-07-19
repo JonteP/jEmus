@@ -34,7 +34,7 @@ float tnd_table[203] =  { 0.0067, 0.0133, 0.0199, 0.0265, 0.0330, 0.0394, 0.0458
 						   0.6732, 0.6756, 0.6779, 0.6802, 0.6825, 0.6847, 0.6870, 0.6893, 0.6915, 0.6938, 0.6960, 0.6982, 0.7004,
 						   0.7026, 0.7048, 0.7070, 0.7091, 0.7113, 0.7134, 0.7156, 0.7177, 0.7198, 0.7219, 0.7240, 0.7261, 0.7282,
 						   0.7303, 0.7323, 0.7344, 0.7364, 0.7384, 0.7405, 0.7425, 0.7445 };
-float pulseOutTmp = 0, tndOutTmp = 0;
+float pulseMixSample = 0, tndMixSample = 0;
 uint8_t apuStatus, apuFrameCounter, frameCounter = 0, pulse1Length = 0, waitBuffer = 0,
 		pulse2Length = 0, pulse1Control = 0, pulse2Control = 0, pulse1Mute = 0,
 		sweep1Divide = 0, sweep1Counter = 0, sweep1Reload = 0,
@@ -47,14 +47,14 @@ uint8_t apuStatus, apuFrameCounter, frameCounter = 0, pulse1Length = 0, waitBuff
 		dmcShift = 0, dmcBuffer = 0, dmcInt = 0, frameInt = 0;
 int8_t pulse1Duty = 0, pulse2Duty = 0, triSeq = 0, triBuff = 0;
 uint16_t pulse1Timer = 0, pulse2Timer = 0,
-		pulseSampleCounter = 0, tmpcounter = 0, pulseQueueCounter = 0,
+		sampleCounter = 0, tmpcounter = 0, pulseQueueCounter = 0,
 		triTimer = 0, triTemp, noiseShift, noiseTimer, noiseTemp, dmcTemp,
 		dmcRate = 0, dmcAddress, dmcCurAdd, dmcLength = 0, dmcBytesLeft = 0;
 int16_t pulse1Temp = 0, pulse2Temp = 0;
-float pulseBuffer[BUFFER_SIZE] = {0};
+float sampleBuffer[BUFFER_SIZE] = {0};
 uint16_t apucc = 0;
 
-uint16_t tmpval1 = 0, tmpval2 = 0, tmpvalTri = 0, tmpcnt = 0, tmpvalNoise = 0, tmpvalDmc = 0;
+uint16_t pulse1Sample = 0, pulse2Sample = 0, triSample = 0, tmpcnt = 0, noiseSample = 0, dmcSample = 0;
 
 uint8_t lengthTable[0x20] = { 10, 254, 20, 2, 40, 4, 80, 6, 160, 8, 60, 10, 14,
 		12, 26, 14, 12, 16, 24, 18, 48, 20, 96, 22, 192, 24, 72, 26, 16, 28, 32,
@@ -94,9 +94,9 @@ void run_apu(uint16_t ntimes) { /* apu cycle times */
 
 		if (pulse1Length && (apuStatus&1)) {
 			if (pulse1Temp <= 0x7ff && pulse1Temp >= 8) {
-				tmpval1 = (pulse1Control&0x10) ? (dutySequence[(pulse1Control>>6)&3][pulse1Duty>>1] * pulse1Control&0xf) : (dutySequence[(pulse1Control>>6)&3][pulse1Duty>>1] * env1Decay);
+				pulse1Sample = (pulse1Control&0x10) ? (dutySequence[(pulse1Control>>6)&3][pulse1Duty>>1] * pulse1Control&0xf) : (dutySequence[(pulse1Control>>6)&3][pulse1Duty>>1] * env1Decay);
 			} else
-				tmpval1 = 0;
+				pulse1Sample = 0;
 			if (pulse1Temp < 0) {
 				pulse1Temp = pulse1Timer;
 				pulse1Duty--;
@@ -105,13 +105,13 @@ void run_apu(uint16_t ntimes) { /* apu cycle times */
 			}
 			pulse1Temp--;
 		} else
-			tmpval1 = 0;
+			pulse1Sample = 0;
 
 		if (pulse2Length && (apuStatus&2)) {
 			if (pulse2Temp <= 0x7ff && pulse2Temp >= 8) {
-				tmpval2 = (pulse2Control&0x10) ? (dutySequence[(pulse2Control>>6)&3][pulse2Duty>>1] * pulse2Control&0xf) : (dutySequence[(pulse2Control>>6)&3][pulse2Duty>>1] * env2Decay);
+				pulse2Sample = (pulse2Control&0x10) ? (dutySequence[(pulse2Control>>6)&3][pulse2Duty>>1] * pulse2Control&0xf) : (dutySequence[(pulse2Control>>6)&3][pulse2Duty>>1] * env2Decay);
 			} else
-				tmpval2 = 0;
+				pulse2Sample = 0;
 			if (pulse2Temp < 0) {
 				pulse2Temp = pulse2Timer;
 				pulse2Duty--;
@@ -120,16 +120,16 @@ void run_apu(uint16_t ntimes) { /* apu cycle times */
 			}
 			pulse2Temp--;
 		} else
-			tmpval2 = 0;
+			pulse2Sample = 0;
 
-		pulseOutTmp += pulse_table[tmpval1+tmpval2];
+		pulseMixSample += pulse_table[pulse1Sample+pulse2Sample];
 
 		if (triLength && triLinear && (apuStatus&4)) {
 			if (triLength>=2 && triLinear>=2) {
-				tmpvalTri = triSequence[triSeq];
+				triSample = triSequence[triSeq];
 				triBuff = triSequence[triSeq];
 			} else
-				tmpvalTri = triBuff;
+				triSample = triBuff;
 			if (!triTemp) {
 				triTemp = triTimer;
 				triSeq--;
@@ -138,13 +138,13 @@ void run_apu(uint16_t ntimes) { /* apu cycle times */
 			}
 			triTemp--;
 		} else
-			tmpvalTri = triBuff;
+			triSample = triBuff;
 
 		if (noiseLength && (apuStatus&8)) {
 			if (!(noiseShift&1)) {
-				tmpvalNoise = (noiseControl&0x10) ? (noiseControl&0xf) : envNoiseDecay;
+				noiseSample = (noiseControl&0x10) ? (noiseControl&0xf) : envNoiseDecay;
 			} else
-				tmpvalNoise = 0;
+				noiseSample = 0;
 			if (!noiseTemp) {
 				noiseTemp = noiseTimer;
 				noiseShift = ((noiseShift>>1) | ((noiseMode ? ((noiseShift&1) ^ ((noiseShift>>1)&1)) : ((noiseShift&1) ^ ((noiseShift>>1)&1)))<<14));
@@ -152,16 +152,13 @@ void run_apu(uint16_t ntimes) { /* apu cycle times */
 			if (cpucc%2)
 				noiseTemp--;
 		} else
-			tmpvalNoise = 0;
+			noiseSample = 0;
 
 		dmc_fill_buffer();
-		tmpvalDmc = dmcOutput;
+		dmcSample = dmcOutput;
 		if (dmcInt || frameInt)
 			do_irq();
 		if (dmcBytesLeft) {
-			/*		}
-					 else
-						tmpvalDmc += 0;*/
 			if (!dmcTemp) {
 				dmcTemp = dmcRate;
 				if (!dmcSilence) {
@@ -184,19 +181,19 @@ void run_apu(uint16_t ntimes) { /* apu cycle times */
 			dmcTemp--;
 		}
 
-		tndOutTmp += tnd_table[3 * tmpvalTri + 2 * tmpvalNoise + tmpvalDmc];
+		tndMixSample += tnd_table[3 * triSample + 2 * noiseSample + dmcSample];
 
 		tmpcnt++;
 		if (tmpcnt==SAMPLE_RATIO) {
-			pulseBuffer[pulseSampleCounter] = (pulseOutTmp/SAMPLE_RATIO) + (tndOutTmp/SAMPLE_RATIO);
-			pulseOutTmp = 0;
-			tndOutTmp = 0;
+			sampleBuffer[sampleCounter] = (pulseMixSample/SAMPLE_RATIO) + (tndMixSample/SAMPLE_RATIO);
+			pulseMixSample = 0;
+			tndMixSample = 0;
 			tmpcnt = 0;
-			pulseSampleCounter++;
-			if ((pulseSampleCounter >= (BUFFER_SIZE>>1)) && !waitBuffer)
+			sampleCounter++;
+			if ((sampleCounter >= (BUFFER_SIZE>>1)) && !waitBuffer)
 				waitBuffer = 1;
-			if (pulseSampleCounter >= BUFFER_SIZE) {
-				pulseSampleCounter = 0;
+			if (sampleCounter >= BUFFER_SIZE) {
+				sampleCounter = 0;
 			}
 		}
 		ntimes--;
@@ -349,7 +346,7 @@ void output_sound () {
 	    tmpval = 0;
 	} */
 	for(int i=0;i<outBuffer;++i) {
-		SoundBuffer[i] = pulseBuffer[pulseQueueCounter];
+		SoundBuffer[i] = sampleBuffer[pulseQueueCounter];
 		pulseQueueCounter++;
 		if (pulseQueueCounter >= BUFFER_SIZE)
 			pulseQueueCounter = 0;

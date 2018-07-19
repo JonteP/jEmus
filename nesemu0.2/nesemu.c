@@ -36,7 +36,7 @@ FILE *rom, *logfile;
 
 int main() {
 	rom = fopen("/home/jonas/eclipse-workspace/"
-			"mmc1/bombm2.nes", "rb");
+			"uxrom/contra.nes", "rb");
 	if (rom == NULL) {
 		printf("Error: No such file\n");
 		exit(EXIT_FAILURE);
