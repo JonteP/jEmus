@@ -40,6 +40,7 @@ static inline void adc(), and(), asl(), branch(), bit(), brkop(), clc(), cld(),
 		tya(), none();
 
 uint8_t mm1_shift = 0, mm1_buff, wram, prg_bank, chr_bank, prg_size, chr_size, oneScreen; /* mapper 1 */
+uint8_t mmc3BankSize = 0, mmc3BankSlot = 0;
 uint8_t mode, opcode, addmode, addcycle, *addval, tmpval8, vbuff = 0, s = 0, vraminc, ppureg = 0, w = 0;
 uint16_t addr, tmpval16;
 
@@ -968,6 +969,83 @@ void memwrite() {
 	} else if (addr >= 0x8000 && mapper == 3) {
 		/* TODO: protection */
 		memcpy(&vram[0], &chr[(tmpval8 & 3) * 0x2000], 0x2000);
+	} else if (addr >= 0x8000 && mapper == 4) {
+			switch ((addr>>13) & 3) {
+			case 0:
+				if (!(addr%2)) { /* Bank select */
+					switch (tmpval8&7) {
+					case 0:
+						mmc3BankSize = 2;
+						mmc3BankSlot = (tmpval8&0x80) ? 4 : 0;
+						break;
+					case 1:
+						mmc3BankSize = 2;
+						mmc3BankSlot = (tmpval8&0x80) ? 6 : 2;
+						break;
+					case 2:
+						mmc3BankSize = 1;
+						mmc3BankSlot = (tmpval8&0x80) ? 0 : 4;
+						break;
+					case 3:
+						mmc3BankSize = 1;
+						mmc3BankSlot = (tmpval8&0x80) ? 1 : 5;
+						break;
+					case 4:
+						mmc3BankSize = 1;
+						mmc3BankSlot = (tmpval8&0x80) ? 2 : 6;
+						break;
+					case 5:
+						mmc3BankSize = 1;
+						mmc3BankSlot = (tmpval8&0x80) ? 3 : 7;
+						break;
+					case 6:
+						mmc3BankSize = 8;
+						mmc3BankSlot = (tmpval8&0x40) ? 2 : 0;
+						break;
+					case 7:
+						mmc3BankSize = 8;
+						mmc3BankSlot = 1;
+						break;
+					}
+				} else if (addr%2) { /* Bank data */
+					if (mmc3BankSize <=2) {
+						memcpy(&vram[0x400 * mmc3BankSlot], &chr[(tmpval8>>(mmc3BankSize>>1)) * mmc3BankSize * 0x400], mmc3BankSize * 0x400);
+
+					} else if (mmc3BankSize == 8) {
+						if (!mmc3BankSlot) {
+							memcpy(&cpu[0x8000], &prg[(tmpval8&0x3f) * 0x2000], 0x2000);
+							memcpy(&cpu[0xc000], &prg[psize-0x4000], 0x2000);
+						} else if (mmc3BankSlot == 2) {
+							memcpy(&cpu[0xc000], &prg[(tmpval8&0x3f) * 0x2000], 0x2000);
+							memcpy(&cpu[0x8000], &prg[psize-0x4000], 0x2000);
+						} else
+							memcpy(&cpu[0xa000], &prg[(tmpval8&0x3f) * 0x2000], 0x2000);
+					}
+				}
+				break;
+			case 1:
+				if (!(addr%2)) { /* Mirroring */
+					mirrmode = 1-(tmpval8&1);
+				} else if (addr%2) { /* PRG RAM protect */
+
+				}
+				break;
+			case 2:
+				if (!(addr%2)) { /* IRQ latch */
+
+				} else if (addr%2) { /* IRQ reload */
+
+				}
+				break;
+			case 3:
+				if (!(addr%2)) { /* IRQ disable */
+
+				} else if (addr%2) { /* IRQ enable */
+
+				}
+				break;
+		}
+
 	} else if (addr >= 0x8000 && mapper == 7) {
 		memcpy(&cpu[0x8000], &prg[(tmpval8 & 7) * 0x8000], 0x8000);
 		(tmpval8&0x10) ? (mirrmode = 3) : (mirrmode = 2);

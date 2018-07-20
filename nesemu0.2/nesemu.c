@@ -36,7 +36,7 @@ FILE *rom, *logfile;
 
 int main() {
 	rom = fopen("/home/jonas/eclipse-workspace/"
-			"uxrom/contra.nes", "rb");
+			"mmc3/alien3.nes", "rb");
 	if (rom == NULL) {
 		printf("Error: No such file\n");
 		exit(EXIT_FAILURE);
@@ -86,6 +86,9 @@ int main() {
 		if (psize == 0x4000)
 			memcpy(&cpu[0xc000], &prg[0x00], psize);
 		break;
+	case 4:		/* TxROM */
+		memcpy(&cpu[0xc000], &prg[psize-0x4000], 0x4000);
+		break;
 	case 7:		/* AxROM */
 		memcpy(&cpu[0x8000], &prg[0], 0x8000);
 		memcpy(&vram[0], &chr[0], 0x2000);
@@ -113,8 +116,8 @@ int main() {
 			run_ppu(ppu_wait);
 			run_apu(apu_wait);
 			opdecode(cpu[pc++]);
-			if (sp<0x100 || sp>0x1ff)
-				printf("Error: Stack pointer\n");
+		/*	if (sp<0x100 || sp>0x1ff)
+				printf("Error: Stack pointer\n"); */
 
 			/* Interrupt handling */
 			if (nmiIsTriggered >= ppucc-1) /* correct behavior? Probably depends on opcode */
