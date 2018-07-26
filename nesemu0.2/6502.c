@@ -7,6 +7,7 @@
 #include "nestools.h"
 #include "ppu.h"
 #include "apu.h"
+#include "mapper.h"
 
 extern void opdecode(uint8_t);
 
@@ -39,10 +40,10 @@ static inline void adc(), and(), asl(), branch(), bit(), brkop(), clc(), cld(),
 		sed(), sei(), sta(), stx(), sty(), tax(), tay(), tsx(), txa(), txs(),
 		tya(), none();
 
-uint8_t mm1_shift = 0, mm1_buff, wram, prg_bank, chr_bank, prg_size, chr_size, oneScreen; /* mapper 1 */
 uint8_t mmc3BankSize = 0, mmc3BankSlot = 0;
 uint8_t mode, opcode, addmode, addcycle, *addval, tmpval8, vbuff = 0, s = 0, vraminc, ppureg = 0, w = 0;
 uint16_t addr, tmpval16;
+uint16_t vrcChr0 = 0, vrcChr1 = 0, vrcChr2 = 0, vrcChr3 = 0, vrcChr4 = 0, vrcChr5 = 0, vrcChr6 = 0, vrcChr7 = 0;
 
 int test = 0;
 
@@ -51,8 +52,6 @@ void opdecode(uint8_t op) {
 	test++;
 	addcycle = 0;
 	addr = 0;
-	if (pc < 0x8000 && mapper == 0)
-		printf("PC out of bounds!\n");
 	static void (*addp0[8])() = {immed,zpage,accum,absol,absy,zpagex,zpagey,absx};
 	static void (*addp1[8])() = {indx,zpage,immed,absol,indy,zpagex,absy,absx};
 	static void (*opp0[8])() = {none,bit,none,none,sty,ldy,cpy,cpx};
@@ -653,7 +652,7 @@ void memread() {
 			tmpval8 = vbuff;
 			vbuff = vram[namev];
 			if (namev >= 0x2000)
-				vbuff = vram[(namev&0x23ff) | (mirroring[mirrmode][((namev&0xc00)>>10)]<<10)];
+				vbuff = vram[(namev&0x23ff) | (mirroring[cart.mirroring][((namev&0xc00)>>10)]<<10)];
 		}
 		/* TODO: buffer update when reading palette */
 		else if ((namev) >= 0x3f00) {
@@ -751,7 +750,7 @@ void memwrite() {
 	case 0x2007:
 		ppureg = tmpval8;
 		if ((namev < 0x3f00) && (namev >= 0x2000)) {
-			vram[(namev&0x23ff) | (mirroring[mirrmode][((namev&0xc00)>>10)]<<10)] = tmpval8;
+			vram[(namev&0x23ff) | (mirroring[cart.mirroring][((namev&0xc00)>>10)]<<10)] = tmpval8;
 		} else if ((namev) >= 0x3f00) {
 		 	namev = (namev & 0x3f1f);
 			if (namev==0x3f10) /* TODO: complete mirroring behavior */
@@ -908,61 +907,12 @@ void memwrite() {
 		}
 		break;
 	}
-	if (addr >= 0x8000 && mapper == 1) {
-		if (tmpval8 & 0x80) {
-			mm1_shift = 0;
-			mm1_buff = 0;
-			prg_bank = 1;
-			prg_size = 1;
-		} else {
-			mm1_buff = (mm1_buff & ~(1<<mm1_shift)) | ((tmpval8 & 1)<<mm1_shift);
-			if (mm1_shift == 4) {
-				switch ((addr>>13) & 3) {
-				case 0: /* Control register */
-					switch (mm1_buff&3) {
-					case 0:
-						mirrmode = 2;
-						break;
-					case 1:
-						mirrmode = 3;
-						break;
-					case 2:
-						mirrmode = 1;
-						break;
-					case 3:
-						mirrmode = 0;
-						break;
-					}
-					prg_bank = ((mm1_buff >> 2) & 1); /* 0 low, 1 high */
-					prg_size = ((mm1_buff >> 3) & 1); /* 0 32k, 1 16k */
-					chr_size = ((mm1_buff >> 4) & 1); /* 0 8k,  1 4k */
-					break;
-				case 1: /* CHR ROM low bank */
-					if (!chr_size) {
-						memcpy(&vram[0], &chr[(mm1_buff>>1) * 0x2000], 0x2000);
-						printf("%04x\n",mm1_buff);
-					}
-					else if (chr_size)
-						memcpy(&vram[0], &chr[mm1_buff * 0x1000], 0x1000);
-					break;
-				case 2: /* CHR ROM high bank (4k mode) */
-					if (chr_size)
-						memcpy(&vram[0x1000], &chr[mm1_buff * 0x1000], 0x1000);
-					break;
-				case 3: /* PRG ROM bank */
-					wram = ((mm1_buff >> 4) & 1);
-					/* TODO: 32kb banks */
-					if (prg_size)
-						memcpy(&cpu[!prg_bank ? 0xc000 : 0x8000], &prg[(mm1_buff & 0xf) * 0x4000], 0x4000);
-					else if (!prg_size)
-						memcpy(&cpu[0x8000], &prg[(mm1_buff & 0xe) * 0x8000], 0x8000);
-					break;
-			}
-				mm1_shift = 0;
-				mm1_buff = 0;
-			} else
-				mm1_shift++;
-		}
+	if ((addr >= 0x8000) &&
+			(!strcmp(cart.slot,"sxrom") ||
+				!strcmp(cart.slot,"sxrom_a") ||
+					!strcmp(cart.slot,"sorom") ||
+						!strcmp(cart.slot,"sorom_a"))) {
+		mapper_mmc1(addr, tmpval8);
 	} else if (addr >= 0x8000 && mapper == 2) {
 		/* TODO: implement bus conflict */
 		memcpy(&cpu[0x8000], &prg[tmpval8 * 0x4000], 0x4000);
@@ -1025,7 +975,7 @@ void memwrite() {
 				break;
 			case 1:
 				if (!(addr%2)) { /* Mirroring */
-					mirrmode = 1-(tmpval8&1);
+					cart.mirroring = 1-(tmpval8&1);
 				} else if (addr%2) { /* PRG RAM protect */
 
 				}
@@ -1048,7 +998,63 @@ void memwrite() {
 
 	} else if (addr >= 0x8000 && mapper == 7) {
 		memcpy(&cpu[0x8000], &prg[(tmpval8 & 7) * 0x8000], 0x8000);
-		(tmpval8&0x10) ? (mirrmode = 3) : (mirrmode = 2);
+		(tmpval8&0x10) ? (cart.mirroring = 3) : (cart.mirroring = 2);
+	}  else if (addr >= 0x8000 && mapper == 23) {
+		if ((addr&0xf003) >= 0x8000 && (addr&0xf003) <= 0x8003) { /* PRG select 0 */
+			memcpy(&cpu[0x8000], &prg[(tmpval8 & 0xf) * 0x2000], 0x2000);
+		} else if ((addr&0xf003) >= 0xa000  && (addr&0xf003) <= 0xa003) { /* PRG select 1 */
+			memcpy(&cpu[0xa000], &prg[(tmpval8 & 0xf) * 0x2000], 0x2000);
+		} else if ((addr&0xf003) >= 0x9000  && (addr&0xf003) <= 0x9003) { /* mirroring control */
+			cart.mirroring = (tmpval8&1) ? 0 : 1;
+		} else if ((addr&0xf003) == 0xb000) { /* CHR select 0 low */
+			vrcChr0 = (vrcChr0&0x1f0) | (tmpval8&0xf);
+			memcpy(&vram[0], &chr[vrcChr0 * 0x400], 0x400);
+		} else if ((addr&0xf003) == 0xb001) { /* CHR select 0 high */
+			vrcChr0 = (vrcChr0&0xf) | ((tmpval8&0xf)<<4);
+			memcpy(&vram[0], &chr[vrcChr0 * 0x400], 0x400);
+		} else if ((addr&0xf003) == 0xb002) { /* CHR select 1 low */
+			vrcChr1 = (vrcChr1&0x1f0) | (tmpval8&0xf);
+			memcpy(&vram[0x400], &chr[vrcChr1 * 0x400], 0x400);
+		} else if ((addr&0xf003) == 0xb003) { /* CHR select 1 high */
+			vrcChr1 = (vrcChr1&0xf) | ((tmpval8&0xf)<<4);
+			memcpy(&vram[0x400], &chr[vrcChr1 * 0x400], 0x400);
+		} else if ((addr&0xf003) == 0xc000) { /* CHR select 2 low */
+			vrcChr2 = (vrcChr2&0x1f0) | (tmpval8&0xf);
+			memcpy(&vram[0x800], &chr[vrcChr2 * 0x400], 0x400);
+		} else if ((addr&0xf003) == 0xc001) { /* CHR select 2 high */
+			vrcChr2 = (vrcChr2&0xf) | ((tmpval8&0xf)<<4);
+			memcpy(&vram[0x800], &chr[vrcChr2 * 0x400], 0x400);
+		} else if ((addr&0xf003) == 0xc002) { /* CHR select 3 low */
+			vrcChr3 = (vrcChr3&0x1f0) | (tmpval8&0xf);
+			memcpy(&vram[0xc00], &chr[vrcChr3 * 0x400], 0x400);
+		} else if ((addr&0xf003) == 0xc003) { /* CHR select 3 high */
+			vrcChr3 = (vrcChr3&0xf) | ((tmpval8&0xf)<<4);
+			memcpy(&vram[0xc00], &chr[vrcChr3 * 0x400], 0x400);
+		} else if ((addr&0xf003) == 0xd000) { /* CHR select 4 low */
+			vrcChr4 = (vrcChr4&0x1f0) | (tmpval8&0xf);
+			memcpy(&vram[0x1000], &chr[vrcChr4 * 0x400], 0x400);
+		} else if ((addr&0xf003) == 0xd001) { /* CHR select 4 high */
+			vrcChr4 = (vrcChr4&0xf) | ((tmpval8&0xf)<<4);
+			memcpy(&vram[0x1000], &chr[vrcChr4 * 0x400], 0x400);
+		} else if ((addr&0xf003) == 0xd002) { /* CHR select 5 low */
+			vrcChr5 = (vrcChr5&0x1f0) | (tmpval8&0xf);
+			memcpy(&vram[0x1400], &chr[vrcChr5 * 0x400], 0x400);
+		} else if ((addr&0xf003) == 0xd003) { /* CHR select 5 high */
+			vrcChr5 = (vrcChr5&0xf) | ((tmpval8&0xf)<<4);
+			memcpy(&vram[0x1400], &chr[vrcChr5 * 0x400], 0x400);
+		} else if ((addr&0xf003) == 0xe000) { /* CHR select 6 low */
+			vrcChr6 = (vrcChr6&0x1f0) | (tmpval8&0xf);
+			memcpy(&vram[0x1800], &chr[vrcChr6 * 0x400], 0x400);
+		} else if ((addr&0xf003) == 0xe001) { /* CHR select 6 high */
+			vrcChr6 = (vrcChr6&0xf) | ((tmpval8&0xf)<<4);
+			memcpy(&vram[0x1800], &chr[vrcChr6 * 0x400], 0x400);
+		} else if ((addr&0xf003) == 0xe002) { /* CHR select 7 low */
+			vrcChr7 = (vrcChr7&0x1f0) | (tmpval8&0xf);
+			memcpy(&vram[0x1c00], &chr[vrcChr7 * 0x400], 0x400);
+		} else if ((addr&0xf003) == 0xe003) { /* CHR select 7 high */
+			vrcChr7 = (vrcChr7&0xf) | ((tmpval8&0xf)<<4);
+			memcpy(&vram[0x1c00], &chr[vrcChr7 * 0x400], 0x400);
+		}
 	}
 	if (addr < 0x8000)
 		*addval = tmpval8;

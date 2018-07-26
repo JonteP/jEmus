@@ -20,7 +20,9 @@ nesemu.o: ../nesemu.c ../globals.h ../nestools.h ../apu.h \
  /usr/include/SDL2/SDL_log.h /usr/include/SDL2/SDL_messagebox.h \
  /usr/include/SDL2/SDL_power.h /usr/include/SDL2/SDL_render.h \
  /usr/include/SDL2/SDL_system.h /usr/include/SDL2/SDL_timer.h \
- /usr/include/SDL2/SDL_version.h ../ppu.h ../6502.h
+ /usr/include/SDL2/SDL_version.h ../ppu.h ../6502.h \
+ /usr/include/openssl/sha.h /usr/include/libxml/parser.h \
+ /usr/include/libxml/tree.h
 
 ../globals.h:
 
@@ -117,3 +119,9 @@ nesemu.o: ../nesemu.c ../globals.h ../nestools.h ../apu.h \
 ../ppu.h:
 
 ../6502.h:
+
+/usr/include/openssl/sha.h:
+
+/usr/include/libxml/parser.h:
+
+/usr/include/libxml/tree.h:

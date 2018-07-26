@@ -36,7 +36,7 @@ void power_reset (int mode) {
 }
 
 void nametable_address () {
-	switch (mirrmode) {
+	switch (cart.mirroring) {
 		case 0:
 			{uint16_t mirroring[4] = { 0, 0, 1, 1 };
 			nameadd = (namev&0xf3ff) | (mirroring[(namev>>10)]<<10);

@@ -334,25 +334,12 @@ void init_sounds () {
 void output_sound () {
 	uint16_t outBuffer = (BUFFER_SIZE>>1) - (SDL_GetQueuedAudioSize(1)>>2);
 	float *SoundBuffer = malloc(outBuffer*sizeof(float));
-/*	for(int outSampleIndex = 0;outSampleIndex < BufferSize;++outSampleIndex) {
-	    for (int inSampleIndex = 0;inSampleIndex < 40;++inSampleIndex) {
-	    	tmpcounter++;
-	    	if (tmpcounter > BUFFER_SIZE)
-	    		tmpcounter = 0;
-	    	tmpval += pulse2Buffer[tmpcounter];
-	    }
-	    SoundBuffer[outSampleIndex] = ((tmpval / 40)*256);
-		fprintf(logfile,"%i\n",SoundBuffer[outSampleIndex]);
-	    tmpval = 0;
-	} */
 	for(int i=0;i<outBuffer;++i) {
 		SoundBuffer[i] = sampleBuffer[pulseQueueCounter];
 		pulseQueueCounter++;
 		if (pulseQueueCounter >= BUFFER_SIZE)
 			pulseQueueCounter = 0;
 	}
-
-/*	printf("%i\t%i\t%i\n",pulseSampleCounter,pulseQueueCounter,SDL_GetQueuedAudioSize(1)); */
 	SDL_QueueAudio(1, SoundBuffer, (outBuffer<<2));
 	free(SoundBuffer);
 }

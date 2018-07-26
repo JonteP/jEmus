@@ -138,8 +138,7 @@ void y_scroll() {
 		uint8_t coarsey = ((namev & 0x3e0) >> 5);
 		if (coarsey == 29) {
 			coarsey = 0;
-			if (!mirrmode)
-				namev ^= 0x0800;
+			namev ^= 0x0800;
 	  } else if (coarsey == 31)
 			coarsey = 0;
 	    else
@@ -212,20 +211,19 @@ uint16_t pindx = 0;
 	if (cpu[0x2001] & 0x08) {
 						/*  left column mask  */
 		for (int ncol = 0; ncol < 32; ncol++) {
-			    tilesrc = bpattern + 16 * vram[0x2000 | (namev&0x3ff) | (mirroring[mirrmode][((namev&0xc00)>>10)]<<10)];
-				attsrc = vram[0x23c0 | (mirroring[mirrmode][((namev&0xc00)>>10)]<<10) | ((namev >>4) & 0x38) | ((namev >> 2) & 0x07)];
+			    tilesrc = bpattern + 16 * vram[0x2000 | (namev&0x3ff) | (mirroring[cart.mirroring][((namev&0xc00)>>10)]<<10)];
+				attsrc = vram[0x23c0 | (mirroring[cart.mirroring][((namev&0xc00)>>10)]<<10) | ((namev >>4) & 0x38) | ((namev >> 2) & 0x07)];
 				/* X: shift right 1 AND 1 Y: shift right 4 AND 1 * 2*/
 				npal = ((attsrc >> (((namev >> 1) & 1) | ((namev >> 5) & 2) ) * 2) & 3);
 
 				if ((namev & 0x1f) == 0x1f) {
 					namev &= ~0x1f;
-					if (mirrmode == 1)
-						namev ^= 0x0400; /* switch nametable horizontally */
+					namev ^= 0x0400; /* switch nametable horizontally */
 				} else
 					namev++; /* next tile */
 
-			    ntilesrc = bpattern + 16 * vram[0x2000 | (namev&0x3ff) | (mirroring[mirrmode][((namev&0xc00)>>10)]<<10)];
-				nattsrc = vram[0x23c0 | (mirroring[mirrmode][((namev&0xc00)>>10)]<<10) | ((namev >>4) & 0x38) | ((namev >> 2) & 0x07)];
+			    ntilesrc = bpattern + 16 * vram[0x2000 | (namev&0x3ff) | (mirroring[cart.mirroring][((namev&0xc00)>>10)]<<10)];
+				nattsrc = vram[0x23c0 | (mirroring[cart.mirroring][((namev&0xc00)>>10)]<<10) | ((namev >>4) & 0x38) | ((namev >> 2) & 0x07)];
 				nnpal = ((nattsrc >> (((namev >> 1) & 1) | ((namev >> 5) & 2) ) * 2) & 3);
 
 				for (int pcol = 0; pcol < 8; pcol++) {
