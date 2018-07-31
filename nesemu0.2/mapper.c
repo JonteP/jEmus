@@ -269,10 +269,12 @@ void mapper_mmc3 (uint16_t address, uint8_t value) {
 				if (!(address %2)) { /* Bank select */
 					mmc3BankSelect = value;
 				} else if (address %2) { /* Bank data */
+					if ((mmc3BankSelect&7)<6)
+						printf("bank number %02x\tgets value %02x\n",mmc3BankSelect,value);
 					mmc3Reg[(mmc3BankSelect & 0x07)] = value;
+					mmc3_prg_bank_switch();
+					mmc3_chr_bank_switch();
 				}
-				mmc3_prg_bank_switch();
-				mmc3_chr_bank_switch();
 				break;
 			case 1:
 				if (!(address %2)) { /* Mirroring */
@@ -320,10 +322,8 @@ void mmc3_chr_bank_switch() {
 		chr_1_6((mmc3Reg[1] & 0xfe) * 0x400);
 		chr_1_7((mmc3Reg[1] | 0x01) * 0x400);
 	} else if (!(mmc3BankSelect & 0x80)) {
-		chr_1_0((mmc3Reg[0] & 0xfe) * 0x400);
-		chr_1_1((mmc3Reg[0] | 0x01) * 0x400);
-		chr_1_2((mmc3Reg[1] & 0xfe) * 0x400);
-		chr_1_3((mmc3Reg[1] | 0x01) * 0x400);
+		chr_2_0((mmc3Reg[0] >> 1) * 0x800);
+		chr_2_1((mmc3Reg[1] >> 1) * 0x800);
 		chr_1_4(mmc3Reg[2] * 0x400);
 		chr_1_5(mmc3Reg[3] * 0x400);
 		chr_1_6(mmc3Reg[4] * 0x400);
@@ -338,8 +338,8 @@ void reset_mmc3 () {
 	mmc3Reg[3] = 0x05;
 	mmc3Reg[4] = 0x06;
 	mmc3Reg[5] = 0x07;
-	mmc3Reg[6] = 0x00;
-	mmc3Reg[7] = 0x01;
+	mmc3Reg[6] = (cart.prgSize / 0x2000) - 2;
+	mmc3Reg[7] = (cart.prgSize / 0x2000) - 1;
 	mmc3BankSelect = 0x00;
 	mmc3_prg_bank_switch();
 	mmc3_chr_bank_switch();
