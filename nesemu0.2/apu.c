@@ -5,6 +5,7 @@
 #include "globals.h"
 #include "nestools.h"
 #include "SDL.h"
+#include "6502.h"
 
 #define FRAME_COUNT 7456
 #define CHANNELS 1
@@ -243,7 +244,7 @@ void half_frame () {
 void dmc_fill_buffer () {
 if ((!dmcBuffer) && dmcBytesLeft) {
 	/* TODO: stall CPU */
-	dmcBuffer = cpu[dmcCurAdd];
+	dmcBuffer = *cpuread(dmcCurAdd);
 	if (dmcCurAdd == 0xffff)
 		dmcCurAdd = 0x8000;
 	else dmcCurAdd++;
@@ -260,10 +261,10 @@ if ((!dmcBuffer) && dmcBytesLeft) {
 
 void do_irq () {
 	if (!(flag&4)) {
-		cpu[sp--] = ((pc) & 0xff00) >> 8;
-		cpu[sp--] = ((pc) & 0xff);
-		cpu[sp--] = flag;
-		pc = (cpu[irq + 1] << 8) + cpu[irq];
+		*cpuread(sp--) = ((pc) & 0xff00) >> 8;
+		*cpuread(sp--) = ((pc) & 0xff);
+		*cpuread(sp--) = flag;
+		pc = (*cpuread(irq + 1) << 8) + *cpuread(irq);
 		bitset(&flag, 1, 2); /* set I flag */
 	}
 }

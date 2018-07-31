@@ -1,5 +1,5 @@
-apu.o: ../apu.c ../apu.h ../globals.h ../nestools.h \
- /usr/include/SDL2/SDL.h /usr/include/SDL2/SDL_main.h \
+apu.o: ../apu.c ../apu.h ../globals.h ../nestools.h ../ppu.h ../6502.h \
+ ../mapper.h /usr/include/SDL2/SDL.h /usr/include/SDL2/SDL_main.h \
  /usr/include/SDL2/SDL_stdinc.h /usr/include/SDL2/SDL_config.h \
  /usr/include/SDL2/SDL_platform.h /usr/include/SDL2/begin_code.h \
  /usr/include/SDL2/close_code.h /usr/include/SDL2/SDL_assert.h \
@@ -27,6 +27,12 @@ apu.o: ../apu.c ../apu.h ../globals.h ../nestools.h \
 ../globals.h:
 
 ../nestools.h:
+
+../ppu.h:
+
+../6502.h:
+
+../mapper.h:
 
 /usr/include/SDL2/SDL.h:
 

@@ -12,6 +12,10 @@
 
 
 static inline void render_frame(), render_line(), io_handle(), y_scroll();
+
+uint8_t *chrSlot[0x8];
+
+
 uint8_t throttle = 1, vblankSuppressed = 0;
 int16_t ppudot = -1, scanline = 0;
 uint32_t frame = 0, nmiIsTriggered = 0;
@@ -61,7 +65,7 @@ void run_ppu (uint16_t ntimes) {
 	if (scanline == 262) {
 		scanline = 0;
 		frame++;
-		if (frame%2 && (cpu[0x2001] & 0x18))
+		if (frame%2 && (ppuMask & 0x18))
 			ppudot++;
 	}
 
@@ -94,7 +98,7 @@ void run_ppu (uint16_t ntimes) {
 			nmiAlreadyDone = 0;
 			vblank_period = 0;
 		}
-		if (cpu[0x2001] & 0x18) {
+		if (ppuMask & 0x18) {
 			if (ppudot == 256) {
 				y_scroll();
 		  } else if (ppudot >= 257 && ppudot <= 320) {
@@ -115,9 +119,9 @@ void run_ppu (uint16_t ntimes) {
 	} else if (scanline < 240) {
 		if (ppudot == 256) {
 			render_line();
-			if (cpu[0x2001] & 0x18)
+			if (ppuMask & 0x18)
 				y_scroll();
-		} else if (ppudot >= 257 && ppudot <= 320  && (cpu[0x2001] & 0x18)) {
+		} else if (ppudot >= 257 && ppudot <= 320  && (ppuMask & 0x18)) {
 			/* (reset OAM) */
 			if (ppudot == 257)
 				/* (x position) */
@@ -190,29 +194,29 @@ void render_frame() {
 
 void render_line() {
 uint8_t	nsprites = 0, *objsrc, spritebuff[8], *tiledest, *tilesrc, *ntilesrc, npal, nnpal, attsrc, nattsrc;
-uint8_t pmap[SWIDTH] = {0}, *palette = &vram[0x3f00];
+uint8_t pmap[SWIDTH] = {0}, smap[SWIDTH] = {0}, *palette = ppuread(0x3f00);
 uint16_t pindx = 0;
 /* fill sprite buffer */
-	if (cpu[0x2001] & 0x10) {
+	if (ppuMask & 0x10) {
 		for (uint8_t i = (oamaddr>>2); i < 64; i++) {
 			objsrc = oam + (i<<2);
-			if ((objsrc[0]+1) <= scanline && scanline <= (objsrc[0]+8+ (((cpu[0x2000]>>5)&1)*8))) {
+			if ((objsrc[0]+1) <= scanline && scanline <= (objsrc[0]+8 + (((ppuController>>5)&1)*8))) {
 				if (nsprites < 8) {
 					spritebuff[nsprites]=(i<<2);
 					nsprites++;
 				} else
-					spriteof = 1;
+					spriteof = 1; /* TODO: correct sprite overflow */
 			}
 		}
 	}
 
 /* render background */
 	tiledest = bitmapSurface->pixels + scanline * SWIDTH;
-	if (cpu[0x2001] & 0x08) {
+	if (ppuMask & 0x08) {
 						/*  left column mask  */
 		for (int ncol = 0; ncol < 32; ncol++) {
-			    tilesrc = bpattern + 16 * vram[0x2000 | (namev&0x3ff) | (mirroring[cart.mirroring][((namev&0xc00)>>10)]<<10)];
-				attsrc = vram[0x23c0 | (mirroring[cart.mirroring][((namev&0xc00)>>10)]<<10) | ((namev >>4) & 0x38) | ((namev >> 2) & 0x07)];
+			    tilesrc = *bpattern + 16 * *ppuread(0x2000 | (namev&0x3ff) | (mirroring[cart.mirroring][((namev&0xc00)>>10)]<<10));
+				attsrc = *ppuread(0x23c0 | (mirroring[cart.mirroring][((namev&0xc00)>>10)]<<10) | ((namev >>4) & 0x38) | ((namev >> 2) & 0x07));
 				/* X: shift right 1 AND 1 Y: shift right 4 AND 1 * 2*/
 				npal = ((attsrc >> (((namev >> 1) & 1) | ((namev >> 5) & 2) ) * 2) & 3);
 
@@ -222,13 +226,17 @@ uint16_t pindx = 0;
 				} else
 					namev++; /* next tile */
 
-			    ntilesrc = bpattern + 16 * vram[0x2000 | (namev&0x3ff) | (mirroring[cart.mirroring][((namev&0xc00)>>10)]<<10)];
+			    ntilesrc = *bpattern + 16 * *ppuread(0x2000 | (namev&0x3ff) | (mirroring[cart.mirroring][((namev&0xc00)>>10)]<<10));
+				nattsrc = *ppuread(0x23c0 | (mirroring[cart.mirroring][((namev&0xc00)>>10)]<<10) | ((namev >>4) & 0x38) | ((namev >> 2) & 0x07));
+
+/*			    ntilesrc = bpattern + 16 * vram[0x2000 | (namev&0x3ff) | (mirroring[cart.mirroring][((namev&0xc00)>>10)]<<10)];
 				nattsrc = vram[0x23c0 | (mirroring[cart.mirroring][((namev&0xc00)>>10)]<<10) | ((namev >>4) & 0x38) | ((namev >> 2) & 0x07)];
+				nattsrc = vram[0x23c0 | (mirroring[cart.mirroring][((namev&0xc00)>>10)]<<10) | ((namev >>4) & 0x38) | ((namev >> 2) & 0x07)]; */
 				nnpal = ((nattsrc >> (((namev >> 1) & 1) | ((namev >> 5) & 2) ) * 2) & 3);
 
 				for (int pcol = 0; pcol < 8; pcol++) {
 	/* TODO: AND palette with 0x30 in greyscale mode */
-					if (ncol || (cpu[0x2001]&2)) {
+					if (ncol || (ppuMask&2)) {
 						if ((pcol + scrollx) < 8) {
 							pmap[pcol + 8*ncol] = ((tilesrc[(namev >> 12)] & (1<<(7-(pcol+scrollx))) ) ? 1 : 0) + ( (tilesrc[(namev >> 12) + 8] & (1<<(7-(pcol+scrollx)))) ? 2 : 0);
 							if (pmap[pcol + 8*ncol])
@@ -263,22 +271,23 @@ uint16_t pindx = 0;
 
 
 /* render sprites */
-	if (cpu[0x2001] & 0x10) {
+	if (ppuMask & 0x10) {
 		for (uint8_t i = 0; i < nsprites; i++) {
-			objsrc = oam + spritebuff[nsprites-i-1];
+			objsrc = oam + spritebuff[i];
 			uint8_t yoff = scanline - (objsrc[0]+1);
 			uint8_t flipx = ((objsrc[2] >> 6) & 1);
 			uint8_t flipy = ((objsrc[2] >> 7) & 1);
-			tilesrc = (cpu[0x2000]&0x20) ? spattern + (objsrc[1]&1) * 0x1000 + ((objsrc[1]&0xfe)<<4) + ( ((yoff<<1)^(flipy<<4)) &0x10) : spattern + (objsrc[1]<<4);
+			tilesrc = (ppuController&0x20) ? *spattern + (objsrc[1]&1) * 0x1000 + ((objsrc[1]&0xfe)<<4) + ( ((yoff<<1)^(flipy<<4)) &0x10) : *spattern + (objsrc[1]<<4);
 			tiledest = bitmapSurface->pixels + objsrc[3] + scanline * SWIDTH;
 			npal = (objsrc[2] & 3) + 4;
 			for (int pcol = 0; pcol < 8; pcol++) {
-				if ( (objsrc[3]+pcol) > (7 * (1-((cpu[0x2001]>>2)&1))) ) { /* check if outside left column mask */
+				if ( (objsrc[3]+pcol) > (7 * (1-((ppuMask>>2)&1))) && !smap[pcol + objsrc[3]]) { /* check if outside left column mask */
 					uint8_t p = ((((tilesrc[ (yoff&7) + flipy * (7 - 2 * (yoff&7))]
 						>>  (7 - pcol - flipx * (7 - 2 * pcol))) & 1) ? 1 : 0)
 				   + (((tilesrc[((yoff&7) + flipy * (7 - 2 * (yoff&7))) + 8]
 								>> (7 - pcol - flipx * (7 - 2 * pcol))) & 1) ? 2 : 0));	/* is this right edge check correct? */
-					if (p && (pmap[pcol + objsrc[3]]) && !(nsprites-i-1) && !spritezero && ((objsrc[3]+pcol) < 255)) /* sprite zero hit */
+					smap[pcol + objsrc[3]] = p;
+					if (p && (pmap[pcol + objsrc[3]]) && !(i) && !spritezero && ((objsrc[3]+pcol) < 255)) /* sprite zero hit */
 						spritezero = 1;
 					if (p && !(objsrc[2] & 0x20))
 						tiledest[pcol] = palette[npal * 4 + p];

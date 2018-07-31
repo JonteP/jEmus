@@ -13,6 +13,18 @@
 #include "sha.h"
 #include "parser.h"
 #include "tree.h"
+#include "mapper.h"
+
+/* TODO:
+ *
+ * -sprite priority is wrong (smb3 boxes, cvania castle enter...)
+ * -sprite zero hit is wrong, needs correct timing or due to the above?
+ * -cycle correct cpu emulation (prefetches, read-modify-writes and everything)
+ * -dot rendering with correct timing
+ * -FIR low pass filtering of sound
+ * -fix sound buffering (if broken)
+ * -file load routines
+ */
 
 static inline void extract_xml_data(xmlNode * s_node), xml_hash_compare(xmlNode * c_node), parse_xml_file(xmlNode * a_node);
 
@@ -31,8 +43,8 @@ uint8_t vblank_period = 0, ppuStatus_nmiOccurred = 0, spritezero = 0,
 		quit = 0, ctrb = 0, ctrb2 = 0, ctr1 = 0, ctr2 = 0, nmiAlreadyDone = 0, nmi_output = 0,
 		a = 0x00, x = 0x00, y = 0x00, nmiDelayed = 0;
 uint8_t header[0x10], oam[0x100] = { 0 }, vram[0x4000] = { 0 }, flag = 0x34,
-		cpu[0x10000] = { 0 }, spriteof = 0;
-uint8_t *prg, *chr, *combo, *bpattern = &vram[0], *spattern = &vram[0x1000];
+		cpu[0x10000] = { 0 }, spriteof = 0, wramEnable = 0, openBus;
+uint8_t *prg, *chr, *cram, **bpattern, **spattern;
 uint16_t pc, namet, namev, nameadd, scrollx = 0, ppu_wait = 0, apu_wait = 0, nmi_wait = 0;
 uint16_t nmi = 0xfffa, rst = 0xfffc, irq = 0xfffe, sp = 0x1fd;
 uint8_t mirroring[4][4] = { { 0, 0, 1, 1 },
@@ -45,7 +57,7 @@ FILE *rom, *logfile;
 
 int main() {
 	rom = fopen("/home/jonas/eclipse-workspace/"
-			"mmc1/ookami.nes", "rb");
+			"mmc3/smb3.nes", "rb");
 	if (rom == NULL) {
 		printf("Error: No such file\n");
 		exit(EXIT_FAILURE);
@@ -61,24 +73,36 @@ int main() {
 	/* read data from ROM */
 	psize = block * header[4] * 2;
 	csize = block * header[5];
-	prg = malloc(psize);
-	chr = malloc(csize);
-	combo = malloc(psize+csize);
-	fread(prg, psize, 1, rom);
-	fread(chr, csize, 1, rom);
-	fclose(rom);
 
+	prg = malloc(psize);
+	fread(prg, psize, 1, rom);
 	SHA1(prg,psize,phash);
+
 	sphash = malloc(SHA_DIGEST_LENGTH*2+1);
 	for (int i = 0; i<sizeof(phash); i++) {
 		sprintf(sphash+i*2, "%02x", phash[i]);
 	}
-	SHA1(chr,csize,chash);
 	nesXml = xmlReadFile("/home/jonas/eclipse-workspace/nes.xml", NULL, 0);
 	root = xmlDocGetRootElement(nesXml);
 	parse_xml_file(root);
 	xmlFreeDoc(nesXml);
 	xmlCleanupParser();
+
+	if (csize) {
+		chr = malloc(csize);
+		fread(chr, csize, 1, rom);
+	} else {
+		csize = cart.cramSize;
+		chr = malloc(csize);
+	}
+	fclose(rom);
+
+	printf("PCB: %s\n",cart.pcb);
+	printf("PRG size: %i bytes\n",cart.prgSize);
+	printf("CHR size: %i bytes\n",cart.chrSize);
+	printf("WRAM size: %i bytes\n",cart.wramSize);
+	printf("BWRAM size: %i bytes\n",cart.bwramSize);
+	printf("CHRRAM size: %i bytes\n",cart.cramSize);
 /*	mirrmode = (header[6] & 1); */
 	/* 0 = horizontal mirroring
 	 * 1 = vertical mirroring
@@ -86,57 +110,6 @@ int main() {
 	 * 3 = one screen, high page
 	 * 4 = 4 screen
 	 */
-
-	if(!strcmp(cart.slot,"nrom")) {
-		memcpy(&cpu[0x8000], &prg[0x00], psize);
-		if (psize == 0x4000)
-			memcpy(&cpu[0xc000], &prg[0x00], psize);
-		memcpy(&vram[0], &chr[0], csize);
-	} else if(!strcmp(cart.slot,"sxrom") ||
-				!strcmp(cart.slot,"sxrom_a") ||
-					!strcmp(cart.slot,"sorom") ||
-						!strcmp(cart.slot,"sorom_a")) {
-		memcpy(&cpu[0xc000], &prg[psize-0x4000], 0x4000);
-		memcpy(&cpu[0x8000], &prg[0], 0x4000);
-		memcpy(&vram[0], &chr[0], 0x2000);
-	}
-
-/*	mapper = ((header[6] >> 4) & 0x0f) | (header[7] & 0xf0);
-	switch (mapper) {
-	case 0:		/* NROM */
-/*		memcpy(&cpu[0x8000], &prg[0x00], psize);
-		if (psize == 0x4000)
-			memcpy(&cpu[0xc000], &prg[0x00], psize);
-		memcpy(&vram[0], &chr[0], csize);
-		break;
-	case 1:		/* SxROM, MMC1 - see also mappers 105, 155 */
-/*		memcpy(&cpu[0x8000], &prg[psize-0x8000], 0x8000);
-		memcpy(&vram[0], &chr[0], 0x2000);
-		break;
-	case 2:		/* UxROM - see also mappers 94, 180 */
-/*		memcpy(&cpu[0x8000], &prg[psize-0x8000], 0x8000);
-		memcpy(&vram[0], &chr[0], 0x2000);
-		break;
-	case 3:		/* NROM */
-/*		memcpy(&cpu[0x8000], &prg[0x00], psize);
-		if (psize == 0x4000)
-			memcpy(&cpu[0xc000], &prg[0x00], psize);
-		break;
-	case 4:		/* TxROM */
-/*		memcpy(&cpu[0xc000], &prg[psize-0x4000], 0x4000);
-		break;
-	case 7:		/* AxROM */
-/*		memcpy(&cpu[0x8000], &prg[0], 0x8000);
-		memcpy(&vram[0], &chr[0], 0x2000);
-		break;
-	case 23:		/* VRC2/4 */
-/*		memcpy(&cpu[0xc000], &prg[psize-0x4000], 0x4000);
-		break;
-	default:
-		printf("Error: unsupported Mapper: %i\n", mapper);
-		exit(EXIT_FAILURE);
-		break;
-	} */
 
 	logfile = fopen("/home/jonas/eclipse-workspace/logfile.txt","w");
 	if (logfile==NULL)
@@ -154,12 +127,12 @@ int main() {
 			}
 			run_ppu(ppu_wait);
 			run_apu(apu_wait);
-			opdecode(cpu[pc++]);
+			opdecode(*cpuread(pc++));
 		/*	if (sp<0x100 || sp>0x1ff)
 				printf("Error: Stack pointer\n"); */
 
 			/* Interrupt handling */
-			if (nmiIsTriggered >= ppucc-1) /* correct behavior? Probably depends on opcode */
+			if (nmiIsTriggered >= ppucc-1) /*TODO: correct behavior? Probably depends on opcode */
 				nmiDelayed = 1;
 			if (nmi_output && nmiIsTriggered && !nmiAlreadyDone && !nmiDelayed) {
 				apu_wait += 7 * 2;
@@ -171,6 +144,8 @@ int main() {
 
 	}
 	fclose(logfile);
+	free(prg);
+	free(chr);
 	kill_graphs();
 }
 
@@ -185,6 +160,8 @@ void extract_xml_data(xmlNode * s_node) {
 				strcpy(cart.slot,(char *)val);
 			else if (!xmlStrcmp(nam,(xmlChar *)"pcb"))
 				strcpy(cart.pcb,(char *)val);
+			else if (!xmlStrcmp(nam,(xmlChar *)"mmc1_type"))
+				strcpy(cart.mmc1_type,(char *)val);
 			else if (!xmlStrcmp(nam,(xmlChar *)"mirroring")) {
 				if (!xmlStrcmp(val,(xmlChar *)"horizontal"))
 					cart.mirroring = 0;
@@ -196,7 +173,10 @@ void extract_xml_data(xmlNode * s_node) {
 
 		} else if (cur_node->type == XML_ELEMENT_NODE && !xmlStrcmp(cur_node->name, (xmlChar *)"dataarea")) {
 				nam = xmlGetProp(cur_node, (xmlChar *)"name");
-				val = xmlGetProp(cur_node, (xmlChar *)"size");
+				if (cur_node->children->next)
+					val = xmlGetProp(cur_node->children->next, (xmlChar *)"size");
+				else
+					val = xmlGetProp(cur_node, (xmlChar *)"size");
 				if (!xmlStrcmp(nam,(xmlChar *)"prg"))
 					cart.prgSize = strtol(val,NULL,10);
 				else if (!xmlStrcmp(nam,(xmlChar *)"chr"))
@@ -205,6 +185,8 @@ void extract_xml_data(xmlNode * s_node) {
 					cart.wramSize = strtol(val,NULL,10);
 				else if (!xmlStrcmp(nam,(xmlChar *)"bwram"))
 					cart.bwramSize = strtol(val,NULL,10);
+				else if (!xmlStrcmp(nam,(xmlChar *)"vram"))
+					cart.cramSize = strtol(val,NULL,10);
 				xmlFree(nam);
 				xmlFree(val);
 		}

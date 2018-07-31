@@ -20,7 +20,7 @@ ppu.o: ../ppu.c ../ppu.h ../globals.h /usr/include/SDL2/SDL.h \
  /usr/include/SDL2/SDL_messagebox.h /usr/include/SDL2/SDL_power.h \
  /usr/include/SDL2/SDL_render.h /usr/include/SDL2/SDL_system.h \
  /usr/include/SDL2/SDL_timer.h /usr/include/SDL2/SDL_version.h \
- ../nestools.h ../apu.h
+ ../nestools.h ../apu.h ../6502.h ../mapper.h
 
 ../ppu.h:
 
@@ -115,3 +115,7 @@ ppu.o: ../ppu.c ../ppu.h ../globals.h /usr/include/SDL2/SDL.h \
 ../nestools.h:
 
 ../apu.h:
+
+../6502.h:
+
+../mapper.h:
