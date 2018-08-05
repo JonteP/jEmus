@@ -6,13 +6,7 @@
 #include "nestools.h"
 #include "SDL.h"
 #include "6502.h"
-
-#define FRAME_COUNT 7456
-#define CHANNELS 1
-#define SAMPLES_PER_SEC 48000
-#define BUFFER_SIZE (8192<<1)
-#define CPU_CLOCK 1789773
-#define SAMPLE_RATIO (CPU_CLOCK / SAMPLES_PER_SEC)
+#include "my_sdl.h"
 
 static inline void do_irq();
 
@@ -48,10 +42,12 @@ uint8_t apuStatus, apuFrameCounter, frameCounter = 0, pulse1Length = 0, waitBuff
 		dmcShift = 0, dmcBuffer = 0, dmcInt = 0, frameInt = 0;
 int8_t pulse1Duty = 0, pulse2Duty = 0, triSeq = 0, triBuff = 0;
 uint16_t pulse1Timer = 0, pulse2Timer = 0,
-		sampleCounter = 0, tmpcounter = 0, pulseQueueCounter = 0,
+		sampleCounter = 0, tmpcounter = 0,
 		triTimer = 0, triTemp, noiseShift, noiseTimer, noiseTemp, dmcTemp,
 		dmcRate = 0, dmcAddress, dmcCurAdd, dmcLength = 0, dmcBytesLeft = 0;
 int16_t pulse1Temp = 0, pulse2Temp = 0;
+
+uint16_t pulseQueueCounter = 0;
 float sampleBuffer[BUFFER_SIZE] = {0};
 uint16_t apucc = 0;
 
@@ -70,7 +66,6 @@ uint16_t noiseTable[0x10] = { 4, 8, 16, 32, 64, 96, 128, 160, 202, 254, 380, 508
 uint16_t rateTable[0x10] = { 428, 380, 340, 320, 286, 254, 226, 214, 190, 160, 142, 128, 106,  84,  72,  54 };
 uint16_t frameClock[5] = {7457, 14913, 22371, 29829, 37281};
 uint16_t frameReset[2] = {29830, 37282};
-SDL_AudioSpec AudioSettings = {0};
 
 
 void run_apu(uint16_t ntimes) { /* apu cycle times */
@@ -158,7 +153,7 @@ void run_apu(uint16_t ntimes) { /* apu cycle times */
 		dmc_fill_buffer();
 		dmcSample = dmcOutput;
 		if (dmcInt || frameInt)
-			do_irq();
+			set_irq();
 		if (dmcBytesLeft) {
 			if (!dmcTemp) {
 				dmcTemp = dmcRate;
@@ -259,15 +254,6 @@ if ((!dmcBuffer) && dmcBytesLeft) {
 }
 }
 
-void do_irq () {
-	if (!(flag&4)) {
-		*cpuread(sp--) = ((pc) & 0xff00) >> 8;
-		*cpuread(sp--) = ((pc) & 0xff);
-		*cpuread(sp--) = flag;
-		pc = (*cpuread(irq + 1) << 8) + *cpuread(irq);
-		bitset(&flag, 1, 2); /* set I flag */
-	}
-}
 
 void quarter_frame () {
 	if (env1Start) {
@@ -321,29 +307,6 @@ void quarter_frame () {
 		triLinReload = 0;
 }
 
-void init_sounds () {
-	AudioSettings.freq = SAMPLES_PER_SEC;
-	AudioSettings.format = AUDIO_F32;
-	AudioSettings.channels = CHANNELS;
-	AudioSettings.callback = NULL;
-	AudioSettings.samples = BUFFER_SIZE>>3;
-	SDL_OpenAudio(&AudioSettings, 0);
-	SDL_PauseAudio(0);
-	SDL_ClearQueuedAudio(1);
-}
-
-void output_sound () {
-	uint16_t outBuffer = (BUFFER_SIZE>>1) - (SDL_GetQueuedAudioSize(1)>>2);
-	float *SoundBuffer = malloc(outBuffer*sizeof(float));
-	for(int i=0;i<outBuffer;++i) {
-		SoundBuffer[i] = sampleBuffer[pulseQueueCounter];
-		pulseQueueCounter++;
-		if (pulseQueueCounter >= BUFFER_SIZE)
-			pulseQueueCounter = 0;
-	}
-	SDL_QueueAudio(1, SoundBuffer, (outBuffer<<2));
-	free(SoundBuffer);
-}
 /*
 float createLowpass (final int order, final float fc, float fs) {
     float cutoff = fc / fs;

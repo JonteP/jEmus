@@ -10,14 +10,16 @@
 #define WPOSY 100
 #define FRAMETIME 16667
 
-extern inline void init_graphs(int, int, int, int, int, int), init_time(void);
-extern inline void run_ppu(uint16_t), kill_graphs(void);
+extern inline void init_time(void);
+extern inline void run_ppu(uint16_t);
 
 /* PPU registers */
 uint8_t ppuController, ppuMask, ppuData;
 
-uint8_t *chrSlot[0x8];
+uint8_t *chrSlot[0x8], nameTableA[0x400], nameTableB[0x400], frameBuffer[SHEIGHT][SWIDTH], nameBuffer[SHEIGHT][SWIDTH<<1];
 uint8_t vblankSuppressed;
+extern uint8_t throttle;
+extern int16_t scanline;
 uint32_t nmiIsTriggered;
 
 #endif

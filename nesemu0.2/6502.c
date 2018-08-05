@@ -40,7 +40,6 @@ static inline void adc(), and(), asl(), branch(), bit(), brkop(), clc(), cld(),
 uint8_t *prgSlot[0x8], cpuRam[0x2000];
 uint8_t mode, opcode, addmode, addcycle, *addval, tmpval8, vbuff = 0, s = 0, vraminc, ppureg = 0, w = 0;
 uint16_t addr, tmpval16;
-uint16_t vrcChr0 = 0, vrcChr1 = 0, vrcChr2 = 0, vrcChr3 = 0, vrcChr4 = 0, vrcChr5 = 0, vrcChr6 = 0, vrcChr7 = 0;
 
 int test = 0;
 
@@ -648,14 +647,9 @@ void memread() {
 		if (namev < 0x3f00) {
 			tmpval8 = vbuff;
 			vbuff = *ppuread(namev);
-			if (namev >= 0x2000)
-				vbuff = *ppuread((namev&0x23ff) | (mirroring[cart.mirroring][((namev&0xc00)>>10)]<<10));
 		}
 		/* TODO: buffer update when reading palette */
 		else if ((namev) >= 0x3f00) {
-		/*	namev = (namev & 0xff1f);
-			if (namev==0x3f10)
-				namev=0x3f00; */
 			tmpval8 = *ppuread(namev);
 		}
 		namev += vraminc;
@@ -685,11 +679,6 @@ void memwrite() {
 		ppureg = ppuController;
 		namet &= 0xf3ff;
 		namet |= ((ppuController & 3)<<10);
-		bpattern = &chrSlot[(ppuController & 0x10) ? 4 : 0];
-		if (!(ppuController & 0x20))
-			spattern = &chrSlot[(ppuController & 0x08) ? 4 : 0];
-		else
-			spattern = &chrSlot[0];
 		vraminc = ((ppuController >> 2) & 1) * 31 + 1;
 		nmi_output = ((ppuController >> 7) & 1);
 		if (nmi_output && ppuStatus_nmiOccurred) {
@@ -747,14 +736,9 @@ void memwrite() {
 		}
 		break;
 	case 0x2007:
-		/* TODO: move mirroring to ppuread? */
 		ppuData = tmpval8;
 		ppureg = ppuData;
-		ppuData &= 0x3fff;
-		if ((namev < 0x3f00) && (namev >= 0x2000)) {
-			*ppuread((namev&0x23ff) | (mirroring[cart.mirroring][((namev&0xc00)>>10)]<<10)) = ppuData;
-		} else
-			*ppuread(namev) = ppuData;
+		*ppuread(namev & 0x3fff) = ppuData;
 		namev += vraminc;
 		break;
 	case 0x4000: /* Pulse 1 duty, envel., volume */
@@ -851,20 +835,31 @@ void memwrite() {
 	case 0x4014:
 		ppureg = tmpval8;
 		tmpval16 = ((tmpval8 << 8) & 0xff00);
+		if (cpucc%2) {
+			apu_wait += 2;
+			ppu_wait += 6;
+			cpucc += 2;
+		} else {
+			apu_wait += 1;
+			ppu_wait += 3;
+			cpucc += 1;
+		}
+		run_ppu(ppu_wait);
+		run_apu(apu_wait);
 		for (int i = 0; i < 256; i++) {
 			if (oamaddr > 255)
 				oamaddr = 0;
 			oam[oamaddr] = *cpuread(tmpval16++);
 			oamaddr++;
+			apu_wait += 2;
+			ppu_wait += 6;
+			cpucc += 2;
+			run_ppu(ppu_wait);
+			run_apu(apu_wait);
 		}
-		if (cpucc%2) {
-			apu_wait += 1;
-			ppu_wait += 3;
-			cpucc += 1;
-		}
-		apu_wait += 513;
+	/*	apu_wait += 513;
 		ppu_wait += 513 * 3;
-		cpucc += 513;
+		cpucc += 513; */
 		break;
 	case 0x4015: /* APU status */
 		dmcInt = 0;
@@ -924,65 +919,11 @@ void memwrite() {
 	else if (!strcmp(cart.slot,"axrom")) {
 		mapper_axrom(tmpval8);
 	}
-	else if (addr >= 0x8000 && mapper == 23) {
-		if ((addr&0xf003) >= 0x8000 && (addr&0xf003) <= 0x8003) { /* PRG select 0 */
-			memcpy(&cpu[0x8000], &prg[(tmpval8 & 0xf) * 0x2000], 0x2000);
-		} else if ((addr&0xf003) >= 0xa000  && (addr&0xf003) <= 0xa003) { /* PRG select 1 */
-			memcpy(&cpu[0xa000], &prg[(tmpval8 & 0xf) * 0x2000], 0x2000);
-		} else if ((addr&0xf003) >= 0x9000  && (addr&0xf003) <= 0x9003) { /* mirroring control */
-			cart.mirroring = (tmpval8&1) ? 0 : 1;
-		} else if ((addr&0xf003) == 0xb000) { /* CHR select 0 low */
-			vrcChr0 = (vrcChr0&0x1f0) | (tmpval8&0xf);
-			memcpy(&vram[0], &chr[vrcChr0 * 0x400], 0x400);
-		} else if ((addr&0xf003) == 0xb001) { /* CHR select 0 high */
-			vrcChr0 = (vrcChr0&0xf) | ((tmpval8&0xf)<<4);
-			memcpy(&vram[0], &chr[vrcChr0 * 0x400], 0x400);
-		} else if ((addr&0xf003) == 0xb002) { /* CHR select 1 low */
-			vrcChr1 = (vrcChr1&0x1f0) | (tmpval8&0xf);
-			memcpy(&vram[0x400], &chr[vrcChr1 * 0x400], 0x400);
-		} else if ((addr&0xf003) == 0xb003) { /* CHR select 1 high */
-			vrcChr1 = (vrcChr1&0xf) | ((tmpval8&0xf)<<4);
-			memcpy(&vram[0x400], &chr[vrcChr1 * 0x400], 0x400);
-		} else if ((addr&0xf003) == 0xc000) { /* CHR select 2 low */
-			vrcChr2 = (vrcChr2&0x1f0) | (tmpval8&0xf);
-			memcpy(&vram[0x800], &chr[vrcChr2 * 0x400], 0x400);
-		} else if ((addr&0xf003) == 0xc001) { /* CHR select 2 high */
-			vrcChr2 = (vrcChr2&0xf) | ((tmpval8&0xf)<<4);
-			memcpy(&vram[0x800], &chr[vrcChr2 * 0x400], 0x400);
-		} else if ((addr&0xf003) == 0xc002) { /* CHR select 3 low */
-			vrcChr3 = (vrcChr3&0x1f0) | (tmpval8&0xf);
-			memcpy(&vram[0xc00], &chr[vrcChr3 * 0x400], 0x400);
-		} else if ((addr&0xf003) == 0xc003) { /* CHR select 3 high */
-			vrcChr3 = (vrcChr3&0xf) | ((tmpval8&0xf)<<4);
-			memcpy(&vram[0xc00], &chr[vrcChr3 * 0x400], 0x400);
-		} else if ((addr&0xf003) == 0xd000) { /* CHR select 4 low */
-			vrcChr4 = (vrcChr4&0x1f0) | (tmpval8&0xf);
-			memcpy(&vram[0x1000], &chr[vrcChr4 * 0x400], 0x400);
-		} else if ((addr&0xf003) == 0xd001) { /* CHR select 4 high */
-			vrcChr4 = (vrcChr4&0xf) | ((tmpval8&0xf)<<4);
-			memcpy(&vram[0x1000], &chr[vrcChr4 * 0x400], 0x400);
-		} else if ((addr&0xf003) == 0xd002) { /* CHR select 5 low */
-			vrcChr5 = (vrcChr5&0x1f0) | (tmpval8&0xf);
-			memcpy(&vram[0x1400], &chr[vrcChr5 * 0x400], 0x400);
-		} else if ((addr&0xf003) == 0xd003) { /* CHR select 5 high */
-			vrcChr5 = (vrcChr5&0xf) | ((tmpval8&0xf)<<4);
-			memcpy(&vram[0x1400], &chr[vrcChr5 * 0x400], 0x400);
-		} else if ((addr&0xf003) == 0xe000) { /* CHR select 6 low */
-			vrcChr6 = (vrcChr6&0x1f0) | (tmpval8&0xf);
-			memcpy(&vram[0x1800], &chr[vrcChr6 * 0x400], 0x400);
-		} else if ((addr&0xf003) == 0xe001) { /* CHR select 6 high */
-			vrcChr6 = (vrcChr6&0xf) | ((tmpval8&0xf)<<4);
-			memcpy(&vram[0x1800], &chr[vrcChr6 * 0x400], 0x400);
-		} else if ((addr&0xf003) == 0xe002) { /* CHR select 7 low */
-			vrcChr7 = (vrcChr7&0x1f0) | (tmpval8&0xf);
-			memcpy(&vram[0x1c00], &chr[vrcChr7 * 0x400], 0x400);
-		} else if ((addr&0xf003) == 0xe003) { /* CHR select 7 high */
-			vrcChr7 = (vrcChr7&0xf) | ((tmpval8&0xf)<<4);
-			memcpy(&vram[0x1c00], &chr[vrcChr7 * 0x400], 0x400);
-		}
+	else if (!strcmp(cart.slot,"vrc2") ||
+				!strcmp(cart.slot,"vrc4")) {
+		mapper_vrc24(addr,tmpval8);
 	}
-
-}
+	}
 
 	if (addr < 0x8000)
 		*addval = tmpval8;
@@ -1006,9 +947,26 @@ uint8_t * ppuread(uint16_t address) {
 	if (address < 0x2000) /* pattern tables */
 		return &chrSlot[(address>>10)][address&0x3ff];
 	else if (address >= 0x2000 && address <0x3f00) /* nametables */
-		return &vram[address]; /*(address&0x23ff) | (mirroring[cart.mirroring][((address&0xc00)>>10)]<<10)];*/
-	else if (address >= 0x3f00) /* palette RAM */
+		return mirroring[cart.mirroring][((namev&0xc00)>>10)] ? &nameTableB[address&0x3ff] : &nameTableA[address&0x3ff];
+	else if (address >= 0x3f00) { /* palette RAM */
 		if (address == 0x3f10)
-			address = 0x3f00; /* TODO: complete mirroring behavior */
+			address = 0x3f00;
+		else if (address == 0x3f14)
+			address = 0x3f04;
+		else if (address == 0x3f18)
+			address = 0x3f08;
+		else if (address == 0x3f1c)
+			address = 0x3f0c;
 		return &vram[(address&0x3f1f)];
+	}
+}
+
+void set_irq() {
+	if (!(flag&4)) {
+		*cpuread(sp--) = ((pc) & 0xff00) >> 8;
+		*cpuread(sp--) = ((pc) & 0xff);
+		*cpuread(sp--) = flag;
+		pc = (*cpuread(irq + 1) << 8) + *cpuread(irq);
+		bitset(&flag, 1, 2); /* set I flag */
+	}
 }

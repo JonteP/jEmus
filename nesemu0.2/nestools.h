@@ -45,13 +45,13 @@ void power_reset (int mode) {
 		reset_axrom();
 	} else if (!strcmp(cart.slot,"txrom")) {
 		reset_mmc3();
-	}
+	} else if (!strcmp(cart.slot,"vrc2") ||
+			!strcmp(cart.slot,"vrc4")) {
+		reset_vrc24();
+	} else
+		reset_default();
 
-	/*	case 4:		 TxROM */
-	/*		memcpy(&cpu[0xc000], &prg[psize-0x4000], 0x4000);
-			break;
-
-		case 23:		/* VRC2/4 */
+	/* VRC2/4 */
 	/*		memcpy(&cpu[0xc000], &prg[psize-0x4000], 0x4000);
 			break;
 		default:
@@ -61,8 +61,6 @@ void power_reset (int mode) {
 		} */
 	pc = (*cpuread(rst + 1) << 8) + *cpuread(rst);
 	bitset(&flag, 1, 2); /* set I flag */
-	bpattern = &chrSlot[0];
-	spattern = &chrSlot[1];
 	apuStatus = 0; /* silence all channels */
 	noiseShift = 1;
 	dmcOutput = 0;
@@ -70,27 +68,6 @@ void power_reset (int mode) {
 		frameInt = 1;
 		apuFrameCounter = 0;
 	}
-}
-
-void nametable_address () {
-	switch (cart.mirroring) {
-		case 0:
-			{uint16_t mirroring[4] = { 0, 0, 1, 1 };
-			nameadd = (namev&0xf3ff) | (mirroring[(namev>>10)]<<10);
-			break;}
-		case 1:
-			{uint16_t mirroring[4] = { 0, 1, 0, 1 };
-			nameadd = (namev&0xf3ff) | (mirroring[(namev>>10)]<<10);
-			break;}
-		case 2:
-			{uint16_t mirroring[4] = { 0, 0, 0, 0 };
-			nameadd = (namev&0xf3ff) | (mirroring[(namev>>10)]<<10);
-			break;}
-		case 3:
-			{uint16_t mirroring[4] = { 1, 1, 1, 1 };
-			nameadd = (namev&0xf3ff) | (mirroring[(namev>>10)]<<10);
-			break;}
-		}
 }
 
 #endif

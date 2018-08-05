@@ -12,6 +12,7 @@
 #include "globals.h"
 #include "6502.h"
 #include "ppu.h"
+#include "nestools.h"
 
 static inline void prg_8_0(uint32_t offset), prg_8_1(uint32_t offset), prg_8_2(uint32_t offset), prg_8_3(uint32_t offset),
 				   prg_16low(uint32_t offset), prg_16high(uint32_t offset), prg_32(uint32_t offset),
@@ -28,7 +29,7 @@ static inline void prg_8_0(uint32_t offset), prg_8_1(uint32_t offset), prg_8_2(u
  *
  * Game specific:
  * -Burger Time: random crash (stack pointer)
- * -Super Mario Bros; Tower of Druaga: sprite zero issues
+ * -Super Mario Bros; line glitch below status screen
  * -10-Yard Fight: glitch line on top of playfield
  * -1942: missing letters....
  */
@@ -76,7 +77,6 @@ void reset_axrom() {
  *
  * Game specific:
  * -Banana: does not boot
- * -Gradius: BG graphics glitches
  * */
 
 void mapper_cnrom (uint8_t value) {
@@ -99,8 +99,8 @@ void reset_cnrom () {
  *
  * Game specific:
  * -Senjou no Ookami: garbage graphics flicker
- * -Akumajou; Ducktales: the usual sprite zero issues
- * -Tatakai no Banka: one frame graphics glitches (see Senjou..)
+ * -Akumajou; Ducktales: should status screen flicker when scrooge overlaps?
+ * -Tatakai no Banka: one frame graphics glitches - worse now, sprite zero?
  */
 
 void mapper_uxrom (uint8_t value) {
@@ -138,12 +138,7 @@ void reset_uxrom () {
  * Game specific:
  * -Dragon Warrior III: resets/hangs
  * -Bill and Ted: does not boot
- * -Bomber Man 2: missing graphics on start screen
- * -Ninja Gaiden: wrong graphics during cutscenes
- * -Zelda 2: wrong graphics during title screen
  * -Dragon Warrior: glitchy graphics / speed issues
- * -Ys and TMNT: flashing graphics and slowdown during gameplay
- * -Chip and Dale 2: graphics issues during title and intro
  * -Bubble Bobble: wrong BG color
  */
 
@@ -260,54 +255,69 @@ void reset_mmc1() {
 /*              TxROM              */
 /*/////////////////////////////////*/
 
-uint8_t mmc3BankSelect, mmc3Reg[0x08];
+/* TODO:
+ *
+ *-Correct IRQ behavior (requires better ppu emulation)
+ *-implement TQROM (mapper 119)
+ * - implement TKSROM and TLSROM (mapper 118)
+ *
+ *Game specific:
+ *-batman does not boot (stack pointer goes crazy)
+ *-batman returns does not boot...
+ *-many game have irq related issues
+ */
+
+uint8_t mmc3BankSelect, mmc3Reg[0x08], mmc3IrqEnable,
+		mmc3PramProtect, mmc3IrqLatch, mmc3IrqReload, mmc3IrqCounter, mmc3Int = 0;
 static inline void mmc3_prg_bank_switch(), mmc3_chr_bank_switch();
 
 void mapper_mmc3 (uint16_t address, uint8_t value) {
 	switch ((address>>13) & 3) {
 			case 0:
-				if (!(address %2)) { /* Bank select */
+				if (!(address %2)) { /* Bank select (0x8000) */
 					mmc3BankSelect = value;
-				} else if (address %2) { /* Bank data */
-					if ((mmc3BankSelect&7)<6)
-						printf("bank number %02x\tgets value %02x\n",mmc3BankSelect,value);
+				} else if (address %2) { /* Bank data (0x8001) */
 					mmc3Reg[(mmc3BankSelect & 0x07)] = value;
-					mmc3_prg_bank_switch();
-					mmc3_chr_bank_switch();
 				}
+				mmc3_prg_bank_switch();
+				mmc3_chr_bank_switch();
 				break;
 			case 1:
-				if (!(address %2)) { /* Mirroring */
+				if (!(address %2)) { /* Mirroring (0xA000) */
 					cart.mirroring = 1-(value & 0x01);
-				} else if (address%2) { /* PRG RAM protect */
+				} else if (address%2) { /* PRG RAM protect (0xA001) */
+					mmc3PramProtect = value;
 				}
 				break;
 			case 2:
-				if (!(address%2)) { /* IRQ latch */
-					} else if (address%2) { /* IRQ reload */
-				}
+				if (!(address%2)) { /* IRQ latch (0xC000) */
+					mmc3IrqLatch = value;
+				} else if (address%2) { /* IRQ reload (0xC001) */
+					mmc3IrqCounter = mmc3IrqLatch;
+					}
 				break;
 			case 3:
-				if (!(address%2)) { /* IRQ disable */
-
-				} else if (address%2) { /* IRQ enable */
+				if (!(address%2)) { /* IRQ disable and acknowledge (0xE000) */
+					mmc3IrqEnable = 0;
+					mmc3Int = 0;
+				} else if (address%2) { /* IRQ enable (0xE001) */
+					mmc3IrqEnable = 1;
 				}
 				break;
 		}
-
 }
 
 void mmc3_prg_bank_switch() {
 	if (mmc3BankSelect & 0x40) {
-		prg_8_0(cart.prgSize - 0x4000);
+		prg_8_0(psize - 0x4000);
 		prg_8_1((mmc3Reg[7] & 0x3f) * 0x2000);
 		prg_8_2((mmc3Reg[6] & 0x3f) * 0x2000);
-		prg_8_3(cart.prgSize - 0x2000);
+		prg_8_3(psize - 0x2000);
 	} else if (!(mmc3BankSelect & 0x40)) {
 		prg_8_0((mmc3Reg[6] & 0x3f) * 0x2000);
 		prg_8_1((mmc3Reg[7] & 0x3f) * 0x2000);
-		prg_8_2(cart.prgSize - 0x4000);
-		prg_8_3(cart.prgSize - 0x2000);
+		prg_8_2(psize - 0x4000);
+		prg_8_3(psize - 0x2000);
 	}
 }
 
@@ -322,8 +332,10 @@ void mmc3_chr_bank_switch() {
 		chr_1_6((mmc3Reg[1] & 0xfe) * 0x400);
 		chr_1_7((mmc3Reg[1] | 0x01) * 0x400);
 	} else if (!(mmc3BankSelect & 0x80)) {
-		chr_2_0((mmc3Reg[0] >> 1) * 0x800);
-		chr_2_1((mmc3Reg[1] >> 1) * 0x800);
+		chr_1_0((mmc3Reg[0] & 0xfe) * 0x400);
+		chr_1_1((mmc3Reg[0] | 0x01) * 0x400);
+		chr_1_2((mmc3Reg[1] & 0xfe) * 0x400);
+		chr_1_3((mmc3Reg[1] | 0x01) * 0x400);
 		chr_1_4(mmc3Reg[2] * 0x400);
 		chr_1_5(mmc3Reg[3] * 0x400);
 		chr_1_6(mmc3Reg[4] * 0x400);
@@ -332,17 +344,196 @@ void mmc3_chr_bank_switch() {
 }
 
 void reset_mmc3 () {
-	mmc3Reg[0] = 0x00;
-	mmc3Reg[1] = 0x02;
-	mmc3Reg[2] = 0x04;
-	mmc3Reg[3] = 0x05;
-	mmc3Reg[4] = 0x06;
-	mmc3Reg[5] = 0x07;
+	memset(mmc3Reg, 0, 8);
 	mmc3Reg[6] = (cart.prgSize / 0x2000) - 2;
 	mmc3Reg[7] = (cart.prgSize / 0x2000) - 1;
 	mmc3BankSelect = 0x00;
 	mmc3_prg_bank_switch();
 	mmc3_chr_bank_switch();
+	wramEnable = 1;
+	mmc3IrqEnable = 0;
+	mmc3IrqCounter = 0;
+	mmc3IrqLatch = 0;
+	mmc3IrqReload = 0;
+}
+
+/*/////////////////////////////////*/
+/*            Konami VRC           */
+/*/////////////////////////////////*/
+
+/*/////////////////////////////////*/
+/*            VRC 2 / 4            */
+/*/////////////////////////////////*/
+
+/* TODO:
+ *
+ *-IRQ timing issues? (more general timing issues)
+ *-Microwire interface in VRC2
+ *-readback of written value in some games...
+ *
+ *Game specific:
+ *-Boku Dracula-kun, crashes with garbage - IRQ timing?
+ *-TMNT 2: does not boot
+ *-TMNT: severe graphics issues - IRQ timing?
+ */
+
+uint8_t vrc24SwapMode, vrcIrqControl = 0, vrcIrqInt, vrcIrqLatch, vrcIrqCounter;
+uint16_t vrcChr0 = 0, vrcChr1 = 0, vrcChr2 = 0, vrcChr3 = 0,
+		 vrcChr4 = 0, vrcChr5 = 0, vrcChr6 = 0, vrcChr7 = 0,
+		 vrcIrqPrescale;
+
+static inline void vrc24_chr_bank_switch();
+
+void mapper_vrc24(uint16_t address, uint8_t value) {
+	/* reroute addressing */
+	if (cart.vrcPrg1 > 1)
+		address = (address & 0xff00) | ((address>>(cart.vrcPrg1-1)) & 0x02) | ((address>>cart.vrcPrg0) & 0x01);
+	else
+		address = (address & 0xff00) | ((address<<(1-cart.vrcPrg1)) & 0x02) | ((address>>cart.vrcPrg0) & 0x01);
+	/* handle register writes */
+	if ((address&0xf003) >= 0x8000 && (address&0xf003) <= 0x8003) { /* PRG select 0 */
+		if (vrc24SwapMode) {
+			prg_8_0(cart.prgSize - 0x4000);
+			prg_8_2((value & ((cart.prgSize>>13)-1)) * 0x2000);
+		}
+		else {
+			prg_8_0((value & ((cart.prgSize>>13)-1)) * 0x2000);
+			prg_8_2(cart.prgSize - 0x4000);
+		}
+		/* always 0x8000 in vrc 2, otherwise depending on swap mode */
+	} else if ((address&0xf003) >= 0xa000  && (address&0xf003) <= 0xa003) { /* PRG select 1 */
+		prg_8_1((value & ((cart.prgSize>>13)-1)) * 0x2000);
+	} else if ((address&0xf003) >= 0x9000  && (address&0xf003) <= 0x9003) { /* mirroring control */
+		if (!strcmp(cart.slot,"vrc4") && (address&0xf003) >= 0x9002) {
+			vrc24SwapMode = ((value >> 1) & 0x01);
+		} else if (!strcmp(cart.slot,"vrc4") && (address&0xf003) < 0x9002) {
+			switch (value & 0x03) {
+			case 0:
+				cart.mirroring = 1;
+				break;
+			case 1:
+				cart.mirroring = 0;
+				break;
+			case 2:
+				cart.mirroring = 2;
+				break;
+			case 3:
+				cart.mirroring = 3;
+				break;
+			}
+		} else if (!strcmp(cart.slot,"vrc2")) {
+			cart.mirroring = (value&1) ? 0 : 1;
+		}
+	} else if ((address&0xf003) == 0xb000) { /* CHR select 0 low */
+		vrcChr0 = (vrcChr0&0x1f0) | (value&0xf);
+		vrc24_chr_bank_switch();
+	} else if ((address&0xf003) == 0xb001) { /* CHR select 0 high */
+		vrcChr0 = (vrcChr0&0xf) | ((value&0x1f)<<4);
+		vrc24_chr_bank_switch();
+	} else if ((address&0xf003) == 0xb002) { /* CHR select 1 low */
+		vrcChr1 = (vrcChr1&0x1f0) | (value&0xf);
+		vrc24_chr_bank_switch();
+	} else if ((address&0xf003) == 0xb003) { /* CHR select 1 high */
+		vrcChr1 = (vrcChr1&0xf) | ((value&0x1f)<<4);
+		vrc24_chr_bank_switch();
+	} else if ((address&0xf003) == 0xc000) { /* CHR select 2 low */
+		vrcChr2 = (vrcChr2&0x1f0) | (value&0xf);
+		vrc24_chr_bank_switch();
+	} else if ((address&0xf003) == 0xc001) { /* CHR select 2 high */
+		vrcChr2 = (vrcChr2&0xf) | ((value&0x1f)<<4);
+		vrc24_chr_bank_switch();
+	} else if ((address&0xf003) == 0xc002) { /* CHR select 3 low */
+		vrcChr3 = (vrcChr3&0x1f0) | (value&0xf);
+		vrc24_chr_bank_switch();
+	} else if ((address&0xf003) == 0xc003) { /* CHR select 3 high */
+		vrcChr3 = (vrcChr3&0xf) | ((value&0x1f)<<4);
+		vrc24_chr_bank_switch();
+	} else if ((address&0xf003) == 0xd000) { /* CHR select 4 low */
+		vrcChr4 = (vrcChr4&0x1f0) | (value&0xf);
+		vrc24_chr_bank_switch();
+	} else if ((address&0xf003) == 0xd001) { /* CHR select 4 high */
+		vrcChr4 = (vrcChr4&0xf) | ((value&0x1f)<<4);
+		vrc24_chr_bank_switch();
+	} else if ((address&0xf003) == 0xd002) { /* CHR select 5 low */
+		vrcChr5 = (vrcChr5&0x1f0) | (value&0xf);
+		vrc24_chr_bank_switch();
+	} else if ((address&0xf003) == 0xd003) { /* CHR select 5 high */
+		vrcChr5 = (vrcChr5&0xf) | ((value&0x1f)<<4);
+		vrc24_chr_bank_switch();
+	} else if ((address&0xf003) == 0xe000) { /* CHR select 6 low */
+		vrcChr6 = (vrcChr6&0x1f0) | (value&0xf);
+		vrc24_chr_bank_switch();
+	} else if ((address&0xf003) == 0xe001) { /* CHR select 6 high */
+		vrcChr6 = (vrcChr6&0xf) | ((value&0x1f)<<4);
+		vrc24_chr_bank_switch();
+	} else if ((address&0xf003) == 0xe002) { /* CHR select 7 low */
+		vrcChr7 = (vrcChr7&0x1f0) | (value&0xf);
+		vrc24_chr_bank_switch();
+	} else if ((address&0xf003) == 0xe003) { /* CHR select 7 high */
+		vrcChr7 = (vrcChr7&0xf) | ((value&0x1f)<<4);
+		vrc24_chr_bank_switch();
+	} else if ((address&0xf003) == 0xf000) { /* IRQ Latch low */
+		vrcIrqLatch = (vrcIrqLatch & 0xf0) | (value & 0x0f);
+	} else if ((address&0xf003) == 0xf001) { /* IRQ Latch high */
+		vrcIrqLatch = (vrcIrqLatch & 0x0f) | ((value & 0xf) << 4);
+	} else if ((address&0xf003) == 0xf002) { /* IRQ Control */
+		vrcChr7 = (vrcChr7&0xf) | ((value&0x1f)<<4);
+		vrcIrqControl = (value & 0x07);
+		if (vrcIrqControl & 0x02) {
+			vrcIrqCounter = vrcIrqLatch;
+			vrcIrqPrescale = 341; /* in reality, it counts CPU cycles */
+		}
+		vrcIrqInt = 0;
+	} else if ((address&0xf003) == 0xf003) { /* IRQ Acknowledge */
+		vrcIrqInt = 0;
+		vrcIrqControl = (vrcIrqControl & 0x04) | ((vrcIrqControl & 0x01) << 1);
+	}
+}
+
+void vrc24_chr_bank_switch() {
+	if (!strcmp(cart.slot,"vrc2")) {
+		if (cart.vrcChr) {
+			chr_1_0((vrcChr0 & 0xff) * 0x400);
+			chr_1_1((vrcChr1 & 0xff) * 0x400);
+			chr_1_2((vrcChr2 & 0xff) * 0x400);
+			chr_1_3((vrcChr3 & 0xff) * 0x400);
+			chr_1_4((vrcChr4 & 0xff) * 0x400);
+			chr_1_5((vrcChr5 & 0xff) * 0x400);
+			chr_1_6((vrcChr6 & 0xff) * 0x400);
+			chr_1_7((vrcChr7 & 0xff) * 0x400);
+		} else if (!cart.vrcChr) {
+			chr_1_0((vrcChr0 >> 1) * 0x400);
+			chr_1_1((vrcChr1 >> 1) * 0x400);
+			chr_1_2((vrcChr2 >> 1) * 0x400);
+			chr_1_3((vrcChr3 >> 1) * 0x400);
+			chr_1_4((vrcChr4 >> 1) * 0x400);
+			chr_1_5((vrcChr5 >> 1) * 0x400);
+			chr_1_6((vrcChr6 >> 1) * 0x400);
+			chr_1_7((vrcChr7 >> 1) * 0x400);
+		}
+	} else if (!strcmp(cart.slot,"vrc4")){
+		chr_1_0(vrcChr0 * 0x400);
+		chr_1_1(vrcChr1 * 0x400);
+		chr_1_2(vrcChr2 * 0x400);
+		chr_1_3(vrcChr3 * 0x400);
+		chr_1_4(vrcChr4 * 0x400);
+		chr_1_5(vrcChr5 * 0x400);
+		chr_1_6(vrcChr6 * 0x400);
+		chr_1_7(vrcChr7 * 0x400);
+	}
+}
+
+void reset_vrc24() {
+	prg_16low(0);
+	prg_16high(cart.prgSize-0x4000);
+	chr_8(0);
+	wramEnable = 1;
+	vrc24SwapMode = 0;
+}
+
+void reset_default() {
+	prg_32(0);
+	chr_8(0);
 }
 
 void prg_16low(uint32_t offset) {

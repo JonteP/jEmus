@@ -1,4 +1,5 @@
-ppu.o: ../ppu.c ../ppu.h ../globals.h /usr/include/SDL2/SDL.h \
+ppu.o: ../ppu.c ../ppu.h ../globals.h ../nestools.h ../apu.h ../6502.h \
+ ../mapper.h ../my_sdl.h /usr/include/SDL2/SDL.h \
  /usr/include/SDL2/SDL_main.h /usr/include/SDL2/SDL_stdinc.h \
  /usr/include/SDL2/SDL_config.h /usr/include/SDL2/SDL_platform.h \
  /usr/include/SDL2/begin_code.h /usr/include/SDL2/close_code.h \
@@ -19,12 +20,21 @@ ppu.o: ../ppu.c ../ppu.h ../globals.h /usr/include/SDL2/SDL.h \
  /usr/include/SDL2/SDL_loadso.h /usr/include/SDL2/SDL_log.h \
  /usr/include/SDL2/SDL_messagebox.h /usr/include/SDL2/SDL_power.h \
  /usr/include/SDL2/SDL_render.h /usr/include/SDL2/SDL_system.h \
- /usr/include/SDL2/SDL_timer.h /usr/include/SDL2/SDL_version.h \
- ../nestools.h ../apu.h ../6502.h ../mapper.h
+ /usr/include/SDL2/SDL_timer.h /usr/include/SDL2/SDL_version.h
 
 ../ppu.h:
 
 ../globals.h:
+
+../nestools.h:
+
+../apu.h:
+
+../6502.h:
+
+../mapper.h:
+
+../my_sdl.h:
 
 /usr/include/SDL2/SDL.h:
 
@@ -111,11 +121,3 @@ ppu.o: ../ppu.c ../ppu.h ../globals.h /usr/include/SDL2/SDL.h \
 /usr/include/SDL2/SDL_timer.h:
 
 /usr/include/SDL2/SDL_version.h:
-
-../nestools.h:
-
-../apu.h:
-
-../6502.h:
-
-../mapper.h:

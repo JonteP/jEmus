@@ -2,7 +2,7 @@
 #define C6502_H_
 #include <stdint.h>
 
-extern inline void opdecode(uint8_t);
+extern inline void opdecode(uint8_t), set_irq();
 extern inline uint8_t * cpuread(uint16_t);
 extern inline uint8_t * ppuread(uint16_t);
 

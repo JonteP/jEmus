@@ -14,16 +14,22 @@
 #include "parser.h"
 #include "tree.h"
 #include "mapper.h"
+#include "my_sdl.h"
 
 /* TODO:
  *
- * -sprite priority is wrong (smb3 boxes, cvania castle enter...)
- * -sprite zero hit is wrong, needs correct timing or due to the above?
+ * -battery backed saves
  * -cycle correct cpu emulation (prefetches, read-modify-writes and everything)
  * -dot rendering with correct timing
  * -FIR low pass filtering of sound
  * -fix sound buffering (if broken)
+ *
+ * Features:
  * -file load routines
+ * -nametable viewer
+ * -oam viewer
+ * -pattern viewer
+ * -save states
  */
 
 static inline void extract_xml_data(xmlNode * s_node), xml_hash_compare(xmlNode * c_node), parse_xml_file(xmlNode * a_node);
@@ -44,7 +50,7 @@ uint8_t vblank_period = 0, ppuStatus_nmiOccurred = 0, spritezero = 0,
 		a = 0x00, x = 0x00, y = 0x00, nmiDelayed = 0;
 uint8_t header[0x10], oam[0x100] = { 0 }, vram[0x4000] = { 0 }, flag = 0x34,
 		cpu[0x10000] = { 0 }, spriteof = 0, wramEnable = 0, openBus;
-uint8_t *prg, *chr, *cram, **bpattern, **spattern;
+uint8_t *prg, *chr, *cram;
 uint16_t pc, namet, namev, nameadd, scrollx = 0, ppu_wait = 0, apu_wait = 0, nmi_wait = 0;
 uint16_t nmi = 0xfffa, rst = 0xfffc, irq = 0xfffe, sp = 0x1fd;
 uint8_t mirroring[4][4] = { { 0, 0, 1, 1 },
@@ -52,12 +58,12 @@ uint8_t mirroring[4][4] = { { 0, 0, 1, 1 },
 							{ 0, 0, 0, 0 },
 							{ 1, 1, 1, 1 } };
 int32_t cpucc = 0;
-
 FILE *rom, *logfile;
 
 int main() {
+
 	rom = fopen("/home/jonas/eclipse-workspace/"
-			"mmc3/smb3.nes", "rb");
+			"nrom/burger.nes", "rb");
 	if (rom == NULL) {
 		printf("Error: No such file\n");
 		exit(EXIT_FAILURE);
@@ -116,17 +122,17 @@ int main() {
 		printf("Error: Could not create logfile\n");
 
 	power_reset(0);
-	init_graphs(WPOSX, WPOSY, WWIDTH, WHEIGHT, SWIDTH, SHEIGHT);
+	init_graphs();
 	init_sounds();
 	init_time();
 
 	while (quit == 0) {
-		/*	fprintf(logfile,"%04X %02X\t\t A:%02X X=%02X Y:%02X P:%02X SP:%02X CYC:%i\n",pc,cpu[pc],a,x,y,flag,sp,ppudot); */
 			if (nmiDelayed) {
 				nmiDelayed = 0;
 			}
 			run_ppu(ppu_wait);
 			run_apu(apu_wait);
+		/*	fprintf(logfile,"%04X %02X\t\t A:%02X X=%02X Y:%02X P:%02X SP:%02X CYC:%i\n",pc,cpu[pc],a,x,y,flag,sp,ppudot); */
 			opdecode(*cpuread(pc++));
 		/*	if (sp<0x100 || sp>0x1ff)
 				printf("Error: Stack pointer\n"); */
@@ -146,7 +152,7 @@ int main() {
 	fclose(logfile);
 	free(prg);
 	free(chr);
-	kill_graphs();
+	close_sdl();
 }
 
 void extract_xml_data(xmlNode * s_node) {
@@ -160,6 +166,20 @@ void extract_xml_data(xmlNode * s_node) {
 				strcpy(cart.slot,(char *)val);
 			else if (!xmlStrcmp(nam,(xmlChar *)"pcb"))
 				strcpy(cart.pcb,(char *)val);
+			else if (!xmlStrcmp(nam,(xmlChar *)"vrc2-pin3"))
+				cart.vrcPrg1 = strtol(val+5,NULL,10);
+			else if (!xmlStrcmp(nam,(xmlChar *)"vrc2-pin4"))
+				cart.vrcPrg0 = strtol(val+5,NULL,10);
+			else if (!xmlStrcmp(nam,(xmlChar *)"vrc4-pin3"))
+				cart.vrcPrg1 = strtol(val+5,NULL,10);
+			else if (!xmlStrcmp(nam,(xmlChar *)"vrc4-pin4"))
+				cart.vrcPrg0 = strtol(val+5,NULL,10);
+			else if (!xmlStrcmp(nam,(xmlChar *)"vrc2-pin21")) {
+				if (!xmlStrcmp(val,(xmlChar *)"NC"))
+					cart.vrcChr = 0;
+				else
+					cart.vrcChr = 1;
+			}
 			else if (!xmlStrcmp(nam,(xmlChar *)"mmc1_type"))
 				strcpy(cart.mmc1_type,(char *)val);
 			else if (!xmlStrcmp(nam,(xmlChar *)"mirroring")) {
