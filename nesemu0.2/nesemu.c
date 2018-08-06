@@ -49,10 +49,10 @@ uint8_t vblank_period = 0, ppuStatus_nmiOccurred = 0, spritezero = 0,
 		quit = 0, ctrb = 0, ctrb2 = 0, ctr1 = 0, ctr2 = 0, nmiAlreadyDone = 0, nmi_output = 0,
 		a = 0x00, x = 0x00, y = 0x00, nmiDelayed = 0;
 uint8_t header[0x10], oam[0x100] = { 0 }, vram[0x4000] = { 0 }, flag = 0x34,
-		cpu[0x10000] = { 0 }, spriteof = 0, wramEnable = 0, openBus;
+		cpu[0x10000] = { 0 }, spriteof = 0, wramEnable = 0, openBus, sp = 0xfd;
 uint8_t *prg, *chr, *cram;
 uint16_t pc, namet, namev, nameadd, scrollx = 0, ppu_wait = 0, apu_wait = 0, nmi_wait = 0;
-uint16_t nmi = 0xfffa, rst = 0xfffc, irq = 0xfffe, sp = 0x1fd;
+uint16_t nmi = 0xfffa, rst = 0xfffc, irq = 0xfffe;
 uint8_t mirroring[4][4] = { { 0, 0, 1, 1 },
 							{ 0, 1, 0, 1 },
 							{ 0, 0, 0, 0 },
@@ -63,7 +63,7 @@ FILE *rom, *logfile;
 int main() {
 
 	rom = fopen("/home/jonas/eclipse-workspace/"
-			"nrom/burger.nes", "rb");
+			"testrom/rom_singles/03-immediate.nes", "rb");
 	if (rom == NULL) {
 		printf("Error: No such file\n");
 		exit(EXIT_FAILURE);

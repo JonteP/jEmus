@@ -16,7 +16,7 @@ extern inline void run_ppu(uint16_t);
 /* PPU registers */
 uint8_t ppuController, ppuMask, ppuData;
 
-uint8_t *chrSlot[0x8], nameTableA[0x400], nameTableB[0x400], frameBuffer[SHEIGHT][SWIDTH], nameBuffer[SHEIGHT][SWIDTH<<1];
+uint8_t *chrSlot[0x8], nameTableA[0x400], nameTableB[0x400], frameBuffer[SHEIGHT][SWIDTH], nameBuffer[SHEIGHT][SWIDTH<<1], patternBuffer[SWIDTH>>1][SWIDTH], paletteBuffer[SWIDTH>>4][SWIDTH>>1];
 uint8_t vblankSuppressed;
 extern uint8_t throttle;
 extern int16_t scanline;

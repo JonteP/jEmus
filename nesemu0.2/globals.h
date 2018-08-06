@@ -26,8 +26,8 @@ typedef struct gameFeatures_ {
 extern gameFeatures cart;
 extern uint8_t  a, x, y, flag, oamaddr, ctrb, ctrb2, ctr1, ctr2, nmi_output, nmiAlreadyDone, ppuStatus_nmiOccurred, spritezero,
 			    spriteof, nmiDelayed, nmiVblankTriggered, vblank_period, mapper, oneScreen, mirroring[4][4], wramEnable, openBus;
-extern uint8_t  *prg, *lrgprg, *chr, cpu[0x10000], oam[0x100], vram[0x4000], quit;
-extern uint16_t pc, sp, nmi, irq, paddr, namev, namet, nameadd, scrollx, ppu_wait, apu_wait, rst;
+extern uint8_t  *prg, *lrgprg, *chr, cpu[0x10000], oam[0x100], vram[0x4000], quit, sp;
+extern uint16_t pc, nmi, irq, paddr, namev, namet, nameadd, scrollx, ppu_wait, apu_wait, rst;
 extern int16_t ppudot;
 extern int32_t ppucc, cpucc;
 extern int psize, csize;

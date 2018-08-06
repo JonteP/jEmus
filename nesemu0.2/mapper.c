@@ -28,7 +28,6 @@ static inline void prg_8_0(uint32_t offset), prg_8_1(uint32_t offset), prg_8_2(u
 /* TODO:
  *
  * Game specific:
- * -Burger Time: random crash (stack pointer)
  * -Super Mario Bros; line glitch below status screen
  * -10-Yard Fight: glitch line on top of playfield
  * -1942: missing letters....
@@ -53,7 +52,7 @@ void reset_nrom() {
  * -bus conflicts?
  *
  * Game specific:
- * -Battletoads: severe graphics issues
+ * -Battletoads: crashes at level 2 - timing issue
  * -Cabal: does not boot
  * */
 
@@ -99,7 +98,7 @@ void reset_cnrom () {
  *
  * Game specific:
  * -Senjou no Ookami: garbage graphics flicker
- * -Akumajou; Ducktales: should status screen flicker when scrooge overlaps?
+ * -Ducktales: should status screen flicker when scrooge overlaps?
  * -Tatakai no Banka: one frame graphics glitches - worse now, sprite zero?
  */
 
@@ -372,7 +371,7 @@ void reset_mmc3 () {
  *-readback of written value in some games...
  *
  *Game specific:
- *-Boku Dracula-kun, crashes with garbage - IRQ timing?
+ *-Boku Dracula-kun, crashes with garbage at specific point - IRQ timing?
  *-TMNT 2: does not boot
  *-TMNT: severe graphics issues - IRQ timing?
  */
@@ -534,6 +533,7 @@ void reset_vrc24() {
 void reset_default() {
 	prg_32(0);
 	chr_8(0);
+	cart.mirroring = 1;
 }
 
 void prg_16low(uint32_t offset) {

@@ -427,8 +427,8 @@ void jmpi() {
 }
 
 void jsr() {
-	*cpuread(sp--) = ((pc + 1) & 0xff00) >> 8;
-	*cpuread(sp--) = ((pc + 1) & 0x00ff);
+	*cpuread(0x100 + sp--) = ((pc + 1) & 0xff00) >> 8;
+	*cpuread(0x100 + sp--) = ((pc + 1) & 0x00ff);
 	addr = *cpuread(pc++);
 	addr += *cpuread(pc) << 8;
 	pc = addr;
@@ -488,23 +488,21 @@ void ora() {
 }
 
 void pha() {
-	*cpuread(sp--) = a;
+	*cpuread(0x100 + sp--) = a;
 }
 
 void php() {
-	*cpuread(sp--) = (flag | 0x30); /* bit 4 is set if from an instruction */
+	*cpuread(0x100 + sp--) = (flag | 0x30); /* bit 4 is set if from an instruction */
 }
 
 void pla() {
-	sp++;
-	a = *cpuread(sp);
+	a = *cpuread(++sp + 0x100);
 	bitset(&flag, a == 0, 1);
 	bitset(&flag, a >= 0x80, 7);
 }
 
 void plp() {
-	sp++;
-	flag = *cpuread(sp);
+	flag = *cpuread(++sp + 0x100);
 	bitset(&flag, 1, 5);
 	bitset(&flag, 0, 4); /* b flag should be discarded */
 }
@@ -530,18 +528,16 @@ void ror() {
 }
 
 void rti() {
-	sp++;
-	flag = *cpuread(sp++);
+	flag = *cpuread(++sp + 0x100);
 	bitset(&flag, 1, 5); /* bit 5 always set */
 /*	bitset(&flag, 0, 4);  b flag should be discarded */
-	pc = *cpuread(sp++);
-	pc += (*cpuread(sp) << 8);
+	pc = *cpuread(++sp + 0x100);
+	pc += (*cpuread(++sp + 0x100) << 8);
 }
 
 void rts() {
-	sp++;
-	addr = *cpuread(sp++);
-	addr += *cpuread(sp) << 8;
+	addr = *cpuread(++sp + 0x100);
+	addr += *cpuread(++sp + 0x100) << 8;
 	pc = addr + 1;
 }
 
@@ -599,7 +595,7 @@ void tay() {
 }
 
 void tsx() {
-	x = (sp & 0xff);
+	x = sp;
 	bitset(&flag, x == 0, 1);
 	bitset(&flag, x >= 0x80, 7);
 }
@@ -611,7 +607,7 @@ void txa() {
 }
 
 void txs() {
-	sp = (0x100 | (uint16_t) x);
+	sp = x;
 }
 
 void tya() {
@@ -963,9 +959,9 @@ uint8_t * ppuread(uint16_t address) {
 
 void set_irq() {
 	if (!(flag&4)) {
-		*cpuread(sp--) = ((pc) & 0xff00) >> 8;
-		*cpuread(sp--) = ((pc) & 0xff);
-		*cpuread(sp--) = flag;
+		*cpuread(0x100 + sp--) = ((pc) & 0xff00) >> 8;
+		*cpuread(0x100 + sp--) = ((pc) & 0xff);
+		*cpuread(0x100 + sp--) = flag;
 		pc = (*cpuread(irq + 1) << 8) + *cpuread(irq);
 		bitset(&flag, 1, 2); /* set I flag */
 	}

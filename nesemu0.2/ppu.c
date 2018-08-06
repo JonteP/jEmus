@@ -11,9 +11,9 @@
 #include "my_sdl.h"
 
 
-static inline void draw_line(), draw_nametable(), y_scroll();
+static inline void draw_line(), draw_nametable(), draw_pattern(), draw_palette(), y_scroll();
 
-uint8_t throttle = 1, vblankSuppressed = 0, frameBuffer[SHEIGHT][SWIDTH], nameBuffer[SHEIGHT][SWIDTH<<1];
+uint8_t throttle = 1, vblankSuppressed = 0, frameBuffer[SHEIGHT][SWIDTH], nameBuffer[SHEIGHT][SWIDTH<<1], patternBuffer[SWIDTH>>1][SWIDTH], paletteBuffer[SWIDTH>>4][SWIDTH>>1];
 int16_t ppudot = -1, scanline = 0;
 uint32_t frame = 0, nmiIsTriggered = 0;
 int32_t ppucc = -1;
@@ -81,7 +81,12 @@ void run_ppu (uint16_t ntimes) {
 			nmiIsTriggered = 0;
 			vblankSuppressed = 0;
 			io_handle();
-			draw_nametable();
+			if (nametableActive)
+				draw_nametable();
+			if (patternActive)
+				draw_pattern();
+			if (paletteActive)
+				draw_palette();
 			render_frame();
 		/*	if (waitBuffer) */
 				output_sound();
@@ -265,9 +270,9 @@ uint16_t pindx = 0, tileOffset, spriteOffset;
 
 
 void draw_nametable () {
-	uint8_t	*tilesrcA, npalA, attsrcA;
+	uint8_t	*tilesrcA, npalA, attsrcA, paletteIndexA;
 	uint16_t tileOffsetA;
-	uint8_t	*tilesrcB, npalB, attsrcB;
+	uint8_t	*tilesrcB, npalB, attsrcB, paletteIndexB;
 	uint16_t tileOffsetB;
 	for (int tileRow = 0; tileRow < 30; tileRow++) {
 		for (int tileColumn = 0; tileColumn < 32; tileColumn++) {
@@ -281,19 +286,66 @@ void draw_nametable () {
 		    npalB = ((attsrcB >> (((tileColumn >> 1) & 1) | (tileRow & 2) ) * 2) & 3);
 					for (int pixelRow = 0; pixelRow < 8; pixelRow++) {
 						for (int pixelColumn = 0; pixelColumn < 8; pixelColumn++) {
+							paletteIndexA = (((tilesrcA[pixelRow]     & (1<<(7-pixelColumn))) ? 1 : 0)
+										  + ( (tilesrcA[pixelRow + 8] & (1<<(7-pixelColumn))) ? 2 : 0));
 
 							nameBuffer[(tileRow<<3) + pixelRow][         (tileColumn<<3) + pixelColumn] =
-									*ppuread(0x3f00 + npalA * 4
-									+ (((tilesrcA[pixelRow]     & (1<<(7-pixelColumn))) ? 1 : 0)
-									+ ( (tilesrcA[pixelRow + 8] & (1<<(7-pixelColumn))) ? 2 : 0)));
+									paletteIndexA ? *ppuread(0x3f00 + npalA * 4 + paletteIndexA) : *ppuread(0x3f00);
+
+							paletteIndexB = (((tilesrcB[pixelRow]     & (1<<(7-pixelColumn))) ? 1 : 0)
+										  + ( (tilesrcB[pixelRow + 8] & (1<<(7-pixelColumn))) ? 2 : 0));
 
 							nameBuffer[(tileRow<<3) + pixelRow][SWIDTH + (tileColumn<<3) + pixelColumn] =
-									*ppuread(0x3f00 + npalB * 4
-									+ (((tilesrcB[pixelRow]     & (1<<(7-pixelColumn))) ? 1 : 0)
-									+ ( (tilesrcB[pixelRow + 8] & (1<<(7-pixelColumn))) ? 2 : 0)));
+									paletteIndexB ? *ppuread(0x3f00 + npalB * 4 + paletteIndexB) : *ppuread(0x3f00);
 						}
 					}
 				}
 			}
 }
 
+void draw_pattern () {
+	uint8_t	*tilesrcA, npalA;
+	uint16_t tileOffsetA, palSourceA;
+	uint8_t	*tilesrcB, npalB;
+	uint16_t tileOffsetB, palSourceB;
+	for (int tileRow = 0; tileRow < 16; tileRow++) {
+		for (int tileColumn = 0; tileColumn < 16; tileColumn++) {
+			tileOffsetA = 16 * ((tileRow << 4) + tileColumn);
+		    tilesrcA = &chrSlot[(tileOffsetA>>10)][tileOffsetA&0x3ff];
+		    npalA = 0;
+			tileOffsetB = 16 * ((tileRow << 4) + tileColumn) + 0x1000;
+		    tilesrcB = &chrSlot[(tileOffsetB>>10)][tileOffsetB&0x3ff];
+		    npalB = 0;
+		    palSourceA = (ppuController & 0x10) ? 0x3f10 : 0x3f00;
+		    palSourceB = (ppuController & 0x08) ? 0x3f10 : 0x3f00;
+
+			for (int pixelRow = 0; pixelRow < 8; pixelRow++) {
+				for (int pixelColumn = 0; pixelColumn < 8; pixelColumn++) {
+
+					patternBuffer[(tileRow<<3) + pixelRow][         (tileColumn<<3) + pixelColumn] =
+						*ppuread(palSourceA + npalA * 4
+						+ (((tilesrcA[pixelRow]     & (1<<(7-pixelColumn))) ? 1 : 0)
+						+ ( (tilesrcA[pixelRow + 8] & (1<<(7-pixelColumn))) ? 2 : 0)));
+
+					patternBuffer[(tileRow<<3) + pixelRow][(SWIDTH>>1) + (tileColumn<<3) + pixelColumn] =
+						*ppuread(palSourceB + npalB * 4
+						+ (((tilesrcB[pixelRow]     & (1<<(7-pixelColumn))) ? 1 : 0)
+						+ ( (tilesrcB[pixelRow + 8] & (1<<(7-pixelColumn))) ? 2 : 0)));
+				}
+			}
+		}
+	}
+}
+
+void draw_palette () {
+	for (int tileRow = 0; tileRow < 2; tileRow++) {
+		for (int tileColumn = 0; tileColumn < 16; tileColumn++) {
+			for (int pixelRow = 0; pixelRow < 8; pixelRow++) {
+				for (int pixelColumn = 0; pixelColumn < 8; pixelColumn++) {
+					paletteBuffer[(tileRow<<3) + pixelRow][         (tileColumn<<3) + pixelColumn] =
+						*ppuread(0x3f00 + (tileRow << 4) + tileColumn);
+				}
+			}
+		}
+	}
+}
