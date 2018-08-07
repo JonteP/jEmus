@@ -13,6 +13,8 @@
 
 static inline void draw_line(), draw_nametable(), draw_pattern(), draw_palette(), y_scroll();
 
+uint8_t *chrSlot[0x8], nameTableA[0x400], nameTableB[0x400], palette[0x20], oam[0x100], frameBuffer[SHEIGHT][SWIDTH], nameBuffer[SHEIGHT][SWIDTH<<1], patternBuffer[SWIDTH>>1][SWIDTH], paletteBuffer[SWIDTH>>4][SWIDTH>>1];
+uint8_t oamaddr, vblank_period = 0, ppuStatus_nmiOccurred = 0, spritezero = 0;
 uint8_t throttle = 1, vblankSuppressed = 0, frameBuffer[SHEIGHT][SWIDTH], nameBuffer[SHEIGHT][SWIDTH<<1], patternBuffer[SWIDTH>>1][SWIDTH], paletteBuffer[SWIDTH>>4][SWIDTH>>1];
 int16_t ppudot = -1, scanline = 0;
 uint32_t frame = 0, nmiIsTriggered = 0;
@@ -47,11 +49,11 @@ void run_ppu (uint16_t ntimes) {
 				vrcIrqPrescale--;
 		}
 		if ((vrcIrqControl & 0x02) && vrcIrqInt) {
-			set_irq();
+			interrupt_handle(IRQ);
 		}
 
 		if (mmc3IrqEnable && mmc3Int)
-			set_irq();
+			interrupt_handle(IRQ);
 
 		if (ppudot == 341) {
 		scanline++;

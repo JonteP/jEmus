@@ -2,11 +2,19 @@
 #define C6502_H_
 #include <stdint.h>
 
-extern inline void opdecode(uint8_t), set_irq();
-extern inline uint8_t * cpuread(uint16_t);
-extern inline uint8_t * ppuread(uint16_t);
+typedef enum {
+    IRQ,
+    NMI,
+	BRK
+} interrupt_t;
 
-extern uint8_t ppuController, ppuMask;
+extern interrupt_t intFlag;
+void opdecode(void), interrupt_handle(interrupt_t);
+uint8_t * cpuread(uint16_t);
+uint8_t * ppuread(uint16_t);
+
+extern uint8_t ppuController, ppuMask, flag;
 extern uint8_t *prgSlot[0x8];
+extern uint16_t nmi, rst, irq, pc;
 
 #endif

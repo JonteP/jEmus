@@ -8,8 +8,6 @@
 #include "6502.h"
 #include "my_sdl.h"
 
-static inline void do_irq();
-
 float pulse_table[31] = { 0.0116, 0.0229, 0.0340, 0.0448, 0.0554, 0.0657, 0.0757, 0.0856, 0.0952, 0.1046, 0.1139, 0.1229, 0.1317,
 						   0.1404, 0.1488, 0.1571, 0.1652, 0.1732, 0.1810, 0.1886, 0.1961, 0.2035, 0.2107, 0.2178, 0.2247, 0.2315,
 						   0.2382, 0.2447, 0.2512, 0.2575, 0.2637 };
@@ -153,7 +151,7 @@ void run_apu(uint16_t ntimes) { /* apu cycle times */
 		dmc_fill_buffer();
 		dmcSample = dmcOutput;
 		if (dmcInt || frameInt)
-			set_irq();
+			interrupt_handle(IRQ);
 		if (dmcBytesLeft) {
 			if (!dmcTemp) {
 				dmcTemp = dmcRate;

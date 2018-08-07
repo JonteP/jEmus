@@ -9,6 +9,8 @@
 #include "apu.h"
 #include "mapper.h"
 
+interrupt_t intFlag;
+
 						 /* 0 |1 |2 |3 |4 |5 |6 |7 |8 |9 |a |b |c |d |e |f */
 static uint8_t ctable[] = { 7, 6, 0, 0, 3, 3, 5, 0, 3, 2, 2, 0, 4, 4, 6, 0,/* 0 */
 							2, 5, 0, 0, 4, 4, 6, 0, 2, 4, 2, 0, 4, 4, 7, 0,/* 1 */
@@ -37,13 +39,14 @@ static inline void adc(), and(), asl(), branch(), bit(), brkop(), clc(), cld(),
 		pha(), php(), pla(), plp(), rol(), ror(), rti(), rts(), sbc(), sec(),
 		sed(), sei(), sta(), stx(), sty(), tax(), tay(), tsx(), txa(), txs(),
 		tya(), none();
-uint8_t *prgSlot[0x8], cpuRam[0x2000];
+uint8_t *prgSlot[0x8], cpuRam[0x2000], a = 0x00, x = 0x00, y = 0x00, flag = 0x34, sp = 0xfd, op;
 uint8_t mode, opcode, addmode, addcycle, *addval, tmpval8, vbuff = 0, s = 0, vraminc, ppureg = 0, w = 0;
-uint16_t addr, tmpval16;
+uint16_t addr, tmpval16, nmi = 0xfffa, rst = 0xfffc, irq = 0xfffe, pc;
 
 int test = 0;
 
-void opdecode(uint8_t op) {
+void opdecode() {
+	op = *cpuread(pc++);
 /*	printf("Opcode: %02X at PC: %04X\n",op,pc); */
 	test++;
 	addcycle = 0;
@@ -314,8 +317,7 @@ void branch() {
 
 void brkop() {
 	pc++;
-	nmiVblankTriggered = 0;
-	donmi();
+	interrupt_handle(BRK);
 }
 
 void clc() {
@@ -953,16 +955,22 @@ uint8_t * ppuread(uint16_t address) {
 			address = 0x3f08;
 		else if (address == 0x3f1c)
 			address = 0x3f0c;
-		return &vram[(address&0x3f1f)];
+		return &palette[(address&0x1f)];
 	}
 }
 
-void set_irq() {
-	if (!(flag&4)) {
+void interrupt_handle(interrupt_t x) {
+	if (x == NMI || x == BRK || (x == IRQ && !(flag & 0x04))) {
 		*cpuread(0x100 + sp--) = ((pc) & 0xff00) >> 8;
 		*cpuread(0x100 + sp--) = ((pc) & 0xff);
-		*cpuread(0x100 + sp--) = flag;
-		pc = (*cpuread(irq + 1) << 8) + *cpuread(irq);
+		if (x == BRK)
+			*cpuread(0x100 + sp--) = (flag | 0x10); /* set b flag */
+		else
+			*cpuread(0x100 + sp--) = (flag & 0xef); /* clear b flag */
+		if (x == IRQ)
+			pc = (*cpuread(irq + 1) << 8) + *cpuread(irq);
+		else
+			pc = (*cpuread(nmi + 1) << 8) + *cpuread(nmi);
 		bitset(&flag, 1, 2); /* set I flag */
 	}
 }

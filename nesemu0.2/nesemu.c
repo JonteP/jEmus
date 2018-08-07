@@ -26,9 +26,7 @@
  *
  * Features:
  * -file load routines
- * -nametable viewer
  * -oam viewer
- * -pattern viewer
  * -save states
  */
 
@@ -36,7 +34,6 @@ static inline void extract_xml_data(xmlNode * s_node), xml_hash_compare(xmlNode 
 
 /* constants */
 const uint8_t id[4] = { 0x4e, 0x45, 0x53, 0x1a };
-const uint16_t block = 0x2000;
 gameInfos gameInfo;
 gameFeatures cart;
 int psize, csize;
@@ -44,15 +41,13 @@ xmlDoc *nesXml;
 xmlNode *root;
 xmlChar *sphash, *schash;
 unsigned char phash[SHA_DIGEST_LENGTH], chash[SHA_DIGEST_LENGTH];
-uint8_t oamaddr, nmiVblankTriggered, mapper;
-uint8_t vblank_period = 0, ppuStatus_nmiOccurred = 0, spritezero = 0,
-		quit = 0, ctrb = 0, ctrb2 = 0, ctr1 = 0, ctr2 = 0, nmiAlreadyDone = 0, nmi_output = 0,
-		a = 0x00, x = 0x00, y = 0x00, nmiDelayed = 0;
-uint8_t header[0x10], oam[0x100] = { 0 }, vram[0x4000] = { 0 }, flag = 0x34,
-		cpu[0x10000] = { 0 }, spriteof = 0, wramEnable = 0, openBus, sp = 0xfd;
+
+uint8_t mapper;
+uint8_t quit = 0, ctrb = 0, ctrb2 = 0, ctr1 = 0, ctr2 = 0, nmiAlreadyDone = 0, nmi_output = 0,
+		nmiDelayed = 0;
+uint8_t header[0x10], cpu[0x10000] = { 0 }, spriteof = 0, wramEnable = 0, openBus;
 uint8_t *prg, *chr, *cram;
-uint16_t pc, namet, namev, nameadd, scrollx = 0, ppu_wait = 0, apu_wait = 0, nmi_wait = 0;
-uint16_t nmi = 0xfffa, rst = 0xfffc, irq = 0xfffe;
+uint16_t namet, namev, scrollx = 0, ppu_wait = 0, apu_wait = 0, nmi_wait = 0;
 uint8_t mirroring[4][4] = { { 0, 0, 1, 1 },
 							{ 0, 1, 0, 1 },
 							{ 0, 0, 0, 0 },
@@ -61,9 +56,8 @@ int32_t cpucc = 0;
 FILE *rom, *logfile;
 
 int main() {
-
 	rom = fopen("/home/jonas/eclipse-workspace/"
-			"testrom/rom_singles/03-immediate.nes", "rb");
+			"mmc3/rockman6.nes", "rb");
 	if (rom == NULL) {
 		printf("Error: No such file\n");
 		exit(EXIT_FAILURE);
@@ -77,8 +71,8 @@ int main() {
 	}
 
 	/* read data from ROM */
-	psize = block * header[4] * 2;
-	csize = block * header[5];
+	psize = header[4] * PRG_BANK<<2;
+	csize = header[5] * CHR_BANK<<3;
 
 	prg = malloc(psize);
 	fread(prg, psize, 1, rom);
@@ -133,7 +127,7 @@ int main() {
 			run_ppu(ppu_wait);
 			run_apu(apu_wait);
 		/*	fprintf(logfile,"%04X %02X\t\t A:%02X X=%02X Y:%02X P:%02X SP:%02X CYC:%i\n",pc,cpu[pc],a,x,y,flag,sp,ppudot); */
-			opdecode(*cpuread(pc++));
+			opdecode();
 		/*	if (sp<0x100 || sp>0x1ff)
 				printf("Error: Stack pointer\n"); */
 
@@ -143,7 +137,7 @@ int main() {
 			if (nmi_output && nmiIsTriggered && !nmiAlreadyDone && !nmiDelayed) {
 				apu_wait += 7 * 2;
 				ppu_wait += 7 * 3;
-				donmi();
+				interrupt_handle(NMI);
 				nmiAlreadyDone = 1;
 				nmiIsTriggered = 0;
 			}

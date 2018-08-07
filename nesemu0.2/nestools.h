@@ -10,21 +10,10 @@
 #include "mapper.h"
 
 static inline void bitset(uint8_t * inp, uint8_t val, uint8_t b);
-static inline void donmi(void), power_reset(int mode), nametable_address (void);
+static inline void power_reset(int mode), nametable_address (void);
 
 void bitset(uint8_t * inp, uint8_t val, uint8_t b) {
 	val ? (*inp = *inp | (1 << b)) : (*inp = *inp & ~(1 << b));
-}
-
-void donmi() {
-	*cpuread(0x100 + sp--) = ((pc) & 0xff00) >> 8;
-	*cpuread(0x100 + sp--) = ((pc) & 0xff);
-	if (nmiVblankTriggered)
-		*cpuread(0x100 + sp--) = (flag & 0xef); /* clear b flag */
-	else
-		*cpuread(0x100 + sp--) = (flag | 0x10); /* set b flag */
-	pc = (*cpuread(nmi + 1) << 8) + *cpuread(nmi);
-	bitset(&flag, 1, 2); /* set I flag */
 }
 
 void power_reset (int mode) {
@@ -51,14 +40,6 @@ void power_reset (int mode) {
 	} else
 		reset_default();
 
-	/* VRC2/4 */
-	/*		memcpy(&cpu[0xc000], &prg[psize-0x4000], 0x4000);
-			break;
-		default:
-			printf("Error: unsupported Mapper: %i\n", mapper);
-			exit(EXIT_FAILURE);
-			break;
-		} */
 	pc = (*cpuread(rst + 1) << 8) + *cpuread(rst);
 	bitset(&flag, 1, 2); /* set I flag */
 	apuStatus = 0; /* silence all channels */
