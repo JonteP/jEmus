@@ -42,12 +42,11 @@ xmlNode *root;
 xmlChar *sphash, *schash;
 unsigned char phash[SHA_DIGEST_LENGTH], chash[SHA_DIGEST_LENGTH];
 
-uint8_t mapper;
-uint8_t quit = 0, ctrb = 0, ctrb2 = 0, ctr1 = 0, ctr2 = 0, nmiAlreadyDone = 0, nmi_output = 0,
+uint8_t quit = 0, ctrb = 0, ctrb2 = 0, ctr1 = 0, ctr2 = 0, nmiAlreadyDone = 0,
 		nmiDelayed = 0;
-uint8_t header[0x10], cpu[0x10000] = { 0 }, spriteof = 0, wramEnable = 0, openBus;
+uint8_t header[0x10], cpu[0x10000] = { 0 }, wramEnable = 0, openBus;
 uint8_t *prg, *chr, *cram;
-uint16_t namet, namev, scrollx = 0, ppu_wait = 0, apu_wait = 0, nmi_wait = 0;
+uint16_t ppu_wait = 0, apu_wait = 0, nmi_wait = 0;
 uint8_t mirroring[4][4] = { { 0, 0, 1, 1 },
 							{ 0, 1, 0, 1 },
 							{ 0, 0, 0, 0 },
@@ -57,7 +56,7 @@ FILE *rom, *logfile;
 
 int main() {
 	rom = fopen("/home/jonas/eclipse-workspace/"
-			"mmc3/rockman6.nes", "rb");
+			"vrc24/tmnt2.nes", "rb");
 	if (rom == NULL) {
 		printf("Error: No such file\n");
 		exit(EXIT_FAILURE);
@@ -126,22 +125,18 @@ int main() {
 			}
 			run_ppu(ppu_wait);
 			run_apu(apu_wait);
-		/*	fprintf(logfile,"%04X %02X\t\t A:%02X X=%02X Y:%02X P:%02X SP:%02X CYC:%i\n",pc,cpu[pc],a,x,y,flag,sp,ppudot); */
 			opdecode();
-		/*	if (sp<0x100 || sp>0x1ff)
-				printf("Error: Stack pointer\n"); */
 
 			/* Interrupt handling */
 			if (nmiIsTriggered >= ppucc-1) /*TODO: correct behavior? Probably depends on opcode */
 				nmiDelayed = 1;
-			if (nmi_output && nmiIsTriggered && !nmiAlreadyDone && !nmiDelayed) {
+			if ((ppuController & 0x80) && nmiIsTriggered && !nmiAlreadyDone && !nmiDelayed) {
 				apu_wait += 7 * 2;
 				ppu_wait += 7 * 3;
 				interrupt_handle(NMI);
 				nmiAlreadyDone = 1;
 				nmiIsTriggered = 0;
 			}
-
 	}
 	fclose(logfile);
 	free(prg);

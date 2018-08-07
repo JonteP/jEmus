@@ -121,7 +121,9 @@ void output_sound () {
 		if (pulseQueueCounter >= BUFFER_SIZE)
 			pulseQueueCounter = 0;
 	}
-	SDL_QueueAudio(1, SoundBuffer, (outBuffer<<2));
+	int audioError = SDL_QueueAudio(1, SoundBuffer, (outBuffer<<2));
+	if (audioError)
+		printf("SDL_QueueAduio failed: %s\n", SDL_GetError());
 	free(SoundBuffer);
 }
 

@@ -39,15 +39,15 @@ static inline void adc(), and(), asl(), branch(), bit(), brkop(), clc(), cld(),
 		pha(), php(), pla(), plp(), rol(), ror(), rti(), rts(), sbc(), sec(),
 		sed(), sei(), sta(), stx(), sty(), tax(), tay(), tsx(), txa(), txs(),
 		tya(), none();
-uint8_t *prgSlot[0x8], cpuRam[0x2000], a = 0x00, x = 0x00, y = 0x00, flag = 0x34, sp = 0xfd, op;
-uint8_t mode, opcode, addmode, addcycle, *addval, tmpval8, vbuff = 0, s = 0, vraminc, ppureg = 0, w = 0;
+uint8_t *prgSlot[0x8], cpuRam[0x800], a = 0x00, x = 0x00, y = 0x00, flag = 0x34, sp = 0xfd, op;
+uint8_t mode, opcode, addmode, addcycle, *addval, tmpval8, vbuff = 0, s = 0, ppureg = 0;
 uint16_t addr, tmpval16, nmi = 0xfffa, rst = 0xfffc, irq = 0xfffe, pc;
 
 int test = 0;
 
 void opdecode() {
 	op = *cpuread(pc++);
-/*	printf("Opcode: %02X at PC: %04X\n",op,pc); */
+	fprintf(logfile,"%04X %02X\t\t A:%02X X=%02X Y:%02X P:%02X SP:%02X CYC:%i\n",pc,op,a,x,y,flag,sp,ppudot);
 	test++;
 	addcycle = 0;
 	addr = 0;
@@ -628,29 +628,27 @@ void memread() {
 		if (ppucc == 342 || ppucc == 343) {/* suppress if read and set at same time */
 			nmiIsTriggered = 0;
 		} else if (ppucc == 341) {
-			ppuStatus_nmiOccurred = 0;
+			ppuStatusNmi = 0;
 			vblankSuppressed = 1;
 		}
-		tmpval8 = (ppuStatus_nmiOccurred<<7) | (spritezero<<6) | (spriteof<<5) | (ppureg & 0x1f);
-		/*printf("Reads VBLANK flag at PPU cycle: %i\n",ppucc); */
-		ppuStatus_nmiOccurred = 0;
-	/* 	printf("VBLANK flag is clear PPU cycle %i\n",ppucc);*/
-		w = 0;
+		tmpval8 = (ppuStatusNmi<<7) | (ppuStatusSpriteZero<<6) | (ppuStatusOverflow<<5) | (ppureg & 0x1f);
+		ppuStatusNmi = 0;
+		ppuW = 0;
 		break;
 	case 0x2004:
 		/* TODO: read during rendering */
-		tmpval8 = oam[oamaddr];
+		tmpval8 = oam[ppuOamAddress];
 		break;
 	case 0x2007:
-		if (namev < 0x3f00) {
+		if (ppuV < 0x3f00) {
 			tmpval8 = vbuff;
-			vbuff = *ppuread(namev);
+			vbuff = *ppuread(ppuV);
 		}
 		/* TODO: buffer update when reading palette */
-		else if ((namev) >= 0x3f00) {
-			tmpval8 = *ppuread(namev);
+		else if ((ppuV) >= 0x3f00) {
+			tmpval8 = *ppuread(ppuV);
 		}
-		namev += vraminc;
+		ppuV += (ppuController & 0x04) ? 32 : 1;
 		break;
 	case 0x4015: /* APU status read */
 		tmpval8 = (dmcInt ? 0x80 : 0) | (frameInt ? 0x40 : 0) | (dmcBytesLeft ? 0x10 : 0) | (noiseLength ? 0x08 : 0) | (triLength ? 0x04 : 0) | (pulse2Length ? 0x02 : 0) | (pulse1Length ? 0x01 : 0);
@@ -675,15 +673,13 @@ void memwrite() {
 	case 0x2000:
 		ppuController = tmpval8;
 		ppureg = ppuController;
-		namet &= 0xf3ff;
-		namet |= ((ppuController & 3)<<10);
-		vraminc = ((ppuController >> 2) & 1) * 31 + 1;
-		nmi_output = ((ppuController >> 7) & 1);
-		if (nmi_output && ppuStatus_nmiOccurred) {
+		ppuT &= 0xf3ff;
+		ppuT |= ((ppuController & 3)<<10);
+		if ((ppuController & 0x80) && ppuStatusNmi) {
 			nmiDelayed = 1;
 			nmiIsTriggered = 1;
 		}
-		if (nmi_output == 0) {
+		if ((ppuController & 0x80) == 0) {
 			nmiAlreadyDone = 0;
 		}
 		break;
@@ -695,49 +691,49 @@ void memwrite() {
 		tmpval8 = *addval; /* prevent writing to */
 		break;
 	case 0x2003:
+		ppuOamAddress = tmpval8;
 		ppureg = tmpval8;
-		oamaddr = tmpval8;
 		break;
 	case 0x2004:
 		ppureg = tmpval8;
 		/* TODO: writing during rendering */
 		if (vblank_period) {
-			oam[oamaddr] = tmpval8;
-			oamaddr++;
+			oam[ppuOamAddress] = tmpval8;
+			ppuOamAddress++;
 		}
 		break;
 	case 0x2005:
 		ppureg = tmpval8;
-		if (w == 0) {
-			namet &= 0xffe0;
-			namet |= ((tmpval8 & 0xf8)>>3); /* coarse X scroll */
-			scrollx = (tmpval8 & 0x07); /* fine X scroll  */
-			w = 1;
-		} else if (w == 1) {
-			namet &= 0x8c1f;
-			namet |= ((tmpval8 & 0xf8)<<2); /* coarse Y scroll */
-			namet |= ((tmpval8 & 0x07)<<12); /* fine Y scroll */
-			w = 0;
+		if (ppuW == 0) {
+			ppuT &= 0xffe0;
+			ppuT |= ((tmpval8 & 0xf8)>>3); /* coarse X scroll */
+			ppuX = (tmpval8 & 0x07); /* fine X scroll  */
+			ppuW = 1;
+		} else if (ppuW == 1) {
+			ppuT &= 0x8c1f;
+			ppuT |= ((tmpval8 & 0xf8)<<2); /* coarse Y scroll */
+			ppuT |= ((tmpval8 & 0x07)<<12); /* fine Y scroll */
+			ppuW = 0;
 		}
 		break;
 	case 0x2006:
 		ppureg = tmpval8;
-		if (w == 0) {
-			namet &= 0x80ff;
-			namet |= ((tmpval8 & 0x3f) << 8);
-			w = 1;
-		} else if (w == 1) {
-			namet &= 0xff00;
-			namet |= tmpval8;
-			namev = namet;
-			w = 0;
+		if (ppuW == 0) {
+			ppuT &= 0x80ff;
+			ppuT |= ((tmpval8 & 0x3f) << 8);
+			ppuW = 1;
+		} else if (ppuW == 1) {
+			ppuT &= 0xff00;
+			ppuT |= tmpval8;
+			ppuV = ppuT;
+			ppuW = 0;
 		}
 		break;
 	case 0x2007:
 		ppuData = tmpval8;
 		ppureg = ppuData;
-		*ppuread(namev & 0x3fff) = ppuData;
-		namev += vraminc;
+		*ppuread(ppuV & 0x3fff) = ppuData;
+		ppuV += (ppuController & 0x04) ? 32 : 1;
 		break;
 	case 0x4000: /* Pulse 1 duty, envel., volume */
 		pulse1Control = tmpval8;
@@ -845,10 +841,10 @@ void memwrite() {
 		run_ppu(ppu_wait);
 		run_apu(apu_wait);
 		for (int i = 0; i < 256; i++) {
-			if (oamaddr > 255)
-				oamaddr = 0;
-			oam[oamaddr] = *cpuread(tmpval16++);
-			oamaddr++;
+			if (ppuOamAddress > 255)
+				ppuOamAddress = 0;
+			oam[ppuOamAddress] = *cpuread(tmpval16++);
+			ppuOamAddress++;
 			apu_wait += 2;
 			ppu_wait += 6;
 			cpucc += 2;
@@ -937,15 +933,17 @@ uint8_t * cpuread(uint16_t address) {
 			openBus = (address>>4);
 			return &openBus;
 		}
-	}
-		return &cpu[address];
+	} else if (address < 0x2000)
+		return &cpuRam[address & 0x7ff];
+
+	return &cpu[address];
 }
 
 uint8_t * ppuread(uint16_t address) {
 	if (address < 0x2000) /* pattern tables */
 		return &chrSlot[(address>>10)][address&0x3ff];
 	else if (address >= 0x2000 && address <0x3f00) /* nametables */
-		return mirroring[cart.mirroring][((namev&0xc00)>>10)] ? &nameTableB[address&0x3ff] : &nameTableA[address&0x3ff];
+		return mirroring[cart.mirroring][((ppuV&0xc00)>>10)] ? &nameTableB[address&0x3ff] : &nameTableA[address&0x3ff];
 	else if (address >= 0x3f00) { /* palette RAM */
 		if (address == 0x3f10)
 			address = 0x3f00;
@@ -967,7 +965,7 @@ void interrupt_handle(interrupt_t x) {
 			*cpuread(0x100 + sp--) = (flag | 0x10); /* set b flag */
 		else
 			*cpuread(0x100 + sp--) = (flag & 0xef); /* clear b flag */
-		if (x == IRQ)
+		if (x == IRQ || x == BRK)
 			pc = (*cpuread(irq + 1) << 8) + *cpuread(irq);
 		else
 			pc = (*cpuread(nmi + 1) << 8) + *cpuread(nmi);

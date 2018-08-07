@@ -27,10 +27,10 @@ typedef struct gameFeatures_ {
 	char mmc3_type[20];
 } gameFeatures;
 extern gameFeatures cart;
-extern uint8_t  ctrb, ctrb2, ctr1, ctr2, nmi_output, nmiAlreadyDone,
-			    spriteof, nmiDelayed, nmiVblankTriggered, vblank_period, mapper, oneScreen, mirroring[4][4], wramEnable, openBus;
+extern uint8_t  ctrb, ctrb2, ctr1, ctr2, nmiAlreadyDone,
+			    nmiDelayed, vblank_period, mirroring[4][4], wramEnable, openBus;
 extern uint8_t  *prg, *chr, cpu[0x10000], quit;
-extern uint16_t paddr, namev, namet, nameadd, scrollx, ppu_wait, apu_wait;
+extern uint16_t ppu_wait, apu_wait;
 extern int16_t ppudot;
 extern int32_t ppucc, cpucc;
 extern int psize, csize;

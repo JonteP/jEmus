@@ -53,7 +53,6 @@ void reset_nrom() {
  *
  * Game specific:
  * -Battletoads: crashes at level 2 - timing issue
- * -Cabal: does not boot
  * */
 
 void mapper_axrom(uint8_t value) {
@@ -74,12 +73,11 @@ void reset_axrom() {
  *
  * -bus conflicts
  *
- * Game specific:
- * -Banana: does not boot
  * */
 
 void mapper_cnrom (uint8_t value) {
-	chr_8((value & 0x03) * 0x2000);
+	chr_8((value & ((csize >> 13) - 1)) * 0x2000);
+
 }
 
 void reset_cnrom () {
@@ -137,7 +135,6 @@ void reset_uxrom () {
  * Game specific:
  * -Dragon Warrior III: resets/hangs
  * -Bill and Ted: does not boot
- * -Dragon Warrior: glitchy graphics / speed issues
  * -Bubble Bobble: wrong BG color
  */
 

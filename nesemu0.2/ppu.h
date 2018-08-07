@@ -18,9 +18,10 @@ uint8_t ppuController, ppuMask, ppuData;
 
 extern uint8_t *chrSlot[0x8], nameTableA[0x400], nameTableB[0x400], palette[0x20], oam[0x100],
 			   frameBuffer[SHEIGHT][SWIDTH], nameBuffer[SHEIGHT][SWIDTH<<1], patternBuffer[SWIDTH>>1][SWIDTH], paletteBuffer[SWIDTH>>4][SWIDTH>>1];
-uint8_t vblankSuppressed, vblank_period, ppuStatus_nmiOccurred, spritezero;
-extern uint8_t throttle, oamaddr;
+uint8_t vblankSuppressed, vblank_period, ppuStatusNmi, ppuStatusSpriteZero, ppuStatusOverflow;
+extern uint8_t throttle, ppuOamAddress, ppuW, ppuX;
 extern int16_t scanline;
+extern uint16_t ppuV, ppuT;
 uint32_t nmiIsTriggered;
 
 #endif
