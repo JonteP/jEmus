@@ -37,6 +37,8 @@ void power_reset (int mode) {
 	} else if (!strcmp(cart.slot,"vrc2") ||
 			!strcmp(cart.slot,"vrc4")) {
 		reset_vrc24();
+	} else if (!strcmp(cart.slot,"g101")) {
+		reset_g101();
 	} else
 		reset_default();
 

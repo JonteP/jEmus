@@ -32,7 +32,7 @@ SDL_Surface *surfaceMain, *surfaceNametable;
 SDL_Event event;
 SDL_Color colors[64];
 
-void render_frame(), init_graphs(void), close_sdl(void), init_sounds(void), output_sound(void), destroy_handle (windowHandle *), io_handle(void);
+void render_frame(), init_sdl(void), close_sdl(void), init_sounds(void), output_sound(void), destroy_handle (windowHandle *), io_handle(void);
 windowHandle create_handle (char *, int, int, int, int, int, int);
 
 #endif /* MY_SDL_H_ */

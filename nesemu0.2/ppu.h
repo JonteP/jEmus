@@ -10,8 +10,8 @@
 #define WPOSY 100
 #define FRAMETIME 16667
 
-extern inline void init_time(void);
-extern inline void run_ppu(uint16_t);
+void init_time(void);
+void run_ppu(uint16_t);
 
 /* PPU registers */
 uint8_t ppuController, ppuMask, ppuData;

@@ -40,15 +40,23 @@ windowHandle handleMain, handleNametable, handlePattern, handlePalette;
 
 void render_window (windowHandle, uint8_t *);
 
-void init_graphs() {
+void init_sdl() {
 	SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO);
-	SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY,"0");
+	SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY,"2");
 	for (int i = 0; i < 64; i++) {
 		colors[i].r = colarray[i * 3];
 		colors[i].g = colarray[i * 3 + 1];
 		colors[i].b = colarray[i * 3 + 2];
 	}
 	handleMain = create_handle ("jNes", 100, 100, WWIDTH, WHEIGHT, SWIDTH, SHEIGHT);
+	AudioSettings.freq = SAMPLES_PER_SEC;
+	AudioSettings.format = AUDIO_F32;
+	AudioSettings.channels = CHANNELS;
+	AudioSettings.callback = NULL;
+	AudioSettings.samples = BUFFER_SIZE>>3;
+	SDL_OpenAudio(&AudioSettings, 0);
+	SDL_PauseAudio(0);
+	SDL_ClearQueuedAudio(1);
 }
 
 windowHandle create_handle (char * name, int wpx, int wpy, int ww, int wh, int sw, int sh) {
@@ -68,17 +76,6 @@ windowHandle create_handle (char * name, int wpx, int wpy, int ww, int wh, int s
 void destroy_handle (windowHandle * handle) {
 	SDL_DestroyRenderer(handle->rend);
 	SDL_DestroyWindow(handle->win);
-}
-
-void init_sounds () {
-	AudioSettings.freq = SAMPLES_PER_SEC;
-	AudioSettings.format = AUDIO_F32;
-	AudioSettings.channels = CHANNELS;
-	AudioSettings.callback = NULL;
-	AudioSettings.samples = BUFFER_SIZE>>3;
-	SDL_OpenAudio(&AudioSettings, 0);
-	SDL_PauseAudio(0);
-	SDL_ClearQueuedAudio(1);
 }
 
 void close_sdl () {

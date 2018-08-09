@@ -56,7 +56,7 @@ FILE *rom, *logfile;
 
 int main() {
 	rom = fopen("/home/jonas/eclipse-workspace/"
-			"vrc24/tmnt2.nes", "rb");
+			"mmc1/dw3.nes", "rb");
 	if (rom == NULL) {
 		printf("Error: No such file\n");
 		exit(EXIT_FAILURE);
@@ -115,8 +115,7 @@ int main() {
 		printf("Error: Could not create logfile\n");
 
 	power_reset(0);
-	init_graphs();
-	init_sounds();
+	init_sdl();
 	init_time();
 
 	while (quit == 0) {
@@ -131,8 +130,6 @@ int main() {
 			if (nmiIsTriggered >= ppucc-1) /*TODO: correct behavior? Probably depends on opcode */
 				nmiDelayed = 1;
 			if ((ppuController & 0x80) && nmiIsTriggered && !nmiAlreadyDone && !nmiDelayed) {
-				apu_wait += 7 * 2;
-				ppu_wait += 7 * 3;
 				interrupt_handle(NMI);
 				nmiAlreadyDone = 1;
 				nmiIsTriggered = 0;
@@ -176,6 +173,8 @@ void extract_xml_data(xmlNode * s_node) {
 					cart.mirroring = 0;
 				else if (!xmlStrcmp(val,(xmlChar *)"vertical"))
 					cart.mirroring = 1;
+				else if (!xmlStrcmp(val,(xmlChar *)"high"))
+					cart.mirroring = 3;
 			}
 			xmlFree(nam);
 			xmlFree(val);

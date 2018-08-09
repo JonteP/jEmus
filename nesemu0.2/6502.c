@@ -9,6 +9,15 @@
 #include "apu.h"
 #include "mapper.h"
 
+/*
+ * TODO:
+ * interrupt polling for each instruction
+ * cli etc. and interrupt delay
+ * interrupt hijacking
+ * dummy reads, addressing modes
+ * dummy writes
+ */
+
 interrupt_t intFlag;
 
 						 /* 0 |1 |2 |3 |4 |5 |6 |7 |8 |9 |a |b |c |d |e |f */
@@ -30,7 +39,7 @@ static uint8_t ctable[] = { 7, 6, 0, 0, 3, 3, 5, 0, 3, 2, 2, 0, 4, 4, 6, 0,/* 0 
 							2, 5, 0, 0, 4, 4, 6, 0, 2, 4, 2, 0, 4, 4, 7, 0 /* f */
 							};
 
-static inline void mirror(), memread(), memwrite();
+static inline void memread(), memwrite();
 static inline void accum(), immed(), zpage(), zpagex(), zpagey(), absol(),
 		absx(), absy(), indx(), indy();
 static inline void adc(), and(), asl(), branch(), bit(), brkop(), clc(), cld(),
@@ -40,15 +49,14 @@ static inline void adc(), and(), asl(), branch(), bit(), brkop(), clc(), cld(),
 		sed(), sei(), sta(), stx(), sty(), tax(), tay(), tsx(), txa(), txs(),
 		tya(), none();
 uint8_t *prgSlot[0x8], cpuRam[0x800], a = 0x00, x = 0x00, y = 0x00, flag = 0x34, sp = 0xfd, op;
-uint8_t mode, opcode, addmode, addcycle, *addval, tmpval8, vbuff = 0, s = 0, ppureg = 0;
+uint8_t mode, opcode, addmode, addcycle, *memLocation, tmpval8, vbuff = 0, s = 0, ppureg = 0, dummy, pcl, pch;
 uint16_t addr, tmpval16, nmi = 0xfffa, rst = 0xfffc, irq = 0xfffe, pc;
 
-int test = 0;
-
 void opdecode() {
+	if (pc == 0xffd8)
+		printf("Reset\n");
 	op = *cpuread(pc++);
-	fprintf(logfile,"%04X %02X\t\t A:%02X X=%02X Y:%02X P:%02X SP:%02X CYC:%i\n",pc,op,a,x,y,flag,sp,ppudot);
-	test++;
+/*	fprintf(logfile,"%04X %02X\t\t A:%02X X=%02X Y:%02X P:%02X SP:%02X CYC:%i\n",pc,op,a,x,y,flag,sp,ppudot); */
 	addcycle = 0;
 	addr = 0;
 	static void (*addp0[8])() = {immed,zpage,accum,absol,absy,zpagex,zpagey,absx};
@@ -173,87 +181,103 @@ void opdecode() {
 	}
 }
 
-void mirror() {
-	if (addr < 0x2000)
-		addr = (addr & 0x7ff);
-	else if (addr >= 0x2000 && addr < 0x4000)
-		addr = (addr & 0x2007);
-}
-
 /*ADDRESS MODES */
 void accum() {
-	addval = &a;
+	memLocation = &a;
+	dummy = *cpuread(pc);	/* cycle 2 */
 }
 
 void immed() {
 	addr = pc++;
-	addval = cpuread(addr);
+	memLocation = cpuread(addr);	/* cycle 2 */
 }
 
 void zpage() {
-	addr = *cpuread(pc++);
-	addval = cpuread(addr);
+	addr = *cpuread(pc++);			/* cycle 2 */
+	memLocation = cpuread(addr);
 }
 
 void zpagex() {
-	addr = *cpuread(pc++);
-	addr = ((addr + x) & 0xff);
-	addval = cpuread(addr);
+	addr = *cpuread(pc++);			/* cycle 2 */
+	/* read from address */
+	addr = ((addr + x) & 0xff);		/* cycle 3 */
+	memLocation = cpuread(addr);
 }
 
 void zpagey() {
-	addr = *cpuread(pc++);
-	addr = ((addr + y) & 0xff);
-	addval = cpuread(addr);
+	addr = *cpuread(pc++);			/* cycle 2 */
+	/* read from address */
+	addr = ((addr + y) & 0xff);		/* cycle 3 */
+	memLocation = cpuread(addr);
 }
 
 void absol() {
-	addr = *cpuread(pc++);
-	addr += *cpuread(pc++) << 8;
-	mirror();
-	addval = cpuread(addr);
+	addr = *cpuread(pc++);			/* cycle 2 */
+	addr += *cpuread(pc++) << 8;	/* cycle 3 */
+	memLocation = cpuread(addr);
 }
 
 void absx() {
-	addr = *cpuread(pc++);
-	addr += *cpuread(pc++) << 8;
-	addr += x;
-	if ((addr & 0xff) < x) {
+	pcl = *cpuread(pc++);					/* cycle 2 */
+
+	pch = *cpuread(pc++);
+	pcl += x;								/* cycle 3 */
+
+	addr = ((pch << 8) | pcl);
+	memLocation = cpuread(addr);			/* cycle 4 */
+
+	if ((addr & 0xff) < x) {				/* cycle 5 (optional) */
+		addr += 0x100;
+		memLocation = cpuread(addr);
 		addcycle = 1;
 	}
-	mirror();
-	addval = cpuread(addr);
 }
 
 void absy() {
-	addr = *cpuread(pc++);
-	addr += *cpuread(pc++) << 8;
-	addr += y;
-	if ((addr & 0xff) < y) {
+	pcl = *cpuread(pc++);					/* cycle 2 */
+
+	pch = *cpuread(pc++);
+	pcl += y;								/* cycle 3 */
+
+	addr = ((pch << 8) | pcl);
+	memLocation = cpuread(addr);			/* cycle 4 */
+
+	if ((addr & 0xff) < y) {				/* cycle 5 (optional) */
+		addr += 0x100;
+		memLocation = cpuread(addr);
 		addcycle = 1;
 	}
-	mirror();
-	addval = cpuread(addr);
 }
 
 void indx() {
-	tmpval8 = *cpuread(pc++);
-	addr = *cpuread(((tmpval8+x) & 0xff));
-	addr += *cpuread(((tmpval8+x+1) & 0xff)) << 8;
-	mirror();
-	addval = cpuread(addr);
+	tmpval8 = *cpuread(pc++);						/* cycle 2 */
+
+	dummy = *cpuread(tmpval8);						/* cycle 3 */
+
+	pcl = *cpuread(((tmpval8+x) & 0xff));			/* cycle 4 */
+
+	pch = *cpuread(((tmpval8+x+1) & 0xff));			/* cycle 5 */
+
+	addr = ((pch << 8) | pcl);
+	memLocation = cpuread(addr);					/* cycle 6 */
 }
 
 void indy() {
-	tmpval8 = *cpuread(pc++);
-	addr = *cpuread(tmpval8++);
-	addr += *cpuread((tmpval8 & 0xff)) << 8;
-	addr = ((addr + y) & 0xffff);
-	if ((addr & 0xff) < y) {
+	tmpval8 = *cpuread(pc++);						/* cycle 2 */
+
+	pcl = *cpuread(tmpval8++);						/* cycle 3 */
+
+	pch = *cpuread((tmpval8 & 0xff));
+	pcl += y;										/* cycle 4 */
+
+	addr = ((pch << 8) | pcl);
+	memLocation = cpuread(addr);					/* cycle 5 */
+
+	if ((addr & 0xff) < y) {						/* cycle 6 (optional) */
+		addr += 0x100;
+		memLocation = cpuread(addr);
 		addcycle = 1;
 	}
-	mirror();
-	addval = cpuread(addr);
 }
 
 		/* OPCODES */
@@ -262,7 +286,8 @@ void adc() {
 	ppu_wait += addcycle * 3;
 	cpucc += addcycle;
 	run_ppu(ppu_wait);
-	memread();
+
+	memread();						/* cycle 4 */
 	tmpval16 = a + tmpval8 + (flag & 1);
 	bitset(&flag, (a ^ tmpval16) & (tmpval8 ^ tmpval16) & 0x80, 6);
 	bitset(&flag, tmpval16 > 0xff, 0);
@@ -276,7 +301,8 @@ void and() {
 	ppu_wait += addcycle * 3;
 	cpucc += addcycle;
 	run_ppu(ppu_wait);
-	memread();
+
+	memread();						/* cycle 4 */
 	a &= tmpval8;
 	bitset(&flag, a == 0, 1);
 	bitset(&flag, a >= 0x80, 7);
@@ -284,16 +310,20 @@ void and() {
 
 void asl() {
 	run_ppu(ppu_wait);
-	bitset(&flag, *addval & 0x80, 0);
-	tmpval8 = *addval << 1;
+
+	bitset(&flag, *memLocation & 0x80, 0);
+	tmpval8 = *memLocation;			/* cycle 4 */
+	tmpval8 = tmpval8 << 1;
 	bitset(&flag, tmpval8 == 0, 1);
 	bitset(&flag, tmpval8 >= 0x80, 7);
-	memwrite();
+	/* extra write */						/* cycle 5 */
+	memwrite();								/* cycle 6 */
 }
 
 void bit() {
 	run_ppu(ppu_wait);
-	memread();
+
+	memread();						/* cycle 4 */
 	bitset(&flag, !(a & tmpval8), 1);
 	bitset(&flag, tmpval8 & 0x80, 7);
 	bitset(&flag, tmpval8 & 0x40, 6);
@@ -301,18 +331,23 @@ void bit() {
 
 void branch() {
 	uint8_t reflag[4] = { 7, 6, 0, 1 };
+	/* fetch operand */											/* cycle 2 */
 	if (((flag >> reflag[(opcode >> 1) & 3]) & 1) == (opcode & 1)) {
 		if (((pc + 1) & 0xff00)	!= ((pc + ((int8_t) *cpuread(pc) + 1)) & 0xff00)) {
 			apu_wait += 1;
 			ppu_wait += 3;
 			cpucc += 1;
 		}
+		/* prefetch next opcode, optionally add operand to pc*/	/* cycle 3 (branch) */
 		pc = pc + (int8_t) *cpuread(pc) + 1;
+
+		/* fetch next opcode if branch taken, fix PCH */		/* cycle 4 (optional) */
+		/* fetch opcode if page boundary */						/* cycle 5 (optional) */
 		apu_wait += 1;
 		ppu_wait += 3;
 		cpucc += 1;
 	} else
-		pc++;
+		pc++;													/* cycle 3 (no branch) */
 }
 
 void brkop() {
@@ -321,18 +356,22 @@ void brkop() {
 }
 
 void clc() {
+	dummy = *cpuread(pc);
 	bitset(&flag, 0, 0);
 }
 
 void cld() {
+	dummy = *cpuread(pc);
 	bitset(&flag, 0, 3);
 }
 
 void cli() {
+	dummy = *cpuread(pc);
 	bitset(&flag, 0, 2);
 }
 
 void clv() {
+	dummy = *cpuread(pc);
 	bitset(&flag, 0, 6);
 }
 
@@ -341,7 +380,8 @@ void cmp() {
 	ppu_wait += addcycle * 3;
 	cpucc += addcycle;
 	run_ppu(ppu_wait);
-	memread();
+
+	memread();						/* cycle 4 */
 	bitset(&flag, (a - tmpval8) & 0x80, 7);
 	bitset(&flag, a == tmpval8, 1);
 	bitset(&flag, a >= tmpval8, 0);
@@ -363,21 +403,28 @@ void cpy() {
 	bitset(&flag, y >= tmpval8, 0);
 }
 
+/* DCP (r-m-w) */
+
 void dec() {
 	run_ppu(ppu_wait);
-	tmpval8 = *addval-1;
+
+	tmpval8 = *memLocation;					/* cycle 4 */
+	tmpval8 = tmpval8-1;
 	bitset(&flag, tmpval8 == 0, 1);
 	bitset(&flag, tmpval8 >= 0x80, 7);
-	memwrite();
+	/* extra write */							/* cycle 5 */
+	memwrite();									/* cycle 6 */
 }
 
 void dex() {
+	dummy = *cpuread(pc);
 	x--;
 	bitset(&flag, x == 0, 1);
 	bitset(&flag, x >= 0x80, 7);
 }
 
 void dey() {
+	dummy = *cpuread(pc);
 	y--;
 	bitset(&flag, y == 0, 1);
 	bitset(&flag, y >= 0x80, 7);
@@ -388,7 +435,8 @@ void eor() {
 	ppu_wait += addcycle * 3;
 	cpucc += addcycle;
 	run_ppu(ppu_wait);
-	memread();
+
+	memread();								/* cycle 4 */
 	a ^= tmpval8;
 	bitset(&flag, a == 0, 1);
 	bitset(&flag, a >= 0x80, 7);
@@ -396,52 +444,63 @@ void eor() {
 
 void inc() {
 	run_ppu(ppu_wait);
-	tmpval8 = *addval + 1;
+
+	tmpval8 = *memLocation;				/* cycle 4 */
+	tmpval8 = tmpval8 + 1;
 	bitset(&flag, tmpval8 == 0, 1);
 	bitset(&flag, tmpval8 >= 0x80, 7);
-	memwrite();
+	/* extra write */						/* cycle 5 */
+	memwrite();								/* cycle 6 */
 }
 
 void inx() {
+	dummy = *cpuread(pc);
 	x++;
 	bitset(&flag, x == 0, 1);
 	bitset(&flag, x >= 0x80, 7);
 }
 
 void iny() {
+	dummy = *cpuread(pc);
 	y++;
 	bitset(&flag, y == 0, 1);
 	bitset(&flag, y >= 0x80, 7);
 }
 
+/* ISB (r-m-w) */
+
 void jmpa() {
-	addr = *cpuread(pc++);
-	addr += *cpuread(pc++) << 8;
+	addr = *cpuread(pc++);			/* cycle 2 */
+	addr += *cpuread(pc++) << 8;	/* cycle 3 */
 	pc = addr;
 }
 
 void jmpi() {
-	tmpval8 = *cpuread(pc++);
-	tmpval16 = (*cpuread(pc) << 8);
-	addr = *cpuread(tmpval16 | tmpval8);
-	addr += *cpuread(tmpval16 | ((tmpval8+1) & 0xff)) << 8;
+	tmpval8 = *cpuread(pc++);								/* cycle 2 */
+	tmpval16 = (*cpuread(pc) << 8);							/* cycle 3 */
+	addr = *cpuread(tmpval16 | tmpval8);					/* cycle 4 */
+	addr += *cpuread(tmpval16 | ((tmpval8+1) & 0xff)) << 8;	/* cycle 5 */
 	pc = addr;
 }
 
 void jsr() {
-	*cpuread(0x100 + sp--) = ((pc + 1) & 0xff00) >> 8;
-	*cpuread(0x100 + sp--) = ((pc + 1) & 0x00ff);
-	addr = *cpuread(pc++);
-	addr += *cpuread(pc) << 8;
+	*cpuread(0x100 + sp--) = ((pc + 1) & 0xff00) >> 8;	/* cycle 4 */
+	*cpuread(0x100 + sp--) = ((pc + 1) & 0x00ff);		/* cycle 5 */
+	addr = *cpuread(pc++);								/* cycle 2 */
+	/* internal operation? */							/* cycle 3 */
+	addr += *cpuread(pc) << 8;							/* cycle 6 */
 	pc = addr;
 }
+
+/* LAX (read instruction) */
 
 void lda() {
 	apu_wait += addcycle;
 	ppu_wait += addcycle * 3;
 	cpucc += addcycle;
 	run_ppu(ppu_wait);
-	memread();
+
+	memread();						/* cycle 4 */
 	a = tmpval8;
 	bitset(&flag, a == 0, 1);
 	bitset(&flag, a >= 0x80, 7);
@@ -452,7 +511,8 @@ void ldx() {
 	ppu_wait += addcycle * 3;
 	cpucc += addcycle;
 	run_ppu(ppu_wait);
-	memread();
+
+	memread();						/* cycle 4 */
 	x = tmpval8;
 	bitset(&flag, x == 0, 1);
 	bitset(&flag, x >= 0x80, 7);
@@ -463,7 +523,8 @@ void ldy() {
 	ppu_wait += addcycle * 3;
 	cpucc += addcycle;
 	run_ppu(ppu_wait);
-	memread();
+
+	memread();						/* cycle 4 */
 	y = tmpval8;
 	bitset(&flag, y == 0, 1);
 	bitset(&flag, y >= 0x80, 7);
@@ -471,84 +532,112 @@ void ldy() {
 
 void lsr() {
 	run_ppu(ppu_wait);
-	bitset(&flag, *addval & 1, 0);
-	tmpval8 = *addval >> 1;
+	bitset(&flag, *memLocation & 1, 0);
+	tmpval8 = *memLocation;			/* cycle 4 */
+	tmpval8 = tmpval8 >> 1;
 	bitset(&flag, tmpval8 == 0, 1);
 	bitset(&flag, tmpval8 >= 0x80, 7);
-	memwrite();
+	/* extra write */						/* cycle 5 */
+	memwrite();								/* cycle 6 */
 }
+
+/* NOP (read instruction) */
 
 void ora() {
 	apu_wait += addcycle;
 	ppu_wait += addcycle * 3;
 	cpucc += addcycle;
 	run_ppu(ppu_wait);
-	memread();
+
+	memread();						/* cycle 4 */
 	a |= tmpval8;
 	bitset(&flag, a == 0, 1);
 	bitset(&flag, a >= 0x80, 7);
 }
 
 void pha() {
-	*cpuread(0x100 + sp--) = a;
+	dummy = *cpuread(pc);			/* cycle 2 */
+	*cpuread(0x100 + sp--) = a;		/* cycle 3 */
 }
 
 void php() {
+	dummy = *cpuread(pc);			/* cycle 2 */
 	*cpuread(0x100 + sp--) = (flag | 0x30); /* bit 4 is set if from an instruction */
-}
+}									/* cycle 3 */
 
 void pla() {
-	a = *cpuread(++sp + 0x100);
+	dummy = *cpuread(pc);			/* cycle 2 */
+	/* inc sp */					/* cycle 3 */
+	a = *cpuread(++sp + 0x100);		/* cycle 4 */
 	bitset(&flag, a == 0, 1);
 	bitset(&flag, a >= 0x80, 7);
 }
 
 void plp() {
-	flag = *cpuread(++sp + 0x100);
+	dummy = *cpuread(pc);			/* cycle 2 */
+	/* inc sp */					/* cycle 3 */
+	flag = *cpuread(++sp + 0x100);	/* cycle 4 */
 	bitset(&flag, 1, 5);
 	bitset(&flag, 0, 4); /* b flag should be discarded */
 }
 
+/* RLA (r-m-w) */
+
 void rol() {
 	run_ppu(ppu_wait);
-	tmpval8 = *addval << 1;
+
+	tmpval8 = *memLocation;			/* cycle 4 */
+	tmpval8 = tmpval8 << 1;
 	bitset(&tmpval8, flag & 1, 0);
-	bitset(&flag, *addval & 0x80, 0);
+	bitset(&flag, *memLocation & 0x80, 0);
 	bitset(&flag, tmpval8 == 0, 1);
 	bitset(&flag, tmpval8 >= 0x80, 7);
-	memwrite();
+	/* extra write */						/* cycle 5 */
+	memwrite();								/* cycle 6 */
 }
 
 void ror() {
 	run_ppu(ppu_wait);
-	tmpval8 = *addval >> 1;
+
+	tmpval8 = *memLocation;					/* cycle 4 */
+	tmpval8 = tmpval8 >> 1;
 	bitset(&tmpval8, flag & 1, 7);
-	bitset(&flag, *addval & 1, 0);
+	bitset(&flag, *memLocation & 1, 0);
 	bitset(&flag, tmpval8 == 0, 1);
 	bitset(&flag, tmpval8 >= 0x80, 7);
-	memwrite();
+	/* extra write */						/* cycle 5 */
+	memwrite();								/* cycle 6 */
 }
 
+/* RRA (r-m-w) */
+
 void rti() {
-	flag = *cpuread(++sp + 0x100);
+	dummy = *cpuread(pc);					/* cycle 2 */
+	/* stack inc */							/* cycle 3 */
+	flag = *cpuread(++sp + 0x100);			/* cycle 4 */
 	bitset(&flag, 1, 5); /* bit 5 always set */
-/*	bitset(&flag, 0, 4);  b flag should be discarded */
-	pc = *cpuread(++sp + 0x100);
-	pc += (*cpuread(++sp + 0x100) << 8);
+	bitset(&flag, 0, 4); /* b flag should be discarded */
+	pc = *cpuread(++sp + 0x100);			/* cycle 5 */
+	pc += (*cpuread(++sp + 0x100) << 8);	/* cycle 6 */
 }
 
 void rts() {
-	addr = *cpuread(++sp + 0x100);
-	addr += *cpuread(++sp + 0x100) << 8;
-	pc = addr + 1;
+	dummy = *cpuread(pc);					/* cycle 2 */
+	/* stack inc */							/* cycle 3 */
+	addr = *cpuread(++sp + 0x100);			/* cycle 4 */
+	addr += *cpuread(++sp + 0x100) << 8;	/* cycle 5 */
+	pc = addr + 1;							/* cycle 6 */
 }
+
+/* SAX (write instruction) */
 
 void sbc() {
 	apu_wait += addcycle;
 	ppu_wait += addcycle * 3;
 	cpucc += addcycle;
 	run_ppu(ppu_wait);
-	memread();
+
+	memread();						/* cycle 4 */
 	tmpval16 = a + (tmpval8 ^ 0xff) + (flag & 1);
 	bitset(&flag, (a ^ tmpval16) & (tmpval8 ^ a) & 0x80, 6);
 	bitset(&flag, tmpval16 > 0xff, 0);
@@ -558,61 +647,74 @@ void sbc() {
 }
 
 void sec() {
+	dummy = *cpuread(pc);
 	bitset(&flag, 1, 0);
 }
 
 void sed() {
+	dummy = *cpuread(pc);
 	bitset(&flag, 1, 3);
 }
 
 void sei() {
+	dummy = *cpuread(pc);
 	bitset(&flag, 1, 2);
 }
 
+/* SLO (r-m-w) */
+
+/* SRE (r-m-w) */
+
 void sta() {
 	tmpval8 = a;
-	memwrite();
+	memwrite();				/* cycle 4 */
 }
 
 void stx() {
 	tmpval8 = x;
-	memwrite();
+	memwrite();				/* cycle 4 */
 }
 
 void sty() {
 	tmpval8 = y;
-	memwrite();
+	memwrite();				/* cycle 4 */
 }
 
 void tax() {
+	dummy = *cpuread(pc);
 	x = a;
 	bitset(&flag, x == 0, 1);
 	bitset(&flag, x >= 0x80, 7);
 }
 
 void tay() {
+	dummy = *cpuread(pc);
 	y = a;
 	bitset(&flag, y == 0, 1);
 	bitset(&flag, y >= 0x80, 7);
 }
 
 void tsx() {
+	dummy = *cpuread(pc);
 	x = sp;
 	bitset(&flag, x == 0, 1);
 	bitset(&flag, x >= 0x80, 7);
 }
 
 void txa() {
+	dummy = *cpuread(pc);
 	a = x;
 	bitset(&flag, a == 0, 1);
 	bitset(&flag, a >= 0x80, 7);
 }
 
 void txs() {
+	dummy = *cpuread(pc);
 	sp = x;
 }
 
 void tya() {
+	dummy = *cpuread(pc);
 	a = y;
 	bitset(&flag, a == 0, 1);
 	bitset(&flag, a >= 0x80, 7);
@@ -622,8 +724,8 @@ void none() {
 	printf("Warning: Illegal opcode!\n");
 							}
 void memread() {
-	tmpval8 = *addval;
-	switch (addr) {
+	if (addr >= 0x2000 && addr < 0x4000) {
+	switch (addr & 0x2007) {
 	case 0x2002:
 		if (ppucc == 342 || ppucc == 343) {/* suppress if read and set at same time */
 			nmiIsTriggered = 0;
@@ -650,6 +752,14 @@ void memread() {
 		}
 		ppuV += (ppuController & 0x04) ? 32 : 1;
 		break;
+	default:
+		tmpval8 = *memLocation;
+		break;
+	}
+}
+
+	else if (addr >= 0x4000 && addr < 0x4020) {
+	switch (addr) {
 	case 0x4015: /* APU status read */
 		tmpval8 = (dmcInt ? 0x80 : 0) | (frameInt ? 0x40 : 0) | (dmcBytesLeft ? 0x10 : 0) | (noiseLength ? 0x08 : 0) | (triLength ? 0x04 : 0) | (pulse2Length ? 0x02 : 0) | (pulse1Length ? 0x01 : 0);
 		/* TODO: timing related inhibition of frameInt clear */
@@ -665,11 +775,18 @@ void memread() {
 		if (s == 0)
 			ctrb2++;
 		break;
+	default:
+		tmpval8 = *memLocation;
+		break;
 	}
+	} else
+		tmpval8 = *memLocation;
+
 }
 
 void memwrite() {
-	switch (addr) {
+	if (addr >= 0x2000 && addr < 0x4000) {					/* PPU registers */
+	switch (addr & 0x2007) {
 	case 0x2000:
 		ppuController = tmpval8;
 		ppureg = ppuController;
@@ -688,7 +805,7 @@ void memwrite() {
 		ppureg = ppuMask;
 		break;
 	case 0x2002:
-		tmpval8 = *addval; /* prevent writing to */
+		tmpval8 = *memLocation; /* prevent writing to */
 		break;
 	case 0x2003:
 		ppuOamAddress = tmpval8;
@@ -732,9 +849,16 @@ void memwrite() {
 	case 0x2007:
 		ppuData = tmpval8;
 		ppureg = ppuData;
-		*ppuread(ppuV & 0x3fff) = ppuData;
+		if ((ppuV & 0x3fff) >= 0x3f00)
+			*ppuread(ppuV & 0x3fff) = (ppuData & 0x3f);
+		else
+			*ppuread(ppuV & 0x3fff) = ppuData;
 		ppuV += (ppuController & 0x04) ? 32 : 1;
 		break;
+	}
+}
+	else if (addr >= 0x4000 && addr < 0x4020) {					/* APU + I/O registers */
+	switch (addr) {
 	case 0x4000: /* Pulse 1 duty, envel., volume */
 		pulse1Control = tmpval8;
 		env1Divide = (pulse1Control&0xf);
@@ -891,8 +1015,9 @@ void memwrite() {
 		}
 		break;
 	}
+}
 
-	if (addr >= 0x8000) {
+	else if (addr >= 0x8000) {
 	if ((!strcmp(cart.slot,"sxrom") ||
 			!strcmp(cart.slot,"sxrom_a") ||
 				!strcmp(cart.slot,"sorom") ||
@@ -917,10 +1042,13 @@ void memwrite() {
 				!strcmp(cart.slot,"vrc4")) {
 		mapper_vrc24(addr,tmpval8);
 	}
+	else if (!strcmp(cart.slot,"g101")) {
+		mapper_g101(addr,tmpval8);
+	}
 	}
 
-	if (addr < 0x8000)
-		*addval = tmpval8;
+	else if (addr < 0x8000)
+		*memLocation = tmpval8;
 }
 
 uint8_t * cpuread(uint16_t address) {
@@ -958,17 +1086,25 @@ uint8_t * ppuread(uint16_t address) {
 }
 
 void interrupt_handle(interrupt_t x) {
+	dummy = *cpuread(pc);									/* cycle 2 */
 	if (x == NMI || x == BRK || (x == IRQ && !(flag & 0x04))) {
-		*cpuread(0x100 + sp--) = ((pc) & 0xff00) >> 8;
-		*cpuread(0x100 + sp--) = ((pc) & 0xff);
+		*cpuread(0x100 + sp--) = ((pc) & 0xff00) >> 8;		/* cycle 3 */
+		*cpuread(0x100 + sp--) = ((pc) & 0xff);				/* cycle 4 */
 		if (x == BRK)
 			*cpuread(0x100 + sp--) = (flag | 0x10); /* set b flag */
-		else
+		else {
 			*cpuread(0x100 + sp--) = (flag & 0xef); /* clear b flag */
+															/* cycle 5 */
+			apu_wait += 7;
+			ppu_wait += 7 * 3;
+			cpucc += 7;
+		}
 		if (x == IRQ || x == BRK)
 			pc = (*cpuread(irq + 1) << 8) + *cpuread(irq);
 		else
 			pc = (*cpuread(nmi + 1) << 8) + *cpuread(nmi);
+															/* cycle 6 (PCL) */
+															/* cycle 7 (PCH) */
 		bitset(&flag, 1, 2); /* set I flag */
 	}
 }

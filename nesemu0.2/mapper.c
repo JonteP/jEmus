@@ -135,7 +135,6 @@ void reset_uxrom () {
  * Game specific:
  * -Dragon Warrior III: resets/hangs
  * -Bill and Ted: does not boot
- * -Bubble Bobble: wrong BG color
  */
 
 /* mmc1 globals */
@@ -204,15 +203,15 @@ void mmc1_prg_bank_switch() {
 	 uint8_t mmc1PrgSelect = (mmc1Reg0 & 0x04); /* 0 low, 1 high */
 	if (mmc1PrgSize) {
 		if (mmc1PrgSelect) { /* switch 0x8000, fix 0xc000 to last bank */
-			prg_16low((mmc1Reg3 & 0xf) * 0x4000 + mmc1PrgOffset);
+			prg_16low((mmc1Reg3 & ((cart.prgSize >> 14) -1)) * 0x4000 + mmc1PrgOffset);
 			prg_16high(cart.prgSize - 0x4000);
 		} else if (!mmc1PrgSelect) { /* switch 0xc000, fix 0x8000 to first bank */
 			prg_16low(mmc1PrgOffset);
-			prg_16high((mmc1Reg3 & 0xf) * 0x4000 + mmc1PrgOffset);
+			prg_16high((mmc1Reg3 & ((cart.prgSize >> 14) -1)) * 0x4000 + mmc1PrgOffset);
 		}
 	}
 	else if (!mmc1PrgSize) {
-		prg_32(((mmc1Reg3 & 0xf) >> 1) * 0x4000 + mmc1PrgOffset);
+		prg_32(((mmc1Reg3 & ((cart.prgSize >> 14) -1)) >> 1) * 0x4000 + mmc1PrgOffset);
 
 	}
 }
@@ -258,8 +257,7 @@ void reset_mmc1() {
  * - implement TKSROM and TLSROM (mapper 118)
  *
  *Game specific:
- *-batman does not boot (stack pointer goes crazy)
- *-batman returns does not boot...
+ *-Batman: columns of glitched graphics appear
  *-many game have irq related issues
  */
 
@@ -306,12 +304,12 @@ void mapper_mmc3 (uint16_t address, uint8_t value) {
 void mmc3_prg_bank_switch() {
 	if (mmc3BankSelect & 0x40) {
 		prg_8_0(psize - 0x4000);
-		prg_8_1((mmc3Reg[7] & 0x3f) * 0x2000);
-		prg_8_2((mmc3Reg[6] & 0x3f) * 0x2000);
+		prg_8_1((mmc3Reg[7] & ((cart.prgSize >> 13) - 1)) * 0x2000);
+		prg_8_2((mmc3Reg[6] & ((cart.prgSize >> 13) - 1)) * 0x2000);
 		prg_8_3(psize - 0x2000);
 	} else if (!(mmc3BankSelect & 0x40)) {
-		prg_8_0((mmc3Reg[6] & 0x3f) * 0x2000);
-		prg_8_1((mmc3Reg[7] & 0x3f) * 0x2000);
+		prg_8_0((mmc3Reg[6] & ((cart.prgSize >> 13) - 1)) * 0x2000);
+		prg_8_1((mmc3Reg[7] & ((cart.prgSize >> 13) - 1)) * 0x2000);
 		prg_8_2(psize - 0x4000);
 		prg_8_3(psize - 0x2000);
 	}
@@ -351,6 +349,95 @@ void reset_mmc3 () {
 	mmc3IrqCounter = 0;
 	mmc3IrqLatch = 0;
 	mmc3IrqReload = 0;
+}
+
+
+/*/////////////////////////////////*/
+/*            Irem G-101           */
+/*/////////////////////////////////*/
+
+/*
+ * TODO:
+ *
+ * Game specific:
+ * - Image fight: garbage BGs
+ * - Ai sensei..: does not boot
+ */
+
+uint8_t g101Prg0, g101Prg1, g101PrgMode,
+	    g101Chr0, g101Chr1, g101Chr2, g101Chr3,
+		g101Chr4, g101Chr5, g101Chr6, g101Chr7;
+static inline void g101_prg_bank_switch(), g101_chr_bank_switch();
+
+void mapper_g101(uint16_t address, uint8_t value) {
+	if ((address & 0xf007) >= 0x8000 && (address & 0xf007) < 0x9000) {
+		g101Prg0 = value;
+		g101_prg_bank_switch();
+	} else if ((address & 0xf007) >= 0x9000 && (address & 0xf007) < 0xa000) {
+		g101PrgMode = (value & 0x02);
+		if (!(cart.mirroring == 3))
+			cart.mirroring = (value & 0x01) ? 0 : 1;
+		g101_prg_bank_switch();
+	} else if ((address & 0xf007) >= 0xa000 && (address & 0xf007) < 0xb000) {
+		g101Prg1 = value;
+		g101_prg_bank_switch();
+	} else if ((address & 0xf007) == 0xb000) {
+		g101Chr0 = value;
+		g101_chr_bank_switch();
+	} else if ((address & 0xf007) == 0xb001) {
+		g101Chr1 = value;
+		g101_chr_bank_switch();
+	} else if ((address & 0xf007) == 0xb002) {
+		g101Chr2 = value;
+		g101_chr_bank_switch();
+	} else if ((address & 0xf007) == 0xb003) {
+		g101Chr3 = value;
+		g101_chr_bank_switch();
+	} else if ((address & 0xf007) == 0xb004) {
+		g101Chr4 = value;
+		g101_chr_bank_switch();
+	} else if ((address & 0xf007) == 0xb005) {
+		g101Chr5 = value;
+		g101_chr_bank_switch();
+	} else if ((address & 0xf007) == 0xb006) {
+		g101Chr6 = value;
+		g101_chr_bank_switch();
+	} else if ((address & 0xf007) == 0xb007) {
+		g101Chr7 = value;
+		g101_chr_bank_switch();
+	}
+}
+
+void g101_prg_bank_switch() {
+	if (g101PrgMode) {
+		prg_8_0(cart.prgSize - 0x4000);
+		prg_8_1((g101Prg0 & ((cart.prgSize >> 13) -1)) * 0x2000);
+		prg_8_2((g101Prg1 & ((cart.prgSize >> 13) -1)) * 0x2000);
+		prg_8_3(cart.prgSize - 0x2000);
+	} else {
+		prg_8_0((g101Prg0 & ((cart.prgSize >> 13) -1)) * 0x2000);
+		prg_8_1((g101Prg1 & ((cart.prgSize >> 13) -1)) * 0x2000);
+		prg_8_2(cart.prgSize - 0x4000);
+		prg_8_3(cart.prgSize - 0x2000);
+	}
+}
+
+void g101_chr_bank_switch() {
+	chr_1_0((g101Chr0 & 0x7f) * 0x400);
+	chr_1_1((g101Chr1 & 0x7f) * 0x400);
+	chr_1_2((g101Chr2 & 0x7f) * 0x400);
+	chr_1_3((g101Chr3 & 0x7f) * 0x400);
+	chr_1_4((g101Chr4 & 0x7f) * 0x400);
+	chr_1_5((g101Chr5 & 0x7f) * 0x400);
+	chr_1_6((g101Chr6 & 0x7f) * 0x400);
+	chr_1_7((g101Chr7 & 0x7f) * 0x400);
+}
+
+void reset_g101() {
+	g101PrgMode = 0;
+	g101Prg0 = (cart.prgSize / 0x2000) - 2;
+	g101Prg1 = (cart.prgSize / 0x2000) - 1;
+	g101_prg_bank_switch();
 }
 
 /*/////////////////////////////////*/
@@ -528,7 +615,7 @@ void reset_vrc24() {
 }
 
 void reset_default() {
-	prg_32(0);
+	prg_32(psize-0x8000);
 	chr_8(0);
 	cart.mirroring = 1;
 }
