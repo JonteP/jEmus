@@ -5,25 +5,27 @@
 #include <time.h>
 #include <unistd.h>
 #include "globals.h"
-#include "nestools.h"
 #include "apu.h"
 #include "mapper.h"
 #include "my_sdl.h"
+#include "6502.h"
 
-
-static inline void draw_line(), draw_nametable(), draw_pattern(), draw_palette(), y_scroll();
+static inline void draw_line(), draw_nametable(), draw_pattern(), draw_palette(), y_scroll(), check_nmi();
 
 uint8_t *chrSlot[0x8], nameTableA[0x400], nameTableB[0x400], palette[0x20], oam[0x100], frameBuffer[SHEIGHT][SWIDTH], nameBuffer[SHEIGHT][SWIDTH<<1], patternBuffer[SWIDTH>>1][SWIDTH], paletteBuffer[SWIDTH>>4][SWIDTH>>1];
-uint8_t ppuOamAddress, vblank_period = 0, ppuStatusNmi = 0, ppuStatusSpriteZero = 0, ppuStatusOverflow = 0;
-uint8_t throttle = 1, vblankSuppressed = 0, frameBuffer[SHEIGHT][SWIDTH], nameBuffer[SHEIGHT][SWIDTH<<1], patternBuffer[SWIDTH>>1][SWIDTH], paletteBuffer[SWIDTH>>4][SWIDTH>>1];
-int16_t ppudot = -1, scanline = 0;
+uint8_t ppuOamAddress, vblank_period = 0, ppuStatusNmi = 0, ppuStatusSpriteZero = 0, ppuStatusOverflow = 0, nmiSuppressed = 0;
+uint8_t throttle = 1, frameBuffer[SHEIGHT][SWIDTH], nameBuffer[SHEIGHT][SWIDTH<<1], patternBuffer[SWIDTH>>1][SWIDTH], paletteBuffer[SWIDTH>>4][SWIDTH>>1];
+int16_t ppudot = 0, scanline = 0;
 
 /* PPU internal registers */
 uint8_t ppuW = 0, ppuX = 0;
 uint16_t ppuT, ppuV;
 
-uint32_t frame = 0, nmiIsTriggered = 0;
-int32_t ppucc = -1;
+/* PPU external registers */
+uint8_t ppuController, ppuMask, ppuData;
+
+uint32_t frame = 0, nmiFlipFlop = 0;
+int32_t ppucc = 0;
 clock_t start, diff;
 
 void init_time () {
@@ -36,29 +38,10 @@ void run_ppu (uint16_t ntimes) {
 		ppudot++;
 		ppucc++;
 
-		if (vrcIrqControl & 0x02) {
-			if (vrcIrqCounter == 0xff) {
-				vrcIrqInt = 1;
-				vrcIrqCounter = vrcIrqLatch;
-			}
-			else if ((!vrcIrqPrescale && !(vrcIrqControl & 0x04))) {
-				vrcIrqCounter++;
-				vrcIrqPrescale = 341;
-			} else if (vrcIrqControl & 0x04) {
-				if (miniCount == 2) {
-					miniCount = 0;
-					vrcIrqCounter++;
-				} else
-					miniCount++;
-			} else
-				vrcIrqPrescale--;
-		}
-		if ((vrcIrqControl & 0x02) && vrcIrqInt) {
-			interrupt_handle(IRQ);
-		}
+		check_nmi();
 
-		if (mmc3IrqEnable && mmc3Int)
-			interrupt_handle(IRQ);
+		if (mmc3Int)
+			irqPulled = 1;
 
 		if (ppudot == 341) {
 		scanline++;
@@ -67,28 +50,20 @@ void run_ppu (uint16_t ntimes) {
 	if (scanline == 262) {
 		scanline = 0;
 		frame++;
-		if (frame%2 && (ppuMask & 0x18))
-			ppudot++;
 	}
 
 /* VBLANK ONSET */
 	if (scanline == 241 && ppudot == 1) {
-		if (!vblankSuppressed) {
-			ppuStatusNmi = 1; /* set vblank */
-			if (ppuController & 0x80) {
-				nmiIsTriggered = ppucc;
-			}
-		}
+		ppuStatusNmi = 1; /* set vblank */
+
 		vblank_period = 1;
 
 /* PRERENDER SCANLINE */
 	} else if (scanline == 261) {
 		if (ppudot == 1) {
 			ppuStatusNmi = 0; /* clear vblank */
-			nmiIsTriggered = 0;
-			vblankSuppressed = 0;
+			nmiSuppressed = 0;
 
-			output_sound();
 			io_handle();
 			if (nametableActive)
 				draw_nametable();
@@ -97,14 +72,14 @@ void run_ppu (uint16_t ntimes) {
 			if (paletteActive)
 				draw_palette();
 			render_frame();
-		/*	if (waitBuffer) */
 			if (throttle) {
 				diff = clock() - start;
 				usleep(FRAMETIME - (diff % FRAMETIME));
 				start = clock();
 			}
+
 			ppuStatusSpriteZero = 0;
-			nmiAlreadyDone = 0;
+			nmiPulled = 0;
 			vblank_period = 0;
 		}
 		if (ppuMask & 0x18) {
@@ -117,6 +92,9 @@ void run_ppu (uint16_t ntimes) {
 				  ppuV = (ppuV & 0xfbe0) | (ppuT & 0x41f); /* reset x scroll */
 			  else if (ppudot >= 280 && ppudot <= 304)
 				  ppuV = (ppuV & 0x841f) | (ppuT & 0x7be0); /* reset Y scroll */
+		  } else if (ppudot == 339) {
+				if (frame%2 && (ppuMask & 0x18))
+					ppudot++;
 		  }
 		}
 
@@ -135,9 +113,9 @@ void run_ppu (uint16_t ntimes) {
 			} else
 				mmc3IrqCounter--;
 		}
-
-		if (ppudot == 256) {
+		if (!ppudot)
 			draw_line();
+		if (ppudot == 256) {
 			if (ppuMask & 0x18)
 				y_scroll();
 		} else if (ppudot >= 257 && ppudot <= 320  && (ppuMask & 0x18)) {
@@ -210,24 +188,23 @@ uint16_t pindx = 0, tileOffset, spriteOffset;
 				nnpal = ((nattsrc >> (((ppuV >> 1) & 1) | ((ppuV >> 5) & 2) ) * 2) & 3);
 
 				for (int pcol = 0; pcol < 8; pcol++) {
-	/* TODO: AND palette with 0x30 in greyscale mode */
 					if (ncol || (ppuMask&2)) {
 						if ((pcol + ppuX) < 8) {
 							pmap[pcol + 8*ncol] = ((tilesrc[(ppuV >> 12)] & (1<<(7-(pcol+ppuX))) ) ? 1 : 0) + ( (tilesrc[(ppuV >> 12) + 8] & (1<<(7-(pcol+ppuX)))) ? 2 : 0);
 							if (pmap[pcol + 8*ncol])
-								frameBuffer[scanline][pcol + 8*ncol] = palette[npal * 4 + pmap[pcol + 8*ncol]];
+								frameBuffer[scanline][pcol + 8*ncol] = palette[npal * 4 + pmap[pcol + 8*ncol]] & ((ppuMask & 0x01) ? 0x30 : 0xff);
 							else
-								frameBuffer[scanline][pcol + 8*ncol] = palette[0];
+								frameBuffer[scanline][pcol + 8*ncol] = palette[0] & ((ppuMask & 0x01) ? 0x30 : 0xff);
 						}
 						else {
 							pmap[pcol + 8*ncol] = ((ntilesrc[(ppuV >> 12)] & (1<<(7-((pcol+ppuX)-8))) ) ? 1 : 0) + ( (ntilesrc[(ppuV >> 12) + 8] & (1<<(7-((pcol+ppuX)-8)))) ? 2 : 0);
 							if (pmap[pcol + 8*ncol])
-								frameBuffer[scanline][pcol + 8*ncol] = palette[nnpal * 4 + pmap[pcol + 8*ncol]];
+								frameBuffer[scanline][pcol + 8*ncol] = palette[nnpal * 4 + pmap[pcol + 8*ncol]] & ((ppuMask & 0x01) ? 0x30 : 0xff);
 							else
-								frameBuffer[scanline][pcol + 8*ncol] = palette[0];
+								frameBuffer[scanline][pcol + 8*ncol] = palette[0] & ((ppuMask & 0x01) ? 0x30 : 0xff);
 						}
 					} else {
-						frameBuffer[scanline][pcol + 8*ncol] = palette[0];
+						frameBuffer[scanline][pcol + 8*ncol] = palette[0] & ((ppuMask & 0x01) ? 0x30 : 0xff);
 						pmap[pcol + 8*ncol] = 0;
 					}
 				}
@@ -240,7 +217,7 @@ uint16_t pindx = 0, tileOffset, spriteOffset;
 			pindx = namev; */
 	/*memcpy(&tiledest[0], &blank_line[0], SWIDTH); */
 		for (int i=0;i<SWIDTH;i++) {
-			frameBuffer[scanline][i] = palette[pindx];
+			frameBuffer[scanline][i] = palette[pindx] & ((ppuMask & 0x01) ? 0x30 : 0xff);
 		}
 	}
 
@@ -267,9 +244,9 @@ uint16_t pindx = 0, tileOffset, spriteOffset;
 					if (p && (pmap[pcol + objsrc[3]]) && (spritebuff[i] == ppuOamAddress) && !ppuStatusSpriteZero && ((objsrc[3]+pcol) < 255)) /* sprite zero hit */
 						ppuStatusSpriteZero = 1;
 					if (p && !(objsrc[2] & 0x20))
-						frameBuffer[scanline][objsrc[3] + pcol] = palette[npal * 4 + p];
+						frameBuffer[scanline][objsrc[3] + pcol] = palette[npal * 4 + p] & ((ppuMask & 0x01) ? 0x30 : 0xff);
 					else if (p && (objsrc[2] & 0x20) && !(pmap[pcol + objsrc[3]]))
-						frameBuffer[scanline][objsrc[3] + pcol] = palette[npal * 4 + p];
+						frameBuffer[scanline][objsrc[3] + pcol] = palette[npal * 4 + p] & ((ppuMask & 0x01) ? 0x30 : 0xff);
 				}
 			}
 		}
@@ -355,5 +332,129 @@ void draw_palette () {
 				}
 			}
 		}
+	}
+}
+
+uint8_t ppureg = 0, vbuff = 0;
+uint8_t read_ppu_register(uint16_t addr) {
+	uint8_t tmpval8;
+	switch (addr & 0x2007) {
+	case 0x2002:
+		if (ppucc == 343 || ppucc == 344) {/* suppress if read and set at same time */
+			nmiSuppressed = 1;
+			nmiFlipFlop = 0;
+		} else if (ppucc == 342) {
+			ppuStatusNmi = 0;
+		}
+		tmpval8 = (ppuStatusNmi<<7) | (ppuStatusSpriteZero<<6) | (ppuStatusOverflow<<5) | (ppureg & 0x1f);
+		ppuStatusNmi = 0;
+		ppuW = 0;
+		break;
+	case 0x2004:
+		tmpval8 = oam[ppuOamAddress];
+		break;
+	case 0x2007:
+		if (ppuV < 0x3f00) {
+			tmpval8 = vbuff;
+			vbuff = *ppuread(ppuV);
+		}
+		/* TODO: buffer update when reading palette */
+		else if ((ppuV) >= 0x3f00) {
+			tmpval8 = *ppuread(ppuV) & ((ppuMask & 0x01) ? 0x30 : 0xff);
+		}
+		ppuV += (ppuController & 0x04) ? 32 : 1;
+		break;
+	}
+	return tmpval8;
+}
+
+void write_ppu_register(uint16_t addr, uint8_t tmpval8) {
+	ppureg = tmpval8;
+	switch (addr & 0x2007) {
+	case 0x2000:
+		ppuController = tmpval8;
+		ppuT &= 0xf3ff;
+		ppuT |= ((ppuController & 3)<<10);
+		if (!(ppuController & 0x80)) {
+			nmiPulled = 0;
+		} else if (ppuController & 0x80) {
+			check_nmi();
+		}
+		break;
+	case 0x2001:
+		ppuMask = tmpval8;
+		break;
+	case 0x2002:
+		break;
+	case 0x2003:
+		ppuOamAddress = tmpval8;
+		break;
+	case 0x2004:
+		ppureg = tmpval8;
+		/* TODO: writing during rendering */
+		if (vblank_period || !(ppuController & 0x18)) {
+			oam[ppuOamAddress++] = tmpval8;
+		}
+		break;
+	case 0x2005:
+		if (ppuW == 0) {
+			ppuT &= 0xffe0;
+			ppuT |= ((tmpval8 & 0xf8)>>3); /* coarse X scroll */
+			ppuX = (tmpval8 & 0x07); /* fine X scroll  */
+			ppuW = 1;
+		} else if (ppuW == 1) {
+			ppuT &= 0x8c1f;
+			ppuT |= ((tmpval8 & 0xf8)<<2); /* coarse Y scroll */
+			ppuT |= ((tmpval8 & 0x07)<<12); /* fine Y scroll */
+			ppuW = 0;
+		}
+		break;
+	case 0x2006:
+		if (ppuW == 0) {
+			ppuT &= 0x80ff;
+			ppuT |= ((tmpval8 & 0x3f) << 8);
+			ppuW = 1;
+		} else if (ppuW == 1) {
+			ppuT &= 0xff00;
+			ppuT |= tmpval8;
+			ppuV = ppuT;
+			ppuW = 0;
+		}
+		break;
+	case 0x2007:
+		ppuData = tmpval8;
+		if ((ppuV & 0x3fff) >= 0x3f00)
+			*ppuread(ppuV & 0x3fff) = (ppuData & 0x3f);
+		else
+			*ppuread(ppuV & 0x3fff) = ppuData;
+		ppuV += (ppuController & 0x04) ? 32 : 1;
+		break;
+	}
+}
+
+uint8_t * ppuread(uint16_t address) {
+	uint8_t * memLocation;
+	if (address < 0x2000) /* pattern tables */
+		memLocation = &chrSlot[(address>>10)][address&0x3ff];
+	else if (address >= 0x2000 && address <0x3f00) /* nametables */
+		memLocation = mirroring[cart.mirroring][((ppuV&0xc00)>>10)] ? &nameTableB[address&0x3ff] : &nameTableA[address&0x3ff];
+	else if (address >= 0x3f00) { /* palette RAM */
+		if (address == 0x3f10)
+			address = 0x3f00;
+		else if (address == 0x3f14)
+			address = 0x3f04;
+		else if (address == 0x3f18)
+			address = 0x3f08;
+		else if (address == 0x3f1c)
+			address = 0x3f0c;
+		memLocation = &palette[(address&0x1f)];
+	}
+	return memLocation;
+}
+
+void check_nmi() {
+	if ((ppuController & 0x80) && ppuStatusNmi && !nmiPulled && !nmiSuppressed) {
+		nmiPulled = 1;
+		nmiFlipFlop = ppucc;
 	}
 }

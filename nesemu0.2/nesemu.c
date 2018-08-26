@@ -1,19 +1,17 @@
 #include <stdint.h>
+#include <libgen.h>
 #include <stdio.h>
 #include <stdlib.h>	/* malloc; exit */
 #include <string.h>	/* memcpy */
 #include <time.h>
 #include <unistd.h>
 #include "globals.h"
-#include "nestools.h"
-#include "SDL.h"
 #include "ppu.h"
 #include "apu.h"
 #include "6502.h"
 #include "sha.h"
 #include "parser.h"
 #include "tree.h"
-#include "mapper.h"
 #include "my_sdl.h"
 
 /* TODO:
@@ -42,26 +40,26 @@ xmlNode *root;
 xmlChar *sphash, *schash;
 unsigned char phash[SHA_DIGEST_LENGTH], chash[SHA_DIGEST_LENGTH];
 
-uint8_t quit = 0, ctrb = 0, ctrb2 = 0, ctr1 = 0, ctr2 = 0, nmiAlreadyDone = 0,
-		nmiDelayed = 0;
-uint8_t header[0x10], cpu[0x10000] = { 0 }, wramEnable = 0, openBus;
-uint8_t *prg, *chr, *cram;
-uint16_t ppu_wait = 0, apu_wait = 0, nmi_wait = 0;
+uint8_t quit = 0, ctrb = 0, ctrb2 = 0, ctr1 = 0, ctr2 = 0;
+uint8_t header[0x10], wramEnable = 0, openBus;
+uint8_t *prg, *chr, *cram, *bwram, *wram, *wramSource;
+uint16_t ppu_wait = 0, apu_wait = 0;
 uint8_t mirroring[4][4] = { { 0, 0, 1, 1 },
 							{ 0, 1, 0, 1 },
 							{ 0, 0, 0, 0 },
 							{ 1, 1, 1, 1 } };
-int32_t cpucc = 0;
-FILE *rom, *logfile;
+
+FILE *romFile, *logfile, *bwramFile;
+char *bwramName, *romName;
 
 int main() {
-	rom = fopen("/home/jonas/eclipse-workspace/"
-			"mmc1/dw3.nes", "rb");
-	if (rom == NULL) {
+	romName = "/home/jonas/eclipse-workspace/mmc3/rockman6.nes";
+	romFile = fopen(romName, "r");
+	if (romFile == NULL) {
 		printf("Error: No such file\n");
 		exit(EXIT_FAILURE);
 	}
-	fread(header, sizeof(header), 1, rom);
+	fread(header, sizeof(header), 1, romFile);
 	for (int i = 0; i < sizeof(id); i++) {
 		if (header[i] != id[i]) {
 			printf("Error: Invalid iNES header!\n");
@@ -74,12 +72,12 @@ int main() {
 	csize = header[5] * CHR_BANK<<3;
 
 	prg = malloc(psize);
-	fread(prg, psize, 1, rom);
+	fread(prg, psize, 1, romFile);
 	SHA1(prg,psize,phash);
 
 	sphash = malloc(SHA_DIGEST_LENGTH*2+1);
 	for (int i = 0; i<sizeof(phash); i++) {
-		sprintf(sphash+i*2, "%02x", phash[i]);
+		sprintf((char *)sphash+i*2, "%02x", phash[i]);
 	}
 	nesXml = xmlReadFile("/home/jonas/eclipse-workspace/nes.xml", NULL, 0);
 	root = xmlDocGetRootElement(nesXml);
@@ -89,19 +87,34 @@ int main() {
 
 	if (csize) {
 		chr = malloc(csize);
-		fread(chr, csize, 1, rom);
+		fread(chr, csize, 1, romFile);
 	} else {
 		csize = cart.cramSize;
 		chr = malloc(csize);
 	}
-	fclose(rom);
+	fclose(romFile);
+
+	if (cart.bwramSize) {
+		bwramName = strdup(romName);
+		sprintf(bwramName+strlen(bwramName)-3,"sav");
+		bwramFile = fopen(bwramName, "r");
+		bwram = malloc(cart.bwramSize);
+		if (bwramFile) {
+			fread(bwram, cart.bwramSize, 1, bwramFile);
+			fclose(bwramFile);
+		}
+		wramSource = bwram;
+	} else if (cart.wramSize) {
+		wram = malloc(cart.wramSize);
+		wramSource = wram;
+	}
 
 	printf("PCB: %s\n",cart.pcb);
-	printf("PRG size: %i bytes\n",cart.prgSize);
-	printf("CHR size: %i bytes\n",cart.chrSize);
-	printf("WRAM size: %i bytes\n",cart.wramSize);
-	printf("BWRAM size: %i bytes\n",cart.bwramSize);
-	printf("CHRRAM size: %i bytes\n",cart.cramSize);
+	printf("PRG size: %li bytes\n",cart.prgSize);
+	printf("CHR size: %li bytes\n",cart.chrSize);
+	printf("WRAM size: %li bytes\n",cart.wramSize);
+	printf("BWRAM size: %li bytes\n",cart.bwramSize);
+	printf("CHRRAM size: %li bytes\n",cart.cramSize);
 /*	mirrmode = (header[6] & 1); */
 	/* 0 = horizontal mirroring
 	 * 1 = vertical mirroring
@@ -114,30 +127,28 @@ int main() {
 	if (logfile==NULL)
 		printf("Error: Could not create logfile\n");
 
-	power_reset(0);
+	rstFlag = HARD_RESET;
 	init_sdl();
 	init_time();
 
 	while (quit == 0) {
-			if (nmiDelayed) {
-				nmiDelayed = 0;
-			}
-			run_ppu(ppu_wait);
-			run_apu(apu_wait);
+		if (cpuStall)
+			cpuStall = 0;
+		else
 			opdecode();
-
-			/* Interrupt handling */
-			if (nmiIsTriggered >= ppucc-1) /*TODO: correct behavior? Probably depends on opcode */
-				nmiDelayed = 1;
-			if ((ppuController & 0x80) && nmiIsTriggered && !nmiAlreadyDone && !nmiDelayed) {
-				interrupt_handle(NMI);
-				nmiAlreadyDone = 1;
-				nmiIsTriggered = 0;
-			}
+		synchronize(0);
 	}
 	fclose(logfile);
 	free(prg);
 	free(chr);
+	if (cart.bwramSize) {
+		bwramFile = fopen(bwramName, "w");
+		fwrite(bwram,cart.bwramSize,1,bwramFile);
+		free(bwram);
+		fclose(bwramFile);
+	} else if (cart.wramSize) {
+		free(wram);
+	}
 	close_sdl();
 }
 
@@ -153,13 +164,13 @@ void extract_xml_data(xmlNode * s_node) {
 			else if (!xmlStrcmp(nam,(xmlChar *)"pcb"))
 				strcpy(cart.pcb,(char *)val);
 			else if (!xmlStrcmp(nam,(xmlChar *)"vrc2-pin3"))
-				cart.vrcPrg1 = strtol(val+5,NULL,10);
+				cart.vrcPrg1 = strtol((char *)val+5,NULL,10);
 			else if (!xmlStrcmp(nam,(xmlChar *)"vrc2-pin4"))
-				cart.vrcPrg0 = strtol(val+5,NULL,10);
+				cart.vrcPrg0 = strtol((char *)val+5,NULL,10);
 			else if (!xmlStrcmp(nam,(xmlChar *)"vrc4-pin3"))
-				cart.vrcPrg1 = strtol(val+5,NULL,10);
+				cart.vrcPrg1 = strtol((char *)val+5,NULL,10);
 			else if (!xmlStrcmp(nam,(xmlChar *)"vrc4-pin4"))
-				cart.vrcPrg0 = strtol(val+5,NULL,10);
+				cart.vrcPrg0 = strtol((char *)val+5,NULL,10);
 			else if (!xmlStrcmp(nam,(xmlChar *)"vrc2-pin21")) {
 				if (!xmlStrcmp(val,(xmlChar *)"NC"))
 					cart.vrcChr = 0;
@@ -186,15 +197,15 @@ void extract_xml_data(xmlNode * s_node) {
 				else
 					val = xmlGetProp(cur_node, (xmlChar *)"size");
 				if (!xmlStrcmp(nam,(xmlChar *)"prg"))
-					cart.prgSize = strtol(val,NULL,10);
+					cart.prgSize = strtol((char *)val,NULL,10);
 				else if (!xmlStrcmp(nam,(xmlChar *)"chr"))
-					cart.chrSize = strtol(val,NULL,10);
+					cart.chrSize = strtol((char *)val,NULL,10);
 				else if (!xmlStrcmp(nam,(xmlChar *)"wram"))
-					cart.wramSize = strtol(val,NULL,10);
+					cart.wramSize = strtol((char *)val,NULL,10);
 				else if (!xmlStrcmp(nam,(xmlChar *)"bwram"))
-					cart.bwramSize = strtol(val,NULL,10);
+					cart.bwramSize = strtol((char *)val,NULL,10);
 				else if (!xmlStrcmp(nam,(xmlChar *)"vram"))
-					cart.cramSize = strtol(val,NULL,10);
+					cart.cramSize = strtol((char *)val,NULL,10);
 				xmlFree(nam);
 				xmlFree(val);
 		}

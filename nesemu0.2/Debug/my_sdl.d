@@ -20,7 +20,7 @@ my_sdl.o: ../my_sdl.c ../my_sdl.h /usr/include/SDL2/SDL.h \
  /usr/include/SDL2/SDL_messagebox.h /usr/include/SDL2/SDL_power.h \
  /usr/include/SDL2/SDL_render.h /usr/include/SDL2/SDL_system.h \
  /usr/include/SDL2/SDL_timer.h /usr/include/SDL2/SDL_version.h ../ppu.h \
- ../apu.h ../globals.h ../nestools.h ../6502.h ../mapper.h
+ ../apu.h ../globals.h ../6502.h
 
 ../my_sdl.h:
 
@@ -116,8 +116,4 @@ my_sdl.o: ../my_sdl.c ../my_sdl.h /usr/include/SDL2/SDL.h \
 
 ../globals.h:
 
-../nestools.h:
-
 ../6502.h:
-
-../mapper.h:

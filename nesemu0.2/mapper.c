@@ -12,7 +12,6 @@
 #include "globals.h"
 #include "6502.h"
 #include "ppu.h"
-#include "nestools.h"
 
 static inline void prg_8_0(uint32_t offset), prg_8_1(uint32_t offset), prg_8_2(uint32_t offset), prg_8_3(uint32_t offset),
 				   prg_16low(uint32_t offset), prg_16high(uint32_t offset), prg_32(uint32_t offset),
@@ -32,6 +31,7 @@ static inline void prg_8_0(uint32_t offset), prg_8_1(uint32_t offset), prg_8_2(u
  * -10-Yard Fight: glitch line on top of playfield
  * -1942: missing letters....
  */
+static inline void reset_nrom();
 
 void reset_nrom() {
 	if (cart.prgSize == 0x4000) {
@@ -55,6 +55,8 @@ void reset_nrom() {
  * -Battletoads: crashes at level 2 - timing issue
  * */
 
+static inline void reset_axrom(), mapper_axrom(uint8_t);
+
 void mapper_axrom(uint8_t value) {
 	prg_32((value & 0x07) * 0x8000);
 	(value & 0x10) ? (cart.mirroring = 3) : (cart.mirroring = 2);
@@ -74,6 +76,7 @@ void reset_axrom() {
  * -bus conflicts
  *
  * */
+static inline void reset_cnrom(), mapper_cnrom(uint8_t);
 
 void mapper_cnrom (uint8_t value) {
 	chr_8((value & ((csize >> 13) - 1)) * 0x2000);
@@ -96,9 +99,10 @@ void reset_cnrom () {
  *
  * Game specific:
  * -Senjou no Ookami: garbage graphics flicker
- * -Ducktales: should status screen flicker when scrooge overlaps?
- * -Tatakai no Banka: one frame graphics glitches - worse now, sprite zero?
+ * -Tatakai no Banka: one frame graphics glitches
  */
+
+static inline void reset_uxrom(), mapper_uxrom(uint8_t);
 
 void mapper_uxrom (uint8_t value) {
 	uint8_t bank;
@@ -130,11 +134,6 @@ void reset_uxrom () {
 /* TODO:
  *
  * -PRG RAM banking
- * -PRG ROM banking, fixed low, is last bank high handled correctly?
- *
- * Game specific:
- * -Dragon Warrior III: resets/hangs
- * -Bill and Ted: does not boot
  */
 
 /* mmc1 globals */
@@ -142,9 +141,11 @@ uint8_t mmc1Shift = 0, mmc1Buffer,
 		mmc1Reg0, mmc1Reg1, mmc1Reg2, mmc1Reg3;
 uint32_t mmc1RamOffset, mmc1PrgOffset = 0;
 
-static inline void mmc1_prg_bank_switch(), mmc1_chr_bank_switch();
+static inline void mapper_mmc1(uint16_t, uint8_t), reset_mmc1(), mmc1_prg_bank_switch(), mmc1_chr_bank_switch();
 
 void mapper_mmc1(uint16_t address, uint8_t value) {
+	/* TODO: clean implementation - mmc1 checks write cycle instead */
+	if (!dummywrite) {
 	if (value & 0x80) {
 		mmc1Shift = 0;
 		mmc1Buffer = 0;
@@ -182,7 +183,11 @@ void mapper_mmc1(uint16_t address, uint8_t value) {
 				break;
 			case 2: /* CHR ROM high bank (4k mode) */
 				mmc1Reg2 = mmc1Buffer;
+				if (cart.prgSize == 0x80000) {
+					mmc1PrgOffset = ((mmc1Reg1&0x10)<<14);
+				}
 				mmc1_chr_bank_switch();
+				mmc1_prg_bank_switch();
 				break;
 			case 3: /* PRG ROM bank */
 				mmc1Reg3 = mmc1Buffer;
@@ -196,22 +201,27 @@ void mapper_mmc1(uint16_t address, uint8_t value) {
 		} else
 			mmc1Shift++;
 	}
+	}
 }
 
 void mmc1_prg_bank_switch() {
+	uint32_t size;
+	if (cart.prgSize == 0x80000)
+		size = (cart.prgSize>>1);
+	else size = cart.prgSize;
 	 uint8_t mmc1PrgSize = (mmc1Reg0 & 0x08); /* 0 32k, 1 16k */
 	 uint8_t mmc1PrgSelect = (mmc1Reg0 & 0x04); /* 0 low, 1 high */
 	if (mmc1PrgSize) {
 		if (mmc1PrgSelect) { /* switch 0x8000, fix 0xc000 to last bank */
-			prg_16low((mmc1Reg3 & ((cart.prgSize >> 14) -1)) * 0x4000 + mmc1PrgOffset);
-			prg_16high(cart.prgSize - 0x4000);
+			prg_16low((mmc1Reg3 & ((size >> 14) - 1)) * 0x4000 + mmc1PrgOffset);
+			prg_16high(size - 0x4000);
 		} else if (!mmc1PrgSelect) { /* switch 0xc000, fix 0x8000 to first bank */
 			prg_16low(mmc1PrgOffset);
-			prg_16high((mmc1Reg3 & ((cart.prgSize >> 14) -1)) * 0x4000 + mmc1PrgOffset);
+			prg_16high((mmc1Reg3 & ((size >> 14) - 1)) * 0x4000 + mmc1PrgOffset);
 		}
 	}
 	else if (!mmc1PrgSize) {
-		prg_32(((mmc1Reg3 & ((cart.prgSize >> 14) -1)) >> 1) * 0x4000 + mmc1PrgOffset);
+		prg_32(((mmc1Reg3 & ((size >> 14) - 1)) >> 1) * 0x8000 + mmc1PrgOffset);
 
 	}
 }
@@ -257,13 +267,12 @@ void reset_mmc1() {
  * - implement TKSROM and TLSROM (mapper 118)
  *
  *Game specific:
- *-Batman: columns of glitched graphics appear
  *-many game have irq related issues
  */
 
 uint8_t mmc3BankSelect, mmc3Reg[0x08], mmc3IrqEnable,
 		mmc3PramProtect, mmc3IrqLatch, mmc3IrqReload, mmc3IrqCounter, mmc3Int = 0;
-static inline void mmc3_prg_bank_switch(), mmc3_chr_bank_switch();
+static inline void mapper_mmc3(uint16_t, uint8_t), reset_mmc3(), mmc3_prg_bank_switch(), mmc3_chr_bank_switch();
 
 void mapper_mmc3 (uint16_t address, uint8_t value) {
 	switch ((address>>13) & 3) {
@@ -364,6 +373,8 @@ void reset_mmc3 () {
  * - Ai sensei..: does not boot
  */
 
+static inline void reset_g101(), mapper_g101(uint16_t, uint8_t);
+
 uint8_t g101Prg0, g101Prg1, g101PrgMode,
 	    g101Chr0, g101Chr1, g101Chr2, g101Chr3,
 		g101Chr4, g101Chr5, g101Chr6, g101Chr7;
@@ -450,22 +461,19 @@ void reset_g101() {
 
 /* TODO:
  *
- *-IRQ timing issues? (more general timing issues)
  *-Microwire interface in VRC2
  *-readback of written value in some games...
  *
  *Game specific:
- *-Boku Dracula-kun, crashes with garbage at specific point - IRQ timing?
  *-TMNT 2: does not boot
- *-TMNT: severe graphics issues - IRQ timing?
  */
 
-uint8_t vrc24SwapMode, vrcIrqControl = 0, vrcIrqInt, vrcIrqLatch, vrcIrqCounter;
+uint8_t vrc24SwapMode, vrcIrqControl = 0, vrcIrqInt, vrcIrqLatch, vrcIrqCounter, vrcPrg0, vrcPrg1;
 uint16_t vrcChr0 = 0, vrcChr1 = 0, vrcChr2 = 0, vrcChr3 = 0,
-		 vrcChr4 = 0, vrcChr5 = 0, vrcChr6 = 0, vrcChr7 = 0,
-		 vrcIrqPrescale;
+		 vrcChr4 = 0, vrcChr5 = 0, vrcChr6 = 0, vrcChr7 = 0;
+int16_t vrcIrqPrescale;
 
-static inline void vrc24_chr_bank_switch();
+static inline void mapper_vrc24(uint16_t, uint8_t), reset_vrc24(), vrc24_chr_bank_switch(), vrc24_prg_bank_switch();
 
 void mapper_vrc24(uint16_t address, uint8_t value) {
 	/* reroute addressing */
@@ -473,22 +481,18 @@ void mapper_vrc24(uint16_t address, uint8_t value) {
 		address = (address & 0xff00) | ((address>>(cart.vrcPrg1-1)) & 0x02) | ((address>>cart.vrcPrg0) & 0x01);
 	else
 		address = (address & 0xff00) | ((address<<(1-cart.vrcPrg1)) & 0x02) | ((address>>cart.vrcPrg0) & 0x01);
+
 	/* handle register writes */
 	if ((address&0xf003) >= 0x8000 && (address&0xf003) <= 0x8003) { /* PRG select 0 */
-		if (vrc24SwapMode) {
-			prg_8_0(cart.prgSize - 0x4000);
-			prg_8_2((value & ((cart.prgSize>>13)-1)) * 0x2000);
-		}
-		else {
-			prg_8_0((value & ((cart.prgSize>>13)-1)) * 0x2000);
-			prg_8_2(cart.prgSize - 0x4000);
-		}
-		/* always 0x8000 in vrc 2, otherwise depending on swap mode */
+		vrcPrg0 = value;
+		vrc24_prg_bank_switch();
 	} else if ((address&0xf003) >= 0xa000  && (address&0xf003) <= 0xa003) { /* PRG select 1 */
-		prg_8_1((value & ((cart.prgSize>>13)-1)) * 0x2000);
+		vrcPrg1 = value;
+		vrc24_prg_bank_switch();
 	} else if ((address&0xf003) >= 0x9000  && (address&0xf003) <= 0x9003) { /* mirroring control */
 		if (!strcmp(cart.slot,"vrc4") && (address&0xf003) >= 0x9002) {
 			vrc24SwapMode = ((value >> 1) & 0x01);
+			vrc24_prg_bank_switch();
 		} else if (!strcmp(cart.slot,"vrc4") && (address&0xf003) < 0x9002) {
 			switch (value & 0x03) {
 			case 0:
@@ -573,6 +577,18 @@ void mapper_vrc24(uint16_t address, uint8_t value) {
 	}
 }
 
+void vrc24_prg_bank_switch() {
+	if (vrc24SwapMode) {
+		prg_8_0(cart.prgSize - 0x4000);
+		prg_8_2((vrcPrg0 & ((cart.prgSize>>13)-1)) * 0x2000);
+	}
+	else {
+		prg_8_0((vrcPrg0 & ((cart.prgSize>>13)-1)) * 0x2000);
+		prg_8_2(cart.prgSize - 0x4000);
+	}
+	prg_8_1((vrcPrg1 & ((cart.prgSize>>13)-1)) * 0x2000);
+}
+
 void vrc24_chr_bank_switch() {
 	if (!strcmp(cart.slot,"vrc2")) {
 		if (cart.vrcChr) {
@@ -607,11 +623,35 @@ void vrc24_chr_bank_switch() {
 }
 
 void reset_vrc24() {
-	prg_16low(0);
-	prg_16high(cart.prgSize-0x4000);
+	vrc24SwapMode = 0;
+	vrcPrg0 = 0;
+	vrcPrg1 = 0;
+	prg_8_3(cart.prgSize-0x2000);
+	vrc24_prg_bank_switch();
 	chr_8(0);
 	wramEnable = 1;
 	vrc24SwapMode = 0;
+}
+
+void vrc_irq() {
+	if (vrcIrqControl & 0x02) {
+		if (vrcIrqCounter == 0xff) {
+			vrcIrqInt = 1;
+			vrcIrqCounter = vrcIrqLatch;
+		}
+		else if (!(vrcIrqControl & 0x04)) {
+			if (vrcIrqPrescale <= 0) {
+				vrcIrqCounter++;
+				vrcIrqPrescale = 341;
+			} else
+				vrcIrqPrescale -= 3;
+		} else if (vrcIrqControl & 0x04) {
+			vrcIrqCounter++;
+		}
+	}
+	if (vrcIrqInt) {
+		irqPulled = 1;
+	}
 }
 
 void reset_default() {
@@ -740,4 +780,62 @@ void chr_1_6(uint32_t offset) {
 
 void chr_1_7(uint32_t offset) {
 	chrSlot[7] = &chr[offset];
+}
+
+void init_mapper() {
+	if(!strcmp(cart.slot,"nrom")) {
+		reset_nrom();
+	} else if(!strcmp(cart.slot,"sxrom") ||
+				!strcmp(cart.slot,"sxrom_a") ||
+					!strcmp(cart.slot,"sorom") ||
+						!strcmp(cart.slot,"sorom_a")) {
+		reset_mmc1();
+	} else if(!strcmp(cart.slot,"uxrom") ||
+				!strcmp(cart.slot,"un1rom") ||
+					!strcmp(cart.slot,"unrom_cc")) {
+		reset_uxrom();
+	} else if (!strcmp(cart.slot,"cnrom")) {
+		reset_cnrom();
+	} else if (!strcmp(cart.slot,"axrom")) {
+		reset_axrom();
+	} else if (!strcmp(cart.slot,"txrom")) {
+		reset_mmc3();
+	} else if (!strcmp(cart.slot,"vrc2") ||
+			!strcmp(cart.slot,"vrc4")) {
+		reset_vrc24();
+	} else if (!strcmp(cart.slot,"g101")) {
+		reset_g101();
+	} else
+		reset_default();
+}
+
+void write_mapper_register(uint16_t address, uint8_t value) {
+
+	if ((!strcmp(cart.slot,"sxrom") ||
+			!strcmp(cart.slot,"sxrom_a") ||
+				!strcmp(cart.slot,"sorom") ||
+					!strcmp(cart.slot,"sorom_a"))) {
+		mapper_mmc1(address, value);
+	}
+	else if (!strcmp(cart.slot,"uxrom") ||
+				!strcmp(cart.slot,"un1rom") ||
+					!strcmp(cart.slot,"unrom_cc")) {
+		mapper_uxrom(value);
+	}
+	else if (!strcmp(cart.slot,"cnrom")) {
+		mapper_cnrom(value);
+	}
+	else if (!strcmp(cart.slot,"txrom")) {
+		mapper_mmc3(address,value);
+	}
+	else if (!strcmp(cart.slot,"axrom")) {
+		mapper_axrom(value);
+	}
+	else if (!strcmp(cart.slot,"vrc2") ||
+				!strcmp(cart.slot,"vrc4")) {
+		mapper_vrc24(address,value);
+	}
+	else if (!strcmp(cart.slot,"g101")) {
+		mapper_g101(address,value);
+	}
 }

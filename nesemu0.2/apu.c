@@ -3,10 +3,14 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include "globals.h"
-#include "nestools.h"
 #include "SDL.h"
 #include "6502.h"
 #include "my_sdl.h"
+#include "ppu.h"
+#include "mapper.h"
+						/* 	shifted up by 1 to work */
+uint16_t frameClock[5] = {7457, 14913, 22371, 29829, 37281};
+uint16_t frameReset[2] = {29830, 37282};
 
 float pulse_table[31] = { 0.0116, 0.0229, 0.0340, 0.0448, 0.0554, 0.0657, 0.0757, 0.0856, 0.0952, 0.1046, 0.1139, 0.1229, 0.1317,
 						   0.1404, 0.1488, 0.1571, 0.1652, 0.1732, 0.1810, 0.1886, 0.1961, 0.2035, 0.2107, 0.2178, 0.2247, 0.2315,
@@ -37,17 +41,18 @@ uint8_t apuStatus, apuFrameCounter, frameCounter = 0, pulse1Length = 0, waitBuff
 		sweep2Shift = 0, sweep2 = 0, triLength = 0, triLinear = 0,
 		triLinReload = 0, triControl, noiseControl, noiseLength = 0, noiseMode = 0,
 		dmcOutput = 0, dmcControl = 0, dmcBitsLeft = 8, dmcSilence = 1,
-		dmcShift = 0, dmcBuffer = 0, dmcInt = 0, frameInt = 0;
+		dmcShift = 0, dmcBuffer = 0, dmcRestart = 0, pulse1Mute, pulse2Mute;
 int8_t pulse1Duty = 0, pulse2Duty = 0, triSeq = 0, triBuff = 0;
-uint16_t pulse1Timer = 0, pulse2Timer = 0,
-		sampleCounter = 0, tmpcounter = 0,
+uint16_t pulse2Timer = 0, pulse1Timer = 0,
+		sampleCounter = 0, lastOutputCounter = 0, tmpcounter = 0,
 		triTimer = 0, triTemp, noiseShift, noiseTimer, noiseTemp, dmcTemp,
 		dmcRate = 0, dmcAddress, dmcCurAdd, dmcLength = 0, dmcBytesLeft = 0;
-int16_t pulse1Temp = 0, pulse2Temp = 0;
+int16_t pulse1Temp = 0, pulse2Temp = 0, pulse1Change, pulse2Change;
 
-uint16_t pulseQueueCounter = 0;
+
 float sampleBuffer[BUFFER_SIZE] = {0};
-uint16_t apucc = 0;
+uint16_t framecc = 0;
+uint32_t apucc = 0, frameIrqDelay, frameIrqTime;
 
 uint16_t pulse1Sample = 0, pulse2Sample = 0, triSample = 0, tmpcnt = 0, noiseSample = 0, dmcSample = 0;
 
@@ -62,37 +67,71 @@ uint8_t dutySequence[4][8] = { { 0, 0, 0, 0, 0, 0, 0, 1 },
 uint8_t triSequence[0x20] = { 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
 uint16_t noiseTable[0x10] = { 4, 8, 16, 32, 64, 96, 128, 160, 202, 254, 380, 508, 762, 1016, 2034, 4068};
 uint16_t rateTable[0x10] = { 428, 380, 340, 320, 286, 254, 226, 214, 190, 160, 142, 128, 106,  84,  72,  54 };
-uint16_t frameClock[5] = {7457, 14913, 22371, 29829, 37281};
-uint16_t frameReset[2] = {29830, 37282};
+
+uint8_t dmcInt = 0, frameInt = 0, dmcIrqDelay = 0, frameWriteDelay, frameWrite = 0, dmcBufferEmpty;
 
 
 void run_apu(uint16_t ntimes) { /* apu cycle times */
 	while (ntimes) {
-		if (apucc == frameClock[frameCounter]) {
+		if (frameWrite) {
+			if (!frameWriteDelay) {
+				frameCounter = 0;
+				framecc = 0;
+				if (apuFrameCounter&0x40) {
+					frameInt = 0;
+				}
+				if (apuFrameCounter&0x80) {
+					quarter_frame();
+					half_frame();
+				}
+				frameWrite = 0;
+			} else
+				frameWriteDelay--;
+		}
+
+		vrc_irq();
+
+		if (dmcInt || frameInt) {
+			irqPulled = 1;
+		}
+
+		if (framecc == frameClock[frameCounter]) {
 			if ((!(apuFrameCounter&0x80)) || ((apuFrameCounter&0x80) && frameCounter != 3)) {
-				quarter_frame ();
+				quarter_frame();
 			}
-			if ((apuFrameCounter & 0x80) && (!frameCounter || frameCounter == 2)) {
+			if ((apuFrameCounter & 0x80) && (frameCounter == 1 || frameCounter == 4)) {
 				half_frame();
 		  } else if ((!(apuFrameCounter & 0x80)) && (frameCounter%2)) {
 				half_frame();
 		  }
 			frameCounter++;
 		}
-		if ((!(apuFrameCounter&0xc0)) && apucc >= 29828 && apucc <= 29830)
+		if ((!(apuFrameCounter&0xc0)) && framecc >= 29828 && framecc <= 29830) {
 			frameInt = 1;
-		if (apucc == frameReset[(apuFrameCounter & 0x80)>>7]) {
-			frameCounter = 0;
-			apucc = 0;
 		}
+		if (framecc == frameReset[(apuFrameCounter & 0x80)>>7]) {
+			frameCounter = 0;
+			framecc = 0;
+		}
+		pulse1Change = (sweep1&8) ? -((pulse1Timer>>sweep1Shift)+1) : (pulse1Timer>>sweep1Shift);
+		pulse2Change = (sweep2&8) ? -(pulse2Timer>>sweep2Shift) : (pulse2Timer>>sweep2Shift);
+		if ((pulse1Change + pulse1Timer) > 0x7ff || pulse1Timer < 8)
+			pulse1Mute = 1;
+		else
+			pulse1Mute = 0;
+
+		if ((pulse2Change + pulse2Timer) > 0x7ff || pulse2Timer < 8)
+			pulse2Mute = 1;
+		else
+			pulse2Mute = 0;
 
 		if (pulse1Length && (apuStatus&1)) {
-			if (pulse1Temp <= 0x7ff && pulse1Temp >= 8) {
+			if (pulse1Timer >= 8 && !pulse1Mute) {
 				pulse1Sample = (pulse1Control&0x10) ? (dutySequence[(pulse1Control>>6)&3][pulse1Duty>>1] * pulse1Control&0xf) : (dutySequence[(pulse1Control>>6)&3][pulse1Duty>>1] * env1Decay);
 			} else
 				pulse1Sample = 0;
 			if (pulse1Temp < 0) {
-				pulse1Temp = pulse1Timer;
+				pulse1Temp = (pulse1Timer & 0x7ff);
 				pulse1Duty--;
 				if (pulse1Duty < 0)
 					pulse1Duty = 15;
@@ -102,7 +141,7 @@ void run_apu(uint16_t ntimes) { /* apu cycle times */
 			pulse1Sample = 0;
 
 		if (pulse2Length && (apuStatus&2)) {
-			if (pulse2Temp <= 0x7ff && pulse2Temp >= 8) {
+			if (pulse2Timer >= 8 && !pulse2Mute) {
 				pulse2Sample = (pulse2Control&0x10) ? (dutySequence[(pulse2Control>>6)&3][pulse2Duty>>1] * pulse2Control&0xf) : (dutySequence[(pulse2Control>>6)&3][pulse2Duty>>1] * env2Decay);
 			} else
 				pulse2Sample = 0;
@@ -119,11 +158,8 @@ void run_apu(uint16_t ntimes) { /* apu cycle times */
 		pulseMixSample += pulse_table[pulse1Sample+pulse2Sample];
 
 		if (triLength && triLinear && (apuStatus&4)) {
-			if (triLength>=2 && triLinear>=2) {
 				triSample = triSequence[triSeq];
-				triBuff = triSequence[triSeq];
-			} else
-				triSample = triBuff;
+				triBuff = triSample;
 			if (!triTemp) {
 				triTemp = triTimer;
 				triSeq--;
@@ -148,50 +184,52 @@ void run_apu(uint16_t ntimes) { /* apu cycle times */
 		} else
 			noiseSample = 0;
 
-		dmc_fill_buffer();
-		dmcSample = dmcOutput;
-		if (dmcInt || frameInt)
-			interrupt_handle(IRQ);
-		if (dmcBytesLeft) {
+		if (dmcRestart) {
+			dmcRestart = 0;
+			dmcBytesLeft = dmcLength;
+			dmcCurAdd = dmcAddress;
+		}
 			if (!dmcTemp) {
 				dmcTemp = dmcRate;
+				if (!dmcBitsLeft) {
+					if (dmcBytesLeft) {
+						dmcBitsLeft = 7;
+						dmc_fill_buffer();
+						dmcSilence = 0;
+					} else
+						dmcSilence = 1;
+				} else
+					dmcBitsLeft--;
 				if (!dmcSilence) {
 					if (!((dmcOutput + ((dmcShift&1) ? 2 : -2)) & 0x80))
 						dmcOutput += ((dmcShift&1) ? 2 : -2);
 				}
 				dmcShift = (dmcShift>>1);
-				dmcBitsLeft--;
-				if (!dmcBitsLeft) {
-					dmcBitsLeft = 8;
-					if (!dmcBuffer)
-						dmcSilence = 1;
-					else {
-						dmcSilence = 0;
-						dmcShift = dmcBuffer;
-						dmcBuffer = 0;
-					}
-				}
 			}
 			dmcTemp--;
-		}
 
-		tndMixSample += tnd_table[3 * triSample + 2 * noiseSample + dmcSample];
+		tndMixSample += tnd_table[3 * triSample + 2 * noiseSample + dmcOutput];
 
 		tmpcnt++;
-		if (tmpcnt==SAMPLE_RATIO) {
-			sampleBuffer[sampleCounter] = (pulseMixSample/SAMPLE_RATIO) + (tndMixSample/SAMPLE_RATIO);
+		if (tmpcnt==(SAMPLE_RATIO)) {
+			sampleBuffer[sampleCounter] = (pulseMixSample/tmpcnt) + (tndMixSample/tmpcnt);
 			pulseMixSample = 0;
 			tndMixSample = 0;
 			tmpcnt = 0;
 			sampleCounter++;
-			if ((sampleCounter >= (BUFFER_SIZE>>1)) && !waitBuffer)
-				waitBuffer = 1;
-			if (sampleCounter >= BUFFER_SIZE) {
+			if (lastOutputCounter == (BUFFER_SIZE>>2)-1) {
+				output_sound();
+				lastOutputCounter = 0;
+			}
+			else
+				lastOutputCounter++;
+			if (sampleCounter >= (BUFFER_SIZE)) {
 				sampleCounter = 0;
 			}
 		}
 		ntimes--;
 		apu_wait--;
+		framecc++;
 		apucc++;
 	}
 }
@@ -214,42 +252,48 @@ void half_frame () {
 		if (!((noiseControl>>5)&1))
 			noiseLength--;
 	}
+
+	if (!sweep1Counter && (sweep1&0x80) && !pulse1Mute && sweep1Shift) {
+		pulse1Timer += pulse1Change;
+	}
 	if (!sweep1Counter || sweep1Reload) {
 		sweep1Counter = sweep1Divide;
 		sweep1Reload = 0;
-		if (sweep1&0x80) {
-			pulse1Timer += (sweep1&8) ? -((pulse1Timer>>sweep1Shift)-1) : (pulse1Timer>>sweep1Shift);
-		}
-
-	} else
+	}
+	 else
 		sweep1Counter--;
+
+	if (!sweep2Counter && (sweep2&0x80) && !pulse2Mute && sweep2Shift) {
+		pulse2Timer += pulse2Change;
+	}
 	if (!sweep2Counter || sweep2Reload) {
 		sweep2Counter = sweep2Divide;
 		sweep2Reload = 0;
-		if (sweep2&0x80) {
-			pulse2Timer += (sweep2&8) ? -(pulse2Timer>>sweep2Shift) : (pulse2Timer>>sweep2Shift);
-		}
-
 	} else
 		sweep2Counter--;
+
+
 }
 
 void dmc_fill_buffer () {
-if ((!dmcBuffer) && dmcBytesLeft) {
+
+		dmcSilence = 0;
 	/* TODO: stall CPU */
-	dmcBuffer = *cpuread(dmcCurAdd);
-	if (dmcCurAdd == 0xffff)
-		dmcCurAdd = 0x8000;
-	else dmcCurAdd++;
-	dmcBytesLeft--;
-	if (!dmcBytesLeft) {
-		if (dmcControl&0x40) {
+	/*	cpuStall = 1;
+		apu_wait += 6;
+		ppu_wait += (6*3); */
+		dmcShift = cpuread(dmcCurAdd);
+		if (dmcCurAdd == 0xffff)
+			dmcCurAdd = 0x8000;
+		else
+			dmcCurAdd++;
+		dmcBytesLeft--;
+		if (!dmcBytesLeft && (dmcControl&0x40)) {
 			dmcBytesLeft = dmcLength;
 			dmcCurAdd = dmcAddress;
-		} else if (dmcControl&0x80)
-			dmcInt = 1;
+	}	else if (!dmcBytesLeft && (dmcControl&0x80)) {
+		dmcInt = 1;
 	}
-}
 }
 
 

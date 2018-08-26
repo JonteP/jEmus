@@ -27,13 +27,18 @@ typedef struct gameFeatures_ {
 	char mmc3_type[20];
 } gameFeatures;
 extern gameFeatures cart;
-extern uint8_t  ctrb, ctrb2, ctr1, ctr2, nmiAlreadyDone,
+extern uint8_t  ctrb, ctrb2, ctr1, ctr2, nmiPulled,
 			    nmiDelayed, vblank_period, mirroring[4][4], wramEnable, openBus;
-extern uint8_t  *prg, *chr, cpu[0x10000], quit;
+extern uint8_t  *prg, *chr, *bwram, *wramSource, quit;
 extern uint16_t ppu_wait, apu_wait;
-extern int16_t ppudot;
-extern int32_t ppucc, cpucc;
+extern int32_t ppucc;
 extern int psize, csize;
 extern FILE *logfile;
+
+static inline void bitset(uint8_t * inp, uint8_t val, uint8_t b);
+
+void bitset(uint8_t * inp, uint8_t val, uint8_t b) {
+	val ? (*inp = *inp | (1 << b)) : (*inp = *inp & ~(1 << b));
+}
 
 #endif
