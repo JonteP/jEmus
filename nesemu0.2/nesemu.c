@@ -53,7 +53,7 @@ FILE *romFile, *logfile, *bwramFile;
 char *bwramName, *romName;
 
 int main() {
-	romName = "/home/jonas/eclipse-workspace/mmc3/rockman6.nes";
+	romName = "/home/jonas/eclipse-workspace/mmc1/zeldau.nes";
 	romFile = fopen(romName, "r");
 	if (romFile == NULL) {
 		printf("Error: No such file\n");
