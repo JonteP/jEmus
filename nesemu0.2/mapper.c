@@ -464,8 +464,6 @@ void reset_g101() {
  *-Microwire interface in VRC2
  *-readback of written value in some games...
  *
- *Game specific:
- *-TMNT 2: does not boot
  */
 
 uint8_t vrc24SwapMode, vrcIrqControl = 0, vrcIrqInt, vrcIrqLatch, vrcIrqCounter, vrcPrg0, vrcPrg1;
