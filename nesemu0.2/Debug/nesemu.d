@@ -1,6 +1,5 @@
 nesemu.o: ../nesemu.c ../globals.h ../ppu.h ../apu.h ../6502.h \
- /usr/include/openssl/sha.h /usr/include/libxml/parser.h \
- /usr/include/libxml/tree.h ../my_sdl.h /usr/include/SDL2/SDL.h \
+ ../cartridge.h ../my_sdl.h /usr/include/SDL2/SDL.h \
  /usr/include/SDL2/SDL_main.h /usr/include/SDL2/SDL_stdinc.h \
  /usr/include/SDL2/SDL_config.h /usr/include/SDL2/SDL_platform.h \
  /usr/include/SDL2/begin_code.h /usr/include/SDL2/close_code.h \
@@ -21,7 +20,8 @@ nesemu.o: ../nesemu.c ../globals.h ../ppu.h ../apu.h ../6502.h \
  /usr/include/SDL2/SDL_loadso.h /usr/include/SDL2/SDL_log.h \
  /usr/include/SDL2/SDL_messagebox.h /usr/include/SDL2/SDL_power.h \
  /usr/include/SDL2/SDL_render.h /usr/include/SDL2/SDL_system.h \
- /usr/include/SDL2/SDL_timer.h /usr/include/SDL2/SDL_version.h
+ /usr/include/SDL2/SDL_timer.h /usr/include/SDL2/SDL_version.h \
+ ../mapper.h
 
 ../globals.h:
 
@@ -31,11 +31,7 @@ nesemu.o: ../nesemu.c ../globals.h ../ppu.h ../apu.h ../6502.h \
 
 ../6502.h:
 
-/usr/include/openssl/sha.h:
-
-/usr/include/libxml/parser.h:
-
-/usr/include/libxml/tree.h:
+../cartridge.h:
 
 ../my_sdl.h:
 
@@ -124,3 +120,5 @@ nesemu.o: ../nesemu.c ../globals.h ../ppu.h ../apu.h ../6502.h \
 /usr/include/SDL2/SDL_timer.h:
 
 /usr/include/SDL2/SDL_version.h:
+
+../mapper.h:

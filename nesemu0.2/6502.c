@@ -7,6 +7,7 @@
 #include "ppu.h"
 #include "apu.h"
 #include "mapper.h"
+#include "cartridge.h"
 
 reset_t rstFlag;
 
@@ -38,7 +39,7 @@ static inline void adc(), ahx(), alr(), and(), anc(), arr(), asl(), asli(), axs(
 				   sax(), sbc(), sec(), sed(), sei(), shx(), shy(), slo(), sre(), sta(), stx(), sty(), tas(), tax(), tay(), tsx(), txa(), txs(),
 				   tya(), xaa(), none();
 
-uint8_t mode, opcode, addmode, addcycle, tmpval8, s = 0, dummy, pcl, pch, dummywrite = 0, op, irqPulled = 0, nmiPulled = 0, irqPending = 0, nmiPending = 0, intDelay = 0, cpuStall = 0;
+uint8_t mode, opcode, addmode, addcycle, tmpval8, s = 0, dummy, pcl, pch, dummywrite = 0, op, irqPulled = 0, nmiPulled = 0, irqPending = 0, nmiPending = 0, intDelay = 0;
 uint16_t addr, tmpval16;
 
 /* Mapped memory */

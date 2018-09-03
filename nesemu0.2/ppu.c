@@ -1,14 +1,14 @@
 #include "ppu.h"
 #include <stdio.h>
-#include <stdlib.h>
 #include <stdint.h>
-#include <time.h>
-#include <unistd.h>
+#include <time.h> 	/* clock */
+#include <unistd.h> /* usleep */
 #include "globals.h"
 #include "apu.h"
 #include "mapper.h"
 #include "my_sdl.h"
 #include "6502.h"
+#include "cartridge.h"
 
 static inline void draw_nametable(), draw_pattern(), draw_palette(), vertical_increase(), horizontal_increase(), check_nmi(), sprite_evaluation(), sprite_fetch(uint8_t),
 				   horizontal_t_to_v(), vertical_t_to_v(), ppu_render(), reload_tile_shifter(), read_tile_data(uint8_t);

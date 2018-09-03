@@ -12,6 +12,7 @@
 #include "globals.h"
 #include "6502.h"
 #include "ppu.h"
+#include "cartridge.h"
 
 uint8_t mapperInt = 0;
 static inline void prg_8_0(uint32_t offset), prg_8_1(uint32_t offset), prg_8_2(uint32_t offset), prg_8_3(uint32_t offset),
