@@ -13,6 +13,7 @@
 #include "6502.h"
 #include "ppu.h"
 
+uint8_t mapperInt = 0;
 static inline void prg_8_0(uint32_t offset), prg_8_1(uint32_t offset), prg_8_2(uint32_t offset), prg_8_3(uint32_t offset),
 				   prg_16low(uint32_t offset), prg_16high(uint32_t offset), prg_32(uint32_t offset),
 				   chr_8(uint32_t offset), chr_4low(uint32_t offset), chr_4high(uint32_t offset),
@@ -271,7 +272,7 @@ void reset_mmc1() {
  */
 
 uint8_t mmc3BankSelect, mmc3Reg[0x08], mmc3IrqEnable,
-		mmc3PramProtect, mmc3IrqLatch, mmc3IrqReload, mmc3IrqCounter, mmc3Int = 0;
+		mmc3PramProtect, mmc3IrqLatch, mmc3IrqReload, mmc3IrqCounter;
 static inline void mapper_mmc3(uint16_t, uint8_t), reset_mmc3(), mmc3_prg_bank_switch(), mmc3_chr_bank_switch();
 
 void mapper_mmc3 (uint16_t address, uint8_t value) {
@@ -296,13 +297,14 @@ void mapper_mmc3 (uint16_t address, uint8_t value) {
 				if (!(address%2)) { /* IRQ latch (0xC000) */
 					mmc3IrqLatch = value;
 				} else if (address%2) { /* IRQ reload (0xC001) */
-					mmc3IrqCounter = mmc3IrqLatch;
+					mmc3IrqReload = 1;
+					mmc3IrqCounter = 0;
 					}
 				break;
 			case 3:
 				if (!(address%2)) { /* IRQ disable and acknowledge (0xE000) */
 					mmc3IrqEnable = 0;
-					mmc3Int = 0;
+					mapperInt = 0;
 				} else if (address%2) { /* IRQ enable (0xE001) */
 					mmc3IrqEnable = 1;
 				}
@@ -346,6 +348,24 @@ void mmc3_chr_bank_switch() {
 	}
 }
 
+void mmc3_irq ()
+{
+	if (mmc3IrqReload)
+	{
+		mmc3IrqReload = 0;
+		mmc3IrqCounter = mmc3IrqLatch;
+	}
+	else {
+		mmc3IrqCounter--;
+		if (mmc3IrqCounter == 1)
+			{
+				mmc3IrqReload = 1;
+				if (mmc3IrqEnable)
+					mapperInt = 1;
+			}
+	}
+}
+
 void reset_mmc3 () {
 	memset(mmc3Reg, 0, 8);
 	mmc3Reg[6] = (cart.prgSize / 0x2000) - 2;
@@ -353,7 +373,6 @@ void reset_mmc3 () {
 	mmc3BankSelect = 0x00;
 	mmc3_prg_bank_switch();
 	mmc3_chr_bank_switch();
-	wramEnable = 1;
 	mmc3IrqEnable = 0;
 	mmc3IrqCounter = 0;
 	mmc3IrqLatch = 0;
@@ -449,6 +468,7 @@ void reset_g101() {
 	g101Prg0 = (cart.prgSize / 0x2000) - 2;
 	g101Prg1 = (cart.prgSize / 0x2000) - 1;
 	g101_prg_bank_switch();
+	chr_8(0);
 }
 
 /*/////////////////////////////////*/
@@ -560,17 +580,16 @@ void mapper_vrc24(uint16_t address, uint8_t value) {
 	} else if ((address&0xf003) == 0xf000) { /* IRQ Latch low */
 		vrcIrqLatch = (vrcIrqLatch & 0xf0) | (value & 0x0f);
 	} else if ((address&0xf003) == 0xf001) { /* IRQ Latch high */
-		vrcIrqLatch = (vrcIrqLatch & 0x0f) | ((value & 0xf) << 4);
+		vrcIrqLatch = (vrcIrqLatch & 0x0f) | ((value & 0x0f) << 4);
 	} else if ((address&0xf003) == 0xf002) { /* IRQ Control */
-		vrcChr7 = (vrcChr7&0xf) | ((value&0x1f)<<4);
 		vrcIrqControl = (value & 0x07);
 		if (vrcIrqControl & 0x02) {
 			vrcIrqCounter = vrcIrqLatch;
 			vrcIrqPrescale = 341; /* in reality, it counts CPU cycles */
 		}
-		vrcIrqInt = 0;
+		mapperInt = 0;
 	} else if ((address&0xf003) == 0xf003) { /* IRQ Acknowledge */
-		vrcIrqInt = 0;
+		mapperInt = 0;
 		vrcIrqControl = (vrcIrqControl & 0x04) | ((vrcIrqControl & 0x01) << 1);
 	}
 }
@@ -627,28 +646,34 @@ void reset_vrc24() {
 	prg_8_3(cart.prgSize-0x2000);
 	vrc24_prg_bank_switch();
 	chr_8(0);
-	wramEnable = 1;
 	vrc24SwapMode = 0;
 }
 
+void vrc_clock_irq()
+{
+	if (vrcIrqCounter == 0xff) {
+		mapperInt = 1;
+		vrcIrqCounter = vrcIrqLatch;
+	}
+	else
+	{
+		vrcIrqCounter++;
+	}
+}
+
 void vrc_irq() {
-	if (vrcIrqControl & 0x02) {
-		if (vrcIrqCounter == 0xff) {
-			vrcIrqInt = 1;
-			vrcIrqCounter = vrcIrqLatch;
-		}
-		else if (!(vrcIrqControl & 0x04)) {
+	if ((vrcIrqControl & 0x02)) {
+		if (!(vrcIrqControl & 0x04)) {
 			if (vrcIrqPrescale <= 0) {
-				vrcIrqCounter++;
-				vrcIrqPrescale = 341;
+				{
+				vrcIrqPrescale += 341;
+				vrc_clock_irq();
+				}
 			} else
 				vrcIrqPrescale -= 3;
 		} else if (vrcIrqControl & 0x04) {
-			vrcIrqCounter++;
+			vrc_clock_irq();
 		}
-	}
-	if (vrcIrqInt) {
-		irqPulled = 1;
 	}
 }
 

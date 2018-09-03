@@ -13,14 +13,13 @@
 #include "parser.h"
 #include "tree.h"
 #include "my_sdl.h"
+#include "mapper.h"
 
 /* TODO:
  *
- * -battery backed saves
- * -cycle correct cpu emulation (prefetches, read-modify-writes and everything)
- * -dot rendering with correct timing
  * -FIR low pass filtering of sound
  * -fix sound buffering (if broken)
+ * -better sync handling, needs to read ppu one cycle earlier
  *
  * Features:
  * -file load routines
@@ -53,7 +52,7 @@ FILE *romFile, *logfile, *bwramFile;
 char *bwramName, *romName;
 
 int main() {
-	romName = "/home/jonas/eclipse-workspace/axrom/cobra.nes";
+	romName = "/home/jonas/eclipse-workspace/vrc4/gradius2.nes";
 	romFile = fopen(romName, "r");
 	if (romFile == NULL) {
 		printf("Error: No such file\n");
@@ -104,10 +103,13 @@ int main() {
 			fclose(bwramFile);
 		}
 		wramSource = bwram;
+		wramEnable = 1;
 	} else if (cart.wramSize) {
 		wram = malloc(cart.wramSize);
 		wramSource = wram;
-	}
+		wramEnable = 1;
+	} else
+		wramEnable = 0;
 
 	printf("PCB: %s\n",cart.pcb);
 	printf("PRG size: %li bytes\n",cart.prgSize);
