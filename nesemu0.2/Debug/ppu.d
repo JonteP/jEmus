@@ -19,8 +19,9 @@ ppu.o: ../ppu.c ../ppu.h ../globals.h ../apu.h ../mapper.h ../my_sdl.h \
  /usr/include/SDL2/SDL_hints.h /usr/include/SDL2/SDL_loadso.h \
  /usr/include/SDL2/SDL_log.h /usr/include/SDL2/SDL_messagebox.h \
  /usr/include/SDL2/SDL_power.h /usr/include/SDL2/SDL_render.h \
- /usr/include/SDL2/SDL_system.h /usr/include/SDL2/SDL_timer.h \
- /usr/include/SDL2/SDL_version.h ../6502.h ../cartridge.h
+ /usr/include/SDL2/SDL_shape.h /usr/include/SDL2/SDL_system.h \
+ /usr/include/SDL2/SDL_timer.h /usr/include/SDL2/SDL_version.h ../6502.h \
+ ../cartridge.h
 
 ../ppu.h:
 
@@ -111,6 +112,8 @@ ppu.o: ../ppu.c ../ppu.h ../globals.h ../apu.h ../mapper.h ../my_sdl.h \
 /usr/include/SDL2/SDL_power.h:
 
 /usr/include/SDL2/SDL_render.h:
+
+/usr/include/SDL2/SDL_shape.h:
 
 /usr/include/SDL2/SDL_system.h:
 

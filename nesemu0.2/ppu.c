@@ -11,11 +11,13 @@
 #include "cartridge.h"
 
 static inline void draw_nametable(), draw_pattern(), draw_palette(), vertical_increase(), horizontal_increase(), check_nmi(), sprite_evaluation(), sprite_fetch(uint8_t),
-				   horizontal_t_to_v(), vertical_t_to_v(), ppu_render(), reload_tile_shifter(), read_tile_data(uint8_t);
+				   horizontal_t_to_v(), vertical_t_to_v(), ppu_render(), reload_tile_shifter(), read_tile_data(uint8_t), toggle_a12(uint16_t), ppuwrite(uint16_t, uint8_t),
+				   idle_time();
+static inline uint8_t * ppuread(uint16_t);
 
 uint8_t *chrSlot[0x8], nameTableA[0x400], nameTableB[0x400], palette[0x20], oam[0x100], frameBuffer[SHEIGHT][SWIDTH], nameBuffer[SHEIGHT][SWIDTH<<1], patternBuffer[SWIDTH>>1][SWIDTH], paletteBuffer[SWIDTH>>4][SWIDTH>>1];
-uint8_t ppuOamAddress, vblank_period = 0, ppuStatusNmi = 0, ppuStatusSpriteZero = 0, ppuStatusOverflow = 0, nmiSuppressed = 0;
-uint8_t throttle = 1, frameBuffer[SHEIGHT][SWIDTH], nameBuffer[SHEIGHT][SWIDTH<<1], patternBuffer[SWIDTH>>1][SWIDTH], paletteBuffer[SWIDTH>>4][SWIDTH>>1];
+uint8_t ppuOamAddress, vblank_period = 0, nmiSuppressed = 0;
+uint8_t throttle = 1;
 int16_t ppudot = 0, scanline = 0;
 
 uint8_t primOam[0x100], secOam[0x20];
@@ -25,26 +27,39 @@ uint8_t ppuW = 0, ppuX = 0;
 uint16_t ppuT, ppuV;
 
 /* PPU external registers */
-uint8_t ppuController, ppuMask, ppuData;
+uint8_t ppuController, ppuMask, ppuData, ppuStatusNmi = 0, ppuStatusSpriteZero = 0, ppuStatusOverflow = 0;
 
 uint32_t frame = 0, nmiFlipFlop = 0;
 int32_t ppucc = 0;
-clock_t start, diff;
 
-void init_time () {
-	start = clock();
+struct timespec xClock, start, diff, cClock;
+
+void init_time ()
+{
+	clock_getres(CLOCK_MONOTONIC, &xClock);
+	clock_gettime(CLOCK_MONOTONIC, &xClock);
+	xClock.tv_nsec += FRAMETIME;
+	xClock.tv_sec += xClock.tv_nsec / 1000000000;
+	xClock.tv_nsec %= 1000000000;
 }
-uint8_t miniCount = 0;
-void run_ppu (uint16_t ntimes) {
-	if (mapperInt)
-		irqPulled = 1;
 
+void idle_time ()
+{
+	clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &xClock, NULL);
+	xClock.tv_nsec += FRAMETIME;
+	xClock.tv_sec += xClock.tv_nsec / 1000000000;
+	xClock.tv_nsec %= 1000000000;
+}
+
+uint8_t miniCount = 0, ppuStatusNmiDelay = 0;
+void run_ppu (uint16_t ntimes) {
 	while (ntimes) {
+		if (mapperInt)
+			irqPulled = 1;
 		ppudot++;
 		ppucc++;
 
 		check_nmi();
-
 
 		if (ppudot == 341) {
 		scanline++;
@@ -63,8 +78,13 @@ void run_ppu (uint16_t ntimes) {
 /* PRERENDER SCANLINE */
 	} else if (scanline == 261) {
 		ppu_render();
+		sprite_evaluation();
 		if (ppudot == 1) {
+			if (ppuStatusNmi)
+			{
 			ppuStatusNmi = 0; /* clear vblank */
+			ppuStatusNmiDelay = 1;
+			}
 			nmiSuppressed = 0;
 
 			io_handle();
@@ -75,15 +95,22 @@ void run_ppu (uint16_t ntimes) {
 			if (paletteActive)
 				draw_palette();
 			render_frame();
-			if (throttle) {
-				diff = clock() - start;
-				usleep(FRAMETIME - (diff % FRAMETIME));
-				start = clock();
+			if (throttle)
+			{
+				idle_time();
+			}
+			while (isPaused)
+			{
+				render_frame();
+				idle_time();
+				io_handle();
 			}
 			ppuStatusSpriteZero = 0;
 			nmiPulled = 0;
 			vblank_period = 0;
 		}
+		if (ppudot ==2)
+			ppuStatusNmiDelay = 0;
 		if (ppudot == 256) {
 			vertical_increase();
 		  } else if (ppudot >= 257 && ppudot <= 320) {
@@ -114,7 +141,6 @@ void run_ppu (uint16_t ntimes) {
 			if (ppudot == 257)
 				/* (x position) */
 				horizontal_t_to_v(); /* only if rendering enabled */
-
 			ppuOamAddress = 0; /* only if rendering active? */
 		}
 	}
@@ -138,7 +164,7 @@ if (ppuMask & 0x18) /* rendering is enabled */
 		nData = 0;
 		nData2 = 0;
 	}
-	else if (ppudot >= 1 && ppudot <= 256) /* sprite evaluation */
+	else if (ppudot >= 1 && ppudot <= 256 && scanline < 240) /* sprite evaluation */
 	{
 		if (ppudot%2) /* read cycle */
 		{
@@ -204,7 +230,7 @@ if (ppuMask & 0x18) /* rendering is enabled */
 		if (ppudot == 257)
 		{
 			nSprite2 = 0;
-			memset(spriteBuffer,0,256);
+			memset(spriteBuffer,0xff,256);
 			memset(priorityBuffer,0,256);
 			memset(zeroBuffer,0,256);
 		}
@@ -227,9 +253,8 @@ void sprite_fetch(uint8_t x)
 	uint8_t flipX = ((sprite[2] >> 6) & 1);
 	uint8_t flipY = ((sprite[2] >> 7) & 1);
 	uint8_t spriteRow = (yOffset & 7) + flipY * (7 - ((yOffset & 7) << 1));
-	uint8_t nPalette = (sprite[2] & 3) + 4;
+	uint8_t nPalette = (sprite[2] & 3);
 	uint16_t patternOffset;
-if (sprite[0] != 0xff) {
 	/* define sprite pattern source */
 	if (ppuController & 0x20) /* 8x16 sprites */
 		patternOffset = (((sprite[1] & 0x01) << 12) 	/* select pattern table */
@@ -245,15 +270,17 @@ if (sprite[0] != 0xff) {
 		uint8_t spritePixel = (7 - pcol - flipX * (7 - (pcol << 1)));
 		uint8_t pixelData = ((*ppuread(patternOffset + spriteRow)     >> spritePixel) & 0x01) +
 						   (((*ppuread(patternOffset + spriteRow + 8) >> spritePixel) & 0x01) << 1);
-		if (pixelData && !(spriteBuffer[sprite[3] + pcol]) && !(sprite[3] == 0xff))
-		{
-			spriteBuffer[sprite[3] + pcol] = *ppuread(0x3f00 + (nPalette << 2) + pixelData);
+		toggle_a12(patternOffset + spriteRow);
+		if (pixelData && (spriteBuffer[sprite[3] + pcol])==0xff && !(sprite[3] == 0xff))
+		{/* TODO: this PPU access probably should not be here, screws up mmc3 irq? */
+			spriteBuffer[sprite[3] + pcol] = *ppuread(0x3f10 + (nPalette << 2) + pixelData);
 			if (isSpriteZero == x)
+			{
 				zeroBuffer[sprite[3] + pcol] = 1;
+			}
 			priorityBuffer[sprite[3] + pcol] = (sprite[2] & 0x20);
 		}
 	}
-}
 }
 
 uint8_t bgData, ntData, attData, tileLow, tileHigh;
@@ -269,20 +296,32 @@ void reload_tile_shifter()
 
 void read_tile_data(uint8_t x)
 {
+	if (ppuMask & 0x18)
+	{
+	uint16_t a;
 	switch (x) {
 	case 1:
-		ntData = *ppuread(0x2000 | (ppuV&0xfff));
+		a = (0x2000 | (ppuV&0xfff));
+		ntData = *ppuread(a);
+		toggle_a12(a);
 		break;
 	case 3:
-		bgData = *ppuread(0x2fc0 | ((ppuV >> 4) & 0x38) | ((ppuV >> 2) & 0x07));
+		a = (0x2fc0 | ((ppuV >> 4) & 0x38) | ((ppuV >> 2) & 0x07));
+		bgData = *ppuread(a);
 		attData = ((bgData >> ((((ppuV >> 1) & 1) | ((ppuV >> 5) & 2)) << 1)) & 3);
+		toggle_a12(a);
 		break;
 	case 5:
-		tileLow = *ppuread((ntData << 4) + ((ppuController & 0x10) << 8) + ((ppuV >> 12) & 7));
+		a = ((ntData << 4) + ((ppuController & 0x10) << 8) + ((ppuV >> 12) & 7));
+		tileLow = *ppuread(a);
+		toggle_a12(a);
 		break;
 	case 7:
-		tileHigh = *ppuread((ntData << 4) + ((ppuController & 0x10) << 8) + ((ppuV >> 12) & 7) + 8);
+		a = ((ntData << 4) + ((ppuController & 0x10) << 8) + ((ppuV >> 12) & 7) + 8);
+		tileHigh = *ppuread(a);
+		toggle_a12(a);
 		break;
+	}
 	}
 }
 
@@ -293,40 +332,51 @@ void ppu_render()
 	if (!ppudot) /* idle */
 	{
 	}
-	else if (ppudot >= 1 && ppudot <= 256) /* tile data fetch */
+	else if (ppudot >= 1 && ppudot <= 257) /* tile data fetch */
 	{
+		if (ppudot <=256)
+		{
 		read_tile_data(ppudot%8);
 		if (!(ppudot%8))
 			horizontal_increase();
-		if (ppudot%8 == 1)
+		if (ppudot%8 == 2)
 		{
 			reload_tile_shifter();
 		}
+		}
+		if (ppudot >=2)
+		{
 		uint8_t pValue;
-		int16_t cDot = ppudot - 1;
+		int16_t cDot = ppudot - 2;
 		pValue = ((attShifterHigh >> (12 - ppuX)) & 8) | ((attShifterLow >> (13 - ppuX)) & 4) | ((tileShifterHigh >> (14 - ppuX)) & 2) | ((tileShifterLow >> (15 - ppuX)) & 1);
 		uint8_t bgColor = (!(ppuMask & 0x18) && (ppuV & 0x3f00) == 0x3f00) ? *ppuread(ppuV & 0x3fff) : *ppuread(0x3f00);
-		uint8_t isSprite = (spriteBuffer[cDot] && (ppuMask & 0x10) && ((cDot > 7) || (ppuMask & 0x04)));
+		uint8_t isSprite = (spriteBuffer[cDot]!=0xff && (ppuMask & 0x10) && ((cDot > 7) || (ppuMask & 0x04)));
 		uint8_t isBg = ((pValue & 0x03) && (ppuMask & 0x08) && ((cDot > 7) || (ppuMask & 0x02)));
 		if (scanline < 240)
 		{
-		if (isSprite && isBg)
-		{
-			if (!ppuStatusSpriteZero && zeroBuffer[cDot] && cDot<255)
-				ppuStatusSpriteZero = 1;
-			frameBuffer[scanline][cDot] = priorityBuffer[cDot] ?  *ppuread(0x3f00 + pValue) : spriteBuffer[cDot];
+			if (isSprite && isBg)
+			{
+				if (!ppuStatusSpriteZero && zeroBuffer[cDot] && cDot<255)
+				{
+					ppuStatusSpriteZero = 1;
+					frameBuffer[scanline][cDot] = 0x10;
+				}
+				frameBuffer[scanline][cDot] = priorityBuffer[cDot] ?  *ppuread(0x3f00 + pValue) : spriteBuffer[cDot];
+			}
+			else if (isSprite && !isBg)
+			{
+				frameBuffer[scanline][cDot] = spriteBuffer[cDot];
+			}
+			else if (isBg && !isSprite)
+				frameBuffer[scanline][cDot] = *ppuread(0x3f00 + pValue);
+			else
+				frameBuffer[scanline][cDot] = bgColor;
+			}
+			tileShifterHigh = (tileShifterHigh << 1);
+			tileShifterLow = (tileShifterLow << 1);
+			attShifterHigh = (attShifterHigh << 1);
+			attShifterLow = (attShifterLow << 1);
 		}
-		else if (isSprite && !isBg)
-			frameBuffer[scanline][cDot] = spriteBuffer[cDot];
-		else if (isBg && !isSprite)
-			frameBuffer[scanline][cDot] = *ppuread(0x3f00 + pValue);
-		else
-			frameBuffer[scanline][cDot] = bgColor;
-		}
-		tileShifterHigh = (tileShifterHigh << 1);
-		tileShifterLow = (tileShifterLow << 1);
-		attShifterHigh = (attShifterHigh << 1);
-		attShifterLow = (attShifterLow << 1);
 	}
 	else if (ppudot >= 257 && ppudot <= 320 && scanline < 240) /* move sprite fetch here? */
 	{
@@ -497,8 +547,9 @@ uint8_t read_ppu_register(uint16_t addr) {
 		} else if (ppucc == 342) {
 			ppuStatusNmi = 0;
 		}
-		tmpval8 = ((ppuStatusNmi || (scanline==261 && ppudot==1))  <<7) | (ppuStatusSpriteZero<<6) | (ppuStatusOverflow<<5) | (ppureg & 0x1f);
+		tmpval8 = ((ppuStatusNmi | ppuStatusNmiDelay)  <<7) | (ppuStatusSpriteZero<<6) | (ppuStatusOverflow<<5) | (ppureg & 0x1f);
 		ppuStatusNmi = 0;
+		ppuStatusNmiDelay = 0;
 		ppuW = 0;
 		break;
 	case 0x2004:
@@ -514,6 +565,7 @@ uint8_t read_ppu_register(uint16_t addr) {
 			tmpval8 = *ppuread(ppuV) & ((ppuMask & 0x01) ? 0x30 : 0xff);
 		}
 		ppuV += (ppuController & 0x04) ? 32 : 1;
+		toggle_a12(ppuV);
 		break;
 	}
 	return tmpval8;
@@ -548,7 +600,6 @@ void write_ppu_register(uint16_t addr, uint8_t tmpval8) {
 		}
 		break;
 	case 0x2005:
-		printf("scroll %i,%i\n",scanline,ppudot);
 		if (ppuW == 0) {
 			ppuT &= 0xffe0;
 			ppuT |= ((tmpval8 & 0xf8)>>3); /* coarse X scroll */
@@ -570,33 +621,38 @@ void write_ppu_register(uint16_t addr, uint8_t tmpval8) {
 			ppuT &= 0xff00;
 			ppuT |= tmpval8;
 			ppuV = ppuT;
+			toggle_a12(ppuV);
 			ppuW = 0;
 		}
 		break;
 	case 0x2007:
-		ppuData = tmpval8;
-		if ((ppuV & 0x3fff) >= 0x3f00)
-			*ppuread(ppuV & 0x3fff) = (ppuData & 0x3f);
-		else if ((ppuV & 0x3fff) >= 0x2000 || cart.cramSize)
-			*ppuread(ppuV & 0x3fff) = ppuData;
-		ppuV += (ppuController & 0x04) ? 32 : 1;
-		break;
+		if (vblank_period || !(ppuMask & 0x18))
+		{
+			ppuData = tmpval8;
+			if ((ppuV & 0x3fff) >= 0x3f00)
+				ppuwrite((ppuV & 0x3fff),(ppuData & 0x3f));
+			else if ((ppuV & 0x3fff) >= 0x2000 || cart.cramSize)
+				ppuwrite((ppuV & 0x3fff),ppuData);
+			ppuV += (ppuController & 0x04) ? 32 : 1;
+			toggle_a12(ppuV);
+			break;
+		}
+		else
+		{
+			vertical_increase();
+			horizontal_increase();
+		}
 	}
 }
-uint16_t lastAddress = 0x0000;
-uint8_t * ppuread(uint16_t address) {
-	uint8_t * memLocation;
+
+uint8_t * ppuread(uint16_t address)
+{
 	if (address < 0x2000) /* pattern tables */
 	{
-		if ((address & 0x1000) && ((address ^ lastAddress) & 0x1000) && !strcmp(cart.slot,"txrom"))
-		{
-			mmc3_irq();
-		}
-		lastAddress = address;
-		memLocation = &chrSlot[(address>>10)][address&0x3ff];
+		return &chrSlot[(address>>10)][address&0x3ff];
 	}
 	else if (address >= 0x2000 && address <0x3f00) /* nametables */
-		memLocation = mirroring[cart.mirroring][((ppuV&0xc00)>>10)] ? &nameTableB[address&0x3ff] : &nameTableA[address&0x3ff];
+		return mirroring[cart.mirroring][((ppuV&0xc00)>>10)] ? &nameTableB[address&0x3ff] : &nameTableA[address&0x3ff];
 	else if (address >= 0x3f00) { /* palette RAM */
 		if (address == 0x3f10)
 			address = 0x3f00;
@@ -606,14 +662,52 @@ uint8_t * ppuread(uint16_t address) {
 			address = 0x3f08;
 		else if (address == 0x3f1c)
 			address = 0x3f0c;
-		memLocation = &palette[(address&0x1f)];
+		return &palette[(address&0x1f)];
 	}
-	return memLocation;
+	return 0;
 }
 
-void check_nmi() {
-	if ((ppuController & 0x80) && ppuStatusNmi && !nmiPulled && !nmiSuppressed) {
+void ppuwrite(uint16_t address, uint8_t value) {
+	if (address < 0x2000 && cart.cramSize) /* pattern tables */
+	{
+		chrSlot[(address>>10)][address&0x3ff] = value;
+	}
+	else if (address >= 0x2000 && address <0x3f00) /* nametables */
+		if (mirroring[cart.mirroring][((ppuV&0xc00)>>10)])
+			nameTableB[address&0x3ff] = value;
+		else
+			nameTableA[address&0x3ff] = value;
+	else if (address >= 0x3f00) { /* palette RAM */
+		if (address == 0x3f10)
+			address = 0x3f00;
+		else if (address == 0x3f14)
+			address = 0x3f04;
+		else if (address == 0x3f18)
+			address = 0x3f08;
+		else if (address == 0x3f1c)
+			address = 0x3f0c;
+		palette[(address&0x1f)] = value;
+	}
+}
+
+void check_nmi()
+{
+	if ((ppuController & 0x80) && ppuStatusNmi && !nmiPulled && !nmiSuppressed)
+	{
 		nmiPulled = 1;
 		nmiFlipFlop = ppucc;
 	}
+}
+
+uint16_t lastAddress = 0x0000;
+void toggle_a12(uint16_t address)
+{
+	if ((address & 0x1000) && ((address ^ lastAddress) & 0x1000) && !strcmp(cart.slot,"txrom"))
+	{
+		mmc3_irq();
+	}
+	else if (!(address & 0x1000) && ((address ^ lastAddress) & 0x1000) && !strcmp(cart.slot,"txrom"))
+	{
+	}
+	lastAddress = address;
 }

@@ -8,7 +8,7 @@
 #define SHEIGHT 240
 #define WPOSX 100
 #define WPOSY 100
-#define FRAMETIME 16639
+#define FRAMETIME 16639267 /*60.0988*/
 
 void init_time(void), write_ppu_register(uint16_t, uint8_t);
 uint8_t read_ppu_register(uint16_t), ppu_read(uint16_t);

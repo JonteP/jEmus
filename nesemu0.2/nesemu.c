@@ -31,16 +31,8 @@ uint16_t ppu_wait = 0, apu_wait = 0;
 FILE *logfile;
 
 int main() {
-	char *romName = "/home/jonas/eclipse-workspace/mmc1/lolo.nes";
+	char *romName = "/home/jonas/eclipse-workspace/mmc3/youngi.nes";
 	load_rom(romName);
-
-/*	mirrmode = (header[6] & 1); */
-	/* 0 = horizontal mirroring
-	 * 1 = vertical mirroring
-	 * 2 = one screen, low page
-	 * 3 = one screen, high page
-	 * 4 = 4 screen
-	 */
 
 	logfile = fopen("/home/jonas/eclipse-workspace/logfile.txt","w");
 	if (logfile==NULL)

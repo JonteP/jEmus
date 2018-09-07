@@ -17,7 +17,6 @@ typedef enum {
 extern reset_t rstFlag;
 void opdecode(void), interrupt_handle(interrupt_t), synchronize(uint8_t);
 uint8_t cpuread(uint16_t);
-uint8_t * ppuread(uint16_t);
 
 extern uint8_t dummywrite, irqPulled, nmiPulled, cpuStall;
 extern uint8_t *prgSlot[0x8];

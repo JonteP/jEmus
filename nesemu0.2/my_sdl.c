@@ -8,7 +8,7 @@
 #include "6502.h"
 
 SDL_AudioSpec AudioSettings = {0};
-uint8_t nametableActive = 0, patternActive = 0, paletteActive = 0, fullscreen = 0;
+uint8_t nametableActive = 0, patternActive = 0, paletteActive = 0, isPaused = 0, fullscreen = 0;
 uint16_t pulseQueueCounter = 0;
 
 					/*       00      |      01      |      02      |      03      |        */
@@ -67,7 +67,7 @@ void init_sdl() {
 	AudioSettings.format = AUDIO_F32;
 	AudioSettings.channels = CHANNELS;
 	AudioSettings.callback = NULL;
-	AudioSettings.samples = BUFFER_SIZE>>2;
+	AudioSettings.samples = BUFFER_SIZE>>6;
 	SDL_OpenAudio(&AudioSettings, 0);
 	SDL_PauseAudio(0);
 	SDL_ClearQueuedAudio(1);
@@ -111,12 +111,18 @@ void render_frame() {
 }
 
 void render_window (windowHandle handle, uint8_t * buffer) {
+	SDL_Rect SrcR;
+	  SrcR.x = 0;
+	  SrcR.y = 8;
+	  SrcR.w = 256;
+	  SrcR.h = 224;
+
 	SDL_Texture *tex;
 	SDL_Surface *surf;
 	surf = SDL_CreateRGBSurfaceFrom(buffer, handle.screenWidth, handle.screenHeight, 8, handle.screenWidth, 0, 0, 0, 0);
 	SDL_SetPaletteColors(surf->format->palette, colors, 0, 64);
 	tex = SDL_CreateTextureFromSurface(handle.rend, surf);
-	SDL_RenderCopy(handle.rend, tex, NULL, NULL);
+	SDL_RenderCopy(handle.rend, tex, &SrcR, NULL);
 	SDL_DestroyTexture(tex);
 	SDL_RenderPresent(handle.rend);
 	SDL_RenderClear(handle.rend);
@@ -124,7 +130,7 @@ void render_window (windowHandle handle, uint8_t * buffer) {
 }
 
 void output_sound() {
-	int outBuffer = (BUFFER_SIZE>>2);
+	int outBuffer = (BUFFER_SIZE>>5);
 	float *SoundBuffer = malloc(outBuffer*sizeof(float));
 	for(int i=0;i<outBuffer;++i) {
 		SoundBuffer[i] = sampleBuffer[pulseQueueCounter];
@@ -155,6 +161,8 @@ void io_handle() {
 				break;
 			case SDL_SCANCODE_F10:
 				throttle ^= 1;
+				if (throttle)
+					init_time();
 				break;
 			case SDL_SCANCODE_F11:
 				fullscreen ^= 1;
@@ -163,6 +171,9 @@ void io_handle() {
 				else if (!fullscreen)
 					SDL_SetWindowFullscreen(handleMain.win, 0);
 				break;
+			case SDL_SCANCODE_P:
+				isPaused ^= 1;
+				break;
 			case SDL_SCANCODE_N:
 				nametableActive ^= 1;
 				if (nametableActive)
@@ -170,7 +181,7 @@ void io_handle() {
 				else if (!nametableActive)
 					destroy_handle (&handleNametable);
 				break;
-			case SDL_SCANCODE_P:
+			case SDL_SCANCODE_O:
 				patternActive ^= 1;
 				if (patternActive)
 					handlePattern = create_handle ("Pattern table", 1000, 500, WWIDTH, WHEIGHT>>1, SWIDTH, SWIDTH>>1);

@@ -1,9 +1,3 @@
-/*
- * mapper.c
- *
- *  Created on: Jul 25, 2018
- *      Author: jonas
- */
 #include "mapper.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -26,13 +20,6 @@ static inline void prg_8_0(uint32_t offset), prg_8_1(uint32_t offset), prg_8_2(u
 /*               NROM              */
 /*/////////////////////////////////*/
 
-/* TODO:
- *
- * Game specific:
- * -Super Mario Bros; line glitch below status screen
- * -10-Yard Fight: glitch line on top of playfield
- * -1942: missing letters....
- */
 static inline void reset_nrom();
 
 void reset_nrom() {
@@ -99,9 +86,6 @@ void reset_cnrom () {
  * -implement bus conflict (test roms available)
  * -should mappers 71 and 232 go here?
  *
- * Game specific:
- * -Senjou no Ookami: garbage graphics flicker
- * -Tatakai no Banka: one frame graphics glitches
  */
 
 static inline void reset_uxrom(), mapper_uxrom(uint8_t);
@@ -111,7 +95,7 @@ void mapper_uxrom (uint8_t value) {
 	if (!strcmp(cart.slot,"un1rom"))
 		bank = ((value >> 2) & 0x07);
 	else
-		bank = (value & 0x0f); /* differ between UNROM / UOROM? */
+		bank = (value & ((cart.prgSize >> 14)-1)); /* differ between UNROM / UOROM? */
 	if (!strcmp(cart.slot,"unrom_cc")) { /* switch 0xc000 */
 		prg_16low(0);
 		prg_16high(bank * 0x4000);
@@ -264,12 +248,12 @@ void reset_mmc1() {
 
 /* TODO:
  *
- *-Correct IRQ behavior (requires better ppu emulation)
+ *-Correct IRQ timing
  *-implement TQROM (mapper 119)
  * - implement TKSROM and TLSROM (mapper 118)
  *
  *Game specific:
- *-many game have irq related issues
+ *-Rockman 5: IRQ issues - shaking screen
  */
 
 uint8_t mmc3BankSelect, mmc3Reg[0x08], mmc3IrqEnable,
@@ -348,17 +332,29 @@ void mmc3_chr_bank_switch() {
 		chr_1_7(mmc3Reg[5] * 0x400);
 	}
 }
-
+/*
+ * when 2006 is updated
+ * when 2007 is written and not rendering and after vram increments?
+ * when data is fetched during rendering
+ * when 2007 is read and... what?
+ *
+ * create a ppuwrite as well to avoid clocking on writes
+ */
 void mmc3_irq ()
 {
 	if (mmc3IrqReload)
 	{
 		mmc3IrqReload = 0;
 		mmc3IrqCounter = mmc3IrqLatch;
+		if (mmc3IrqEnable && !mmc3IrqCounter)
+		{
+			mapperInt = 1;
+			mmc3IrqReload = 1;
+		}
 	}
-	else {
+	else if (mmc3IrqCounter > 0){
 		mmc3IrqCounter--;
-		if (mmc3IrqCounter == 1)
+		if (mmc3IrqCounter == 0)
 			{
 				mmc3IrqReload = 1;
 				if (mmc3IrqEnable)
@@ -487,7 +483,8 @@ void reset_g101() {
  *
  */
 
-uint8_t vrc24SwapMode, vrcIrqControl = 0, vrcIrqInt, vrcIrqLatch, vrcIrqCounter, vrcPrg0, vrcPrg1;
+uint8_t vrc24SwapMode, vrcIrqControl = 0, vrcIrqInt, vrcIrqLatch, vrcIrqCounter,
+		vrcPrg0, vrcPrg1, vrcIrqCycles[3] = { 114, 114, 113 }, vrcIrqCc = 0;
 uint16_t vrcChr0 = 0, vrcChr1 = 0, vrcChr2 = 0, vrcChr3 = 0,
 		 vrcChr4 = 0, vrcChr5 = 0, vrcChr6 = 0, vrcChr7 = 0;
 int16_t vrcIrqPrescale;
@@ -586,7 +583,8 @@ void mapper_vrc24(uint16_t address, uint8_t value) {
 		vrcIrqControl = (value & 0x07);
 		if (vrcIrqControl & 0x02) {
 			vrcIrqCounter = vrcIrqLatch;
-			vrcIrqPrescale = 341; /* in reality, it counts CPU cycles */
+			vrcIrqPrescale = vrcIrqCycles[0]; /* in reality, it counts CPU cycles */
+			vrcIrqCc = 0;
 		}
 		mapperInt = 0;
 	} else if ((address&0xf003) == 0xf003) { /* IRQ Acknowledge */
@@ -654,6 +652,7 @@ void vrc_clock_irq()
 {
 	if (vrcIrqCounter == 0xff) {
 		mapperInt = 1;
+		irqPulled = 1; /* otherwise gets read too late */
 		vrcIrqCounter = vrcIrqLatch;
 	}
 	else
@@ -665,13 +664,14 @@ void vrc_clock_irq()
 void vrc_irq() {
 	if ((vrcIrqControl & 0x02)) {
 		if (!(vrcIrqControl & 0x04)) {
-			if (vrcIrqPrescale <= 0) {
+			vrcIrqPrescale--;
+			if (vrcIrqPrescale == 0)
 				{
-				vrcIrqPrescale += 341;
+				vrcIrqPrescale = vrcIrqCycles[vrcIrqCc++];
+				if (vrcIrqCc == 3)
+					vrcIrqCc = 0;
 				vrc_clock_irq();
 				}
-			} else
-				vrcIrqPrescale -= 3;
 		} else if (vrcIrqControl & 0x04) {
 			vrc_clock_irq();
 		}

@@ -4,7 +4,7 @@
 #define CHANNELS 1
 #define SAMPLES_PER_SEC 48000
 #define BUFFER_SIZE (8192)
-#define CPU_CLOCK 1786831 /*1789773*/
+#define CPU_CLOCK 1789773 /*1789773 (official?); 1786831*/
 #define SAMPLE_RATIO (CPU_CLOCK / SAMPLES_PER_SEC)
 
 #include <stdint.h>

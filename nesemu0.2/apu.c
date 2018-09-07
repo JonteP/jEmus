@@ -217,7 +217,7 @@ void run_apu(uint16_t ntimes) { /* apu cycle times */
 			tndMixSample = 0;
 			tmpcnt = 0;
 			sampleCounter++;
-			if (lastOutputCounter == (BUFFER_SIZE>>2)-1) {
+			if (lastOutputCounter == (BUFFER_SIZE>>5)-1) {
 				output_sound();
 				lastOutputCounter = 0;
 			}

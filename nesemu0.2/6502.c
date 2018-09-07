@@ -371,6 +371,7 @@ void bit() {
 	bitset(&cpuP, tmpval8 & 0x40, 6);
 }
 
+int pageCross;
 void branch() {
 	synchronize(1);
 	interrupt_polling();
@@ -384,7 +385,10 @@ void branch() {
 			/* correct? */
 			synchronize(1);
 			interrupt_polling();
+			pageCross = 1;
 		}
+		else
+			pageCross = 0;
 		/* prefetch next opcode, optionally add operand to pc*/	/* cycle 3 (branch) */
 		cpuPC = cpuPC + (int8_t) cpuread(cpuPC) + 1;
 
@@ -393,6 +397,11 @@ void branch() {
 		apu_wait += 1;
 		ppu_wait += 3;
 		cpucc += 1;
+		if (pageCross) /* special case, non-page crossing + branch taking ignores int. */
+		{
+		synchronize(1);
+		interrupt_polling();
+		}
 	} else
 		cpuPC++;													/* cycle 3 (no branch) */
 }
