@@ -10,9 +10,8 @@
 #include "6502.h"
 #include "cartridge.h"
 
-static inline void draw_nametable(), draw_pattern(), draw_palette(), vertical_increase(), horizontal_increase(), check_nmi(), sprite_evaluation(), sprite_fetch(uint8_t),
-				   horizontal_t_to_v(), vertical_t_to_v(), ppu_render(), reload_tile_shifter(), read_tile_data(uint8_t), toggle_a12(uint16_t), ppuwrite(uint16_t, uint8_t),
-				   idle_time();
+static inline void vertical_increase(), horizontal_increase(), check_nmi(), sprite_evaluation(), sprite_fetch(uint8_t),
+				   horizontal_t_to_v(), vertical_t_to_v(), ppu_render(), reload_tile_shifter(), read_tile_data(uint8_t), toggle_a12(uint16_t), ppuwrite(uint16_t, uint8_t);
 static inline uint8_t * ppuread(uint16_t);
 
 uint8_t *chrSlot[0x8], nameTableA[0x400], nameTableB[0x400], palette[0x20], oam[0x100], frameBuffer[SHEIGHT][SWIDTH], nameBuffer[SHEIGHT][SWIDTH<<1], patternBuffer[SWIDTH>>1][SWIDTH], paletteBuffer[SWIDTH>>4][SWIDTH>>1];
@@ -31,25 +30,6 @@ uint8_t ppuController, ppuMask, ppuData, ppuStatusNmi = 0, ppuStatusSpriteZero =
 
 uint32_t frame = 0, nmiFlipFlop = 0;
 int32_t ppucc = 0;
-
-struct timespec xClock, start, diff, cClock;
-
-void init_time ()
-{
-	clock_getres(CLOCK_MONOTONIC, &xClock);
-	clock_gettime(CLOCK_MONOTONIC, &xClock);
-	xClock.tv_nsec += FRAMETIME;
-	xClock.tv_sec += xClock.tv_nsec / 1000000000;
-	xClock.tv_nsec %= 1000000000;
-}
-
-void idle_time ()
-{
-	clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &xClock, NULL);
-	xClock.tv_nsec += FRAMETIME;
-	xClock.tv_sec += xClock.tv_nsec / 1000000000;
-	xClock.tv_nsec %= 1000000000;
-}
 
 uint8_t miniCount = 0, ppuStatusNmiDelay = 0;
 void run_ppu (uint16_t ntimes) {
@@ -87,24 +67,6 @@ void run_ppu (uint16_t ntimes) {
 			}
 			nmiSuppressed = 0;
 
-			io_handle();
-			if (nametableActive)
-				draw_nametable();
-			if (patternActive)
-				draw_pattern();
-			if (paletteActive)
-				draw_palette();
-			render_frame();
-			if (throttle)
-			{
-				idle_time();
-			}
-			while (isPaused)
-			{
-				render_frame();
-				idle_time();
-				io_handle();
-			}
 			ppuStatusSpriteZero = 0;
 			nmiPulled = 0;
 			vblank_period = 0;
@@ -129,6 +91,7 @@ void run_ppu (uint16_t ntimes) {
 /* RESET CLOCK COUNTER HERE... */
 	} else if (scanline == 240 && ppudot == 0) {
 		ppucc = 0;
+		render_frame();
 
 /* RENDERED LINES */
 	} else if (scanline < 240) {
@@ -580,6 +543,7 @@ void write_ppu_register(uint16_t addr, uint8_t tmpval8) {
 		ppuT |= ((ppuController & 3)<<10);
 		if (!(ppuController & 0x80)) {
 			nmiPulled = 0;
+			nmiSuppressed = 0;
 		} else if (ppuController & 0x80) {
 			check_nmi();
 		}

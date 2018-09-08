@@ -42,13 +42,15 @@ uint8_t apuStatus, apuFrameCounter, frameCounter = 0, pulse1Length = 0, waitBuff
 		triLinReload = 0, triControl, noiseControl, noiseLength = 0, noiseMode = 0,
 		dmcOutput = 0, dmcControl = 0, dmcBitsLeft = 8, dmcSilence = 1,
 		dmcShift = 0, dmcBuffer = 0, dmcRestart = 0, pulse1Mute, pulse2Mute;
-int8_t pulse1Duty = 0, pulse2Duty = 0, triSeq = 0, triBuff = 0;
+int8_t pulse1Duty = 0, pulse2Duty = 0, triSeq = 0, triBuff = 0,skipSamples = 0;
 uint16_t pulse2Timer = 0, pulse1Timer = 0,
 		sampleCounter = 0, lastOutputCounter = 0, tmpcounter = 0,
 		triTimer = 0, triTemp, noiseShift, noiseTimer, noiseTemp, dmcTemp,
 		dmcRate = 0, dmcAddress, dmcCurAdd, dmcLength = 0, dmcBytesLeft = 0;
 int16_t pulse1Temp = 0, pulse2Temp = 0, pulse1Change, pulse2Change;
-
+uintmax_t superCounter = 0;
+uint8_t sTable[7]={37,38,37,37,37,38,37};
+uint8_t sCount = 0;
 
 float sampleBuffer[BUFFER_SIZE] = {0};
 uint16_t framecc = 0;
@@ -211,26 +213,33 @@ void run_apu(uint16_t ntimes) { /* apu cycle times */
 		tndMixSample += tnd_table[3 * triSample + 2 * noiseSample + dmcOutput];
 
 		tmpcnt++;
-		if (tmpcnt==(SAMPLE_RATIO)) {
-			sampleBuffer[sampleCounter] = (pulseMixSample/tmpcnt) + (tndMixSample/tmpcnt);
+		if (tmpcnt==sTable[sCount]) {
+			sCount++;
+			if (sCount==7)
+				sCount = 0;
+			if (!skipSamples)
+			{
+				sampleBuffer[sampleCounter++] = (pulseMixSample/tmpcnt) + (tndMixSample/tmpcnt);
+				superCounter++;
+			}
+			else if (skipSamples)
+				skipSamples--;
 			pulseMixSample = 0;
 			tndMixSample = 0;
 			tmpcnt = 0;
-			sampleCounter++;
-			if (lastOutputCounter == (BUFFER_SIZE>>5)-1) {
-				output_sound();
-				lastOutputCounter = 0;
-			}
-			else
-				lastOutputCounter++;
-			if (sampleCounter >= (BUFFER_SIZE)) {
-				sampleCounter = 0;
-			}
 		}
 		ntimes--;
 		apu_wait--;
 		framecc++;
 		apucc++;
+		if (apucc == CPU_CLOCK)
+		{
+			apucc = 0;
+			skipSamples = superCounter - 48000;
+			if (skipSamples < 0)
+				skipSamples = 0;
+			superCounter = 0;
+		}
 	}
 }
 

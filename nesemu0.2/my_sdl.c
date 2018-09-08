@@ -2,6 +2,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <time.h> 	/* clock */
+#include <unistd.h> /* usleep */
 #include "ppu.h"
 #include "apu.h"
 #include "globals.h"
@@ -52,7 +54,7 @@ uint8_t colblargg[] = {  84,  84,  84,   0,  30, 116,   8,  16, 144,  48,   0, 1
 
 windowHandle handleMain, handleNametable, handlePattern, handlePalette;
 
-void render_window (windowHandle, uint8_t *);
+static inline void render_window (windowHandle, uint8_t *), idle_time();
 
 void init_sdl() {
 	SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO);
@@ -100,7 +102,34 @@ void close_sdl () {
 	exit(EXIT_SUCCESS);
 }
 
-void render_frame() {
+struct timespec xClock;
+void init_time ()
+{
+	clock_getres(CLOCK_MONOTONIC, &xClock);
+	clock_gettime(CLOCK_MONOTONIC, &xClock);
+	xClock.tv_nsec += FRAMETIME;
+	xClock.tv_sec += xClock.tv_nsec / 1000000000;
+	xClock.tv_nsec %= 1000000000;
+}
+
+void idle_time ()
+{
+	clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &xClock, NULL);
+	xClock.tv_nsec += FRAMETIME;
+	xClock.tv_sec += xClock.tv_nsec / 1000000000;
+	xClock.tv_nsec %= 1000000000;
+}
+
+void render_frame()
+{
+	io_handle();
+	output_sound();
+	if (nametableActive)
+		draw_nametable();
+	if (patternActive)
+		draw_pattern();
+	if (paletteActive)
+		draw_palette();
 	render_window (handleMain, (void *)frameBuffer);
 	if (nametableActive)
 		render_window (handleNametable, (void *)nameBuffer);
@@ -108,9 +137,18 @@ void render_frame() {
 		render_window (handlePattern, (void *)patternBuffer);
 	if (paletteActive)
 		render_window (handlePalette, (void *)paletteBuffer);
+	if (throttle)
+	{
+		idle_time();
+	}
+	while (isPaused)
+	{
+		render_frame();
+	}
 }
 
-void render_window (windowHandle handle, uint8_t * buffer) {
+void render_window (windowHandle handle, uint8_t * buffer)
+{
 	SDL_Rect SrcR;
 	  SrcR.x = 0;
 	  SrcR.y = 8;
@@ -129,22 +167,22 @@ void render_window (windowHandle handle, uint8_t * buffer) {
 	SDL_FreeSurface(surf);
 }
 
-void output_sound() {
-	int outBuffer = (BUFFER_SIZE>>5);
+void output_sound()
+{
+	int outBuffer = sampleCounter;
 	float *SoundBuffer = malloc(outBuffer*sizeof(float));
-	for(int i=0;i<outBuffer;++i) {
-		SoundBuffer[i] = sampleBuffer[pulseQueueCounter];
-		pulseQueueCounter++;
-		if (pulseQueueCounter >= BUFFER_SIZE)
-			pulseQueueCounter = 0;
+	for(int i=0;i<outBuffer;i++) {
+			SoundBuffer[i] = sampleBuffer[i];
 	}
+	sampleCounter = 0;
 	int audioError = SDL_QueueAudio(1, SoundBuffer, (outBuffer<<2));
 	if (audioError)
 		printf("SDL_QueueAduio failed: %s\n", SDL_GetError());
 	free(SoundBuffer);
 }
 
-void io_handle() {
+void io_handle()
+{
 	while (SDL_PollEvent(&event)) {
 		switch (event.type) {
 		/* Keyboard event */
@@ -154,10 +192,12 @@ void io_handle() {
 			case SDL_SCANCODE_ESCAPE:
 				printf("Quitting\n");
 				quit = 1;
+				isPaused = 0;
 				break;
 			case SDL_SCANCODE_F3:
 				printf("Resetting\n");
 				rstFlag = SOFT_RESET;
+				isPaused = 0;
 				break;
 			case SDL_SCANCODE_F10:
 				throttle ^= 1;
