@@ -69,7 +69,7 @@ void init_sdl() {
 	AudioSettings.format = AUDIO_F32;
 	AudioSettings.channels = CHANNELS;
 	AudioSettings.callback = NULL;
-	AudioSettings.samples = BUFFER_SIZE>>6;
+	AudioSettings.samples = BUFFER_SIZE>>1;
 	SDL_OpenAudio(&AudioSettings, 0);
 	SDL_PauseAudio(0);
 	SDL_ClearQueuedAudio(1);
@@ -123,7 +123,6 @@ void idle_time ()
 void render_frame()
 {
 	io_handle();
-	output_sound();
 	if (nametableActive)
 		draw_nametable();
 	if (patternActive)
@@ -169,16 +168,28 @@ void render_window (windowHandle handle, uint8_t * buffer)
 
 void output_sound()
 {
-	int outBuffer = sampleCounter;
-	float *SoundBuffer = malloc(outBuffer*sizeof(float));
-	for(int i=0;i<outBuffer;i++) {
+	int outBuffer;
+	float *SoundBuffer;
+	uint32_t a = SDL_GetQueuedAudioSize(1);
+	if (BUFFER_SIZE > (a/(sizeof(float))))
+	{
+		if (sampleCounter <= (BUFFER_SIZE - (a/(sizeof(float)))))
+			outBuffer = sampleCounter;
+		else
+			outBuffer = (sampleCounter - (BUFFER_SIZE - (a/(sizeof(float)))));
+		SoundBuffer = malloc(outBuffer*sizeof(float));
+		for(int i=0;i<outBuffer;i++) {
 			SoundBuffer[i] = sampleBuffer[i];
-	}
-	sampleCounter = 0;
+		}
+
 	int audioError = SDL_QueueAudio(1, SoundBuffer, (outBuffer<<2));
 	if (audioError)
 		printf("SDL_QueueAduio failed: %s\n", SDL_GetError());
 	free(SoundBuffer);
+	}
+	else
+		printf("skip\n");
+	sampleCounter = 0;
 }
 
 void io_handle()

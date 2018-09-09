@@ -44,7 +44,7 @@ uint8_t apuStatus, apuFrameCounter, frameCounter = 0, pulse1Length = 0, waitBuff
 		dmcShift = 0, dmcBuffer = 0, dmcRestart = 0, pulse1Mute, pulse2Mute;
 int8_t pulse1Duty = 0, pulse2Duty = 0, triSeq = 0, triBuff = 0,skipSamples = 0;
 uint16_t pulse2Timer = 0, pulse1Timer = 0,
-		sampleCounter = 0, lastOutputCounter = 0, tmpcounter = 0,
+		sampleCounter = 0, lastOutputCounter = BUFFER_SIZE, tmpcounter = 0,
 		triTimer = 0, triTemp, noiseShift, noiseTimer, noiseTemp, dmcTemp,
 		dmcRate = 0, dmcAddress, dmcCurAdd, dmcLength = 0, dmcBytesLeft = 0;
 int16_t pulse1Temp = 0, pulse2Temp = 0, pulse1Change, pulse2Change;
@@ -220,6 +220,8 @@ void run_apu(uint16_t ntimes) { /* apu cycle times */
 			if (!skipSamples)
 			{
 				sampleBuffer[sampleCounter++] = (pulseMixSample/tmpcnt) + (tndMixSample/tmpcnt);
+				if ((sampleCounter == lastOutputCounter) || !lastOutputCounter)
+					output_sound();
 				superCounter++;
 			}
 			else if (skipSamples)

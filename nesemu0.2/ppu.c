@@ -92,14 +92,16 @@ void run_ppu (uint16_t ntimes) {
 
 		check_nmi();
 
-		if (ppudot == 341) {
+		if (ppudot == 341)
+		{
 		scanline++;
 		ppudot = 0;
-	}
-	if (scanline == 262) {
+		}
+		if (scanline == 262)
+		{
 		scanline = 0;
 		frame++;
-	}
+		}
 
 /* VBLANK ONSET */
 	if (scanline == 241 && ppudot == 1) {
@@ -109,7 +111,7 @@ void run_ppu (uint16_t ntimes) {
 /* PRERENDER SCANLINE */
 	} else if (scanline == 261) {
 		if (ppuMask & 0x18)
-		(*fetchGraphics[ppudot])();
+			(*fetchGraphics[ppudot])();
 		ppu_render();
 		if (ppudot == 1)
 		{
@@ -181,18 +183,18 @@ void seRR ()
 		nSprite1 = 0;
 	}
 	data = oam[(nSprite1 << 2) + nData]; /* read y coordinate */
-	if (!nData && !(data <= scanline && scanline <= (data + 7 + ( (ppuController >> 2) & 0x08)))) /* within range? */
+	if (!nData && !(data <= scanline && scanline <= (data + 7 + ( (ppuController >> 2) & 0x08)))) /* not within range */
 	{
-		nSprite1++;
-	}
-	else if (nData == 3)
-	{
-		nData = 0;
 		nSprite1++;
 	}
 	else
 	{
 		nData++;
+		if (nData == 4)
+		{
+			nData = 0;
+			nSprite1++;
+		}
 	}
 }
 void seWW ()
@@ -200,7 +202,8 @@ void seWW ()
 	if (!oamOverflow)
 	{
 		secOam[(nSprite2 << 2) + nData2] = data;
-		if (nData2 == 3) {
+		if (nData2 == 3)
+		{
 			nData2 = 0;
 			nSprite2++;
 			if (nSprite2 == 8)
@@ -211,10 +214,8 @@ void seWW ()
 		}
 		else
 		{
-		if (nData2 == 1 && nSprite1 == 0)
-		{
-			isSpriteZero = nSprite2;
-		}
+			if (nData2 == 1 && nSprite1 == 0)
+				isSpriteZero = nSprite2;
 			nData2 = nData;
 		}
 	}
