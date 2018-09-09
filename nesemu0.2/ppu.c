@@ -10,8 +10,7 @@
 #include "6502.h"
 #include "cartridge.h"
 
-static inline void vertical_increase(), horizontal_increase(), check_nmi(), sprite_evaluation(), sprite_fetch(uint8_t),
-				   horizontal_t_to_v(), vertical_t_to_v(), ppu_render(), reload_tile_shifter(), read_tile_data(uint8_t), toggle_a12(uint16_t), ppuwrite(uint16_t, uint8_t);
+static inline void check_nmi(), horizontal_t_to_v(), vertical_t_to_v(), ppu_render(), reload_tile_shifter(), toggle_a12(uint16_t), ppuwrite(uint16_t, uint8_t);
 static inline uint8_t * ppuread(uint16_t);
 
 uint8_t *chrSlot[0x8], nameTableA[0x400], nameTableB[0x400], palette[0x20], oam[0x100], frameBuffer[SHEIGHT][SWIDTH], nameBuffer[SHEIGHT][SWIDTH<<1], patternBuffer[SWIDTH>>1][SWIDTH], paletteBuffer[SWIDTH>>4][SWIDTH>>1];
@@ -32,7 +31,59 @@ uint32_t frame = 0, nmiFlipFlop = 0;
 int32_t ppucc = 0;
 
 uint8_t miniCount = 0, ppuStatusNmiDelay = 0;
+
+static inline void none(), seZ(), seRD(), seWD(), seRR(), seWW(), tfNT(), tfAT(), tfLT(), tfHT(), sfNT(), sfAT(), sfLT(), sfHT(), dfNT(), hINC(), vINC();
+
 void run_ppu (uint16_t ntimes) {
+	static void (*spriteEvaluation[0x341])() = {
+	seZ,  seRD, seWD, seRD, seWD, seRD, seWD, seRD, seWD, seRD, seWD, seRD, seWD, seRD, seWD, seRD,
+	seWD, seRD, seWD, seRD, seWD, seRD, seWD, seRD, seWD, seRD, seWD, seRD, seWD, seRD, seWD, seRD,
+	seWD, seRD, seWD, seRD, seWD, seRD, seWD, seRD, seWD, seRD, seWD, seRD, seWD, seRD, seWD, seRD,
+	seWD, seRD, seWD, seRD, seWD, seRD, seWD, seRD, seWD, seRD, seWD, seRD, seWD, seRD, seWD, seRD,
+	seWD, seRR, seWW, seRR, seWW, seRR, seWW, seRR, seWW, seRR, seWW, seRR, seWW, seRR, seWW, seRR,
+	seWW, seRR, seWW, seRR, seWW, seRR, seWW, seRR, seWW, seRR, seWW, seRR, seWW, seRR, seWW, seRR,
+	seWW, seRR, seWW, seRR, seWW, seRR, seWW, seRR, seWW, seRR, seWW, seRR, seWW, seRR, seWW, seRR,
+	seWW, seRR, seWW, seRR, seWW, seRR, seWW, seRR, seWW, seRR, seWW, seRR, seWW, seRR, seWW, seRR,
+	seWW, seRR, seWW, seRR, seWW, seRR, seWW, seRR, seWW, seRR, seWW, seRR, seWW, seRR, seWW, seRR,
+	seWW, seRR, seWW, seRR, seWW, seRR, seWW, seRR, seWW, seRR, seWW, seRR, seWW, seRR, seWW, seRR,
+	seWW, seRR, seWW, seRR, seWW, seRR, seWW, seRR, seWW, seRR, seWW, seRR, seWW, seRR, seWW, seRR,
+	seWW, seRR, seWW, seRR, seWW, seRR, seWW, seRR, seWW, seRR, seWW, seRR, seWW, seRR, seWW, seRR,
+	seWW, seRR, seWW, seRR, seWW, seRR, seWW, seRR, seWW, seRR, seWW, seRR, seWW, seRR, seWW, seRR,
+	seWW, seRR, seWW, seRR, seWW, seRR, seWW, seRR, seWW, seRR, seWW, seRR, seWW, seRR, seWW, seRR,
+	seWW, seRR, seWW, seRR, seWW, seRR, seWW, seRR, seWW, seRR, seWW, seRR, seWW, seRR, seWW, seRR,
+	seWW, seRR, seWW, seRR, seWW, seRR, seWW, seRR, seWW, seRR, seWW, seRR, seWW, seRR, seWW, seRR,
+	seWW, none, none, none, none, none, none, none, none, none, none, none, none, none, none, none,
+	none, none, none, none, none, none, none, none, none, none, none, none, none, none, none, none,
+	none, none, none, none, none, none, none, none, none, none, none, none, none, none, none, none,
+	none, none, none, none, none, none, none, none, none, none, none, none, none, none, none, none,
+	none, none, none, none, none, none, none, none, none, none, none, none, none, none, none, none,
+	none, none, none, none, none };
+
+	static void (*fetchGraphics[0x341])() = {
+	none, tfNT, none, tfAT, none, tfLT, none, tfHT, hINC, tfNT, none, tfAT, none, tfLT, none, tfHT,
+	hINC, tfNT, none, tfAT, none, tfLT, none, tfHT, hINC, tfNT, none, tfAT, none, tfLT, none, tfHT,
+	hINC, tfNT, none, tfAT, none, tfLT, none, tfHT, hINC, tfNT, none, tfAT, none, tfLT, none, tfHT,
+	hINC, tfNT, none, tfAT, none, tfLT, none, tfHT, hINC, tfNT, none, tfAT, none, tfLT, none, tfHT,
+	hINC, tfNT, none, tfAT, none, tfLT, none, tfHT, hINC, tfNT, none, tfAT, none, tfLT, none, tfHT,
+	hINC, tfNT, none, tfAT, none, tfLT, none, tfHT, hINC, tfNT, none, tfAT, none, tfLT, none, tfHT,
+	hINC, tfNT, none, tfAT, none, tfLT, none, tfHT, hINC, tfNT, none, tfAT, none, tfLT, none, tfHT,
+	hINC, tfNT, none, tfAT, none, tfLT, none, tfHT, hINC, tfNT, none, tfAT, none, tfLT, none, tfHT,
+	hINC, tfNT, none, tfAT, none, tfLT, none, tfHT, hINC, tfNT, none, tfAT, none, tfLT, none, tfHT,
+	hINC, tfNT, none, tfAT, none, tfLT, none, tfHT, hINC, tfNT, none, tfAT, none, tfLT, none, tfHT,
+	hINC, tfNT, none, tfAT, none, tfLT, none, tfHT, hINC, tfNT, none, tfAT, none, tfLT, none, tfHT,
+	hINC, tfNT, none, tfAT, none, tfLT, none, tfHT, hINC, tfNT, none, tfAT, none, tfLT, none, tfHT,
+	hINC, tfNT, none, tfAT, none, tfLT, none, tfHT, hINC, tfNT, none, tfAT, none, tfLT, none, tfHT,
+	hINC, tfNT, none, tfAT, none, tfLT, none, tfHT, hINC, tfNT, none, tfAT, none, tfLT, none, tfHT,
+	hINC, tfNT, none, tfAT, none, tfLT, none, tfHT, hINC, tfNT, none, tfAT, none, tfLT, none, tfHT,
+	hINC, tfNT, none, tfAT, none, tfLT, none, tfHT, hINC, tfNT, none, tfAT, none, tfLT, none, tfHT,
+	vINC, sfNT, none, sfAT, none, sfLT, none, sfHT, none, sfNT, none, sfAT, none, sfLT, none, sfHT,
+	none, sfNT, none, sfAT, none, sfLT, none, sfHT, none, sfNT, none, sfAT, none, sfLT, none, sfHT,
+	none, sfNT, none, sfAT, none, sfLT, none, sfHT, none, sfNT, none, sfAT, none, sfLT, none, sfHT,
+	none, sfNT, none, sfAT, none, sfLT, none, sfHT, none, sfNT, none, sfAT, none, sfLT, none, sfHT,
+	none, tfNT, none, tfAT, none, tfLT, none, tfHT, hINC, tfNT, none, tfAT, none, tfLT, none, tfHT,
+	hINC, dfNT, none, dfNT, none };
+
+
 	while (ntimes) {
 		if (mapperInt)
 			irqPulled = 1;
@@ -57,25 +108,24 @@ void run_ppu (uint16_t ntimes) {
 
 /* PRERENDER SCANLINE */
 	} else if (scanline == 261) {
+		if (ppuMask & 0x18)
+		(*fetchGraphics[ppudot])();
 		ppu_render();
-		sprite_evaluation();
-		if (ppudot == 1) {
+		if (ppudot == 1)
+		{
 			if (ppuStatusNmi)
 			{
 			ppuStatusNmi = 0; /* clear vblank */
 			ppuStatusNmiDelay = 1;
 			}
 			nmiSuppressed = 0;
-
 			ppuStatusSpriteZero = 0;
 			nmiPulled = 0;
 			vblank_period = 0;
 		}
 		if (ppudot ==2)
 			ppuStatusNmiDelay = 0;
-		if (ppudot == 256) {
-			vertical_increase();
-		  } else if (ppudot >= 257 && ppudot <= 320) {
+		else if (ppudot >= 257 && ppudot <= 320) {
 			  /* (reset OAM) */
 			  ppuOamAddress = 0; /* only if rendering active? */
 			  if (ppudot == 257)
@@ -85,7 +135,6 @@ void run_ppu (uint16_t ntimes) {
 		  } else if (ppudot == 339) {
 				if (frame%2 && (ppuMask & 0x18))
 					ppudot++;
-
 		}
 
 /* RESET CLOCK COUNTER HERE... */
@@ -94,160 +143,194 @@ void run_ppu (uint16_t ntimes) {
 		render_frame();
 
 /* RENDERED LINES */
-	} else if (scanline < 240) {
-		sprite_evaluation();
-		ppu_render();
-		if (ppudot == 256) {
-			vertical_increase();
-		} else if (ppudot >= 257 && ppudot <= 320  && (ppuMask & 0x18)) {
-			/* (reset OAM) */
-			if (ppudot == 257)
-				/* (x position) */
-				horizontal_t_to_v(); /* only if rendering enabled */
-			ppuOamAddress = 0; /* only if rendering active? */
+	} else if (scanline < 240)
+	{
+		if (ppuMask & 0x18)
+		{
+		(*fetchGraphics[ppudot])();
+		(*spriteEvaluation[ppudot])();
 		}
+		ppu_render();
+		if (ppudot == 257)
+			horizontal_t_to_v();
 	}
 	ntimes--;
 	ppu_wait--;
 	}
 }
-
+uint8_t bgData, ntData, attData, tileLow, tileHigh, spriteLow, spriteHigh;
+uint16_t tileShifterLow, tileShifterHigh, attShifterHigh, attShifterLow, colShifter;
 uint8_t oamOverflow, nSprite1, nSprite2, nData, data, nData2;
 uint8_t spriteBuffer[256], zeroBuffer[256], priorityBuffer[256], isSpriteZero = 0xff;
-
-void sprite_evaluation() {
-if (ppuMask & 0x18) /* rendering is enabled */
+void none () {}
+void seZ ()
 {
-	if (!ppudot)
-	{
-		isSpriteZero = 0xff;
-		oamOverflow = 0;
+	isSpriteZero = 0xff;
+	oamOverflow = 0;
+	nSprite1 = 0;
+	nSprite2 = 0;
+	nData = 0;
+	nData2 = 0;
+}
+void seRD () { data = 0xff; }
+void seWD () { secOam[(ppudot >> 1) - 1] = data; }
+void seRR ()
+{
+	if (nSprite1 == 64) {
+		oamOverflow = 1;
 		nSprite1 = 0;
-		nSprite2 = 0;
+	}
+	data = oam[(nSprite1 << 2) + nData]; /* read y coordinate */
+	if (!nData && !(data <= scanline && scanline <= (data + 7 + ( (ppuController >> 2) & 0x08)))) /* within range? */
+	{
+		nSprite1++;
+	}
+	else if (nData == 3)
+	{
 		nData = 0;
-		nData2 = 0;
+		nSprite1++;
 	}
-	else if (ppudot >= 1 && ppudot <= 256 && scanline < 240) /* sprite evaluation */
+	else
 	{
-		if (ppudot%2) /* read cycle */
-		{
-			if (ppudot < 65)
-				data = 0xff; /* dummy reads */
-			else
-			{
-				if (nSprite1 == 64) {
-					oamOverflow = 1;
-					nSprite1 = 0;
-				}
-				data = oam[(nSprite1 << 2) + nData]; /* read y coordinate */
-
-				if (!nData && !(data <= scanline && scanline <= (data + 7 + ( (ppuController >> 2) & 0x08)))) /* within range? */
-				{
-					nSprite1++;
-				}
-				else if (nData == 3)
-				{
-					nData = 0;
-					nSprite1++;
-				}
-				else
-				{
-					nData++;
-				}
-			}
-		}
-		else if (!(ppudot%2)) /* write cycle */
-		{
-			if (!oamOverflow)
-			{
-				if (ppudot < 65)
-					secOam[(ppudot>>1) -1] = data;
-				else
-					secOam[(nSprite2 << 2) + nData2] = data;
-
-				if (nData2 == 3) {
-					nData2 = 0;
-					nSprite2++;
-					if (nSprite2 == 8)
-					{
-						nSprite2 = 0;
-						oamOverflow = 1;
-					}
-				}
-				else
-				{
-				if (nData2 == 1 && nSprite1 == 0)
-				{
-					isSpriteZero = nSprite2;
-				}
-					nData2 = nData;
-				}
-			}
-		}
-	}
-	/* HBLANK begins */
-	else if (ppudot >= 257 && ppudot <= 320) /* sprite fetches */
-	{
-	/* cycles 1-4: read secondary OAM */
-	/* cycles 5-8: read from pattern table (this means that PPU A12 flips at dot 261) */
-		if (ppudot == 257)
-		{
-			nSprite2 = 0;
-			memset(spriteBuffer,0xff,256);
-			memset(priorityBuffer,0,256);
-			memset(zeroBuffer,0,256);
-		}
-		if ((ppudot%8) == 5)
-		{
-			sprite_fetch(nSprite2++);
-		}
-	}
-	else if (ppudot >= 321 && ppudot <= 340)
-	{ /* basically idle */
+		nData++;
 	}
 }
-}
-
-void sprite_fetch(uint8_t x)
+void seWW ()
 {
-	uint8_t *sprite;
-	sprite = secOam + (x<<2);
-	uint8_t yOffset = scanline - (sprite[0]);
-	uint8_t flipX = ((sprite[2] >> 6) & 1);
-	uint8_t flipY = ((sprite[2] >> 7) & 1);
-	uint8_t spriteRow = (yOffset & 7) + flipY * (7 - ((yOffset & 7) << 1));
-	uint8_t nPalette = (sprite[2] & 3);
-	uint16_t patternOffset;
-	/* define sprite pattern source */
+	if (!oamOverflow)
+	{
+		secOam[(nSprite2 << 2) + nData2] = data;
+		if (nData2 == 3) {
+			nData2 = 0;
+			nSprite2++;
+			if (nSprite2 == 8)
+			{
+				nSprite2 = 0;
+				oamOverflow = 1;
+			}
+		}
+		else
+		{
+		if (nData2 == 1 && nSprite1 == 0)
+		{
+			isSpriteZero = nSprite2;
+		}
+			nData2 = nData;
+		}
+	}
+}
+void tfNT ()
+{
+	uint16_t a = (0x2000 | (ppuV&0xfff));
+	ntData = *ppuread(a);
+	toggle_a12(a);
+}
+void tfAT ()
+{
+	uint16_t a = (0x2fc0 | ((ppuV >> 4) & 0x38) | ((ppuV >> 2) & 0x07));
+	bgData = *ppuread(a);
+	attData = ((bgData >> ((((ppuV >> 1) & 1) | ((ppuV >> 5) & 2)) << 1)) & 3);
+	toggle_a12(a);
+}
+void tfLT ()
+{
+	uint16_t a = ((ntData << 4) + ((ppuController & 0x10) << 8) + ((ppuV >> 12) & 7));
+	tileLow = *ppuread(a);
+	toggle_a12(a);
+}
+void tfHT ()
+{
+	uint16_t a = ((ntData << 4) + ((ppuController & 0x10) << 8) + ((ppuV >> 12) & 7) + 8);
+	tileHigh = *ppuread(a);
+	toggle_a12(a);
+}
+void sfNT () { ppuOamAddress = 0; }
+void sfAT () { ppuOamAddress = 0; }
+
+uint8_t cSprite, *sprite, yOffset, flipY, spriteRow;
+uint16_t patternOffset;
+void sfLT ()
+{
+	if (scanline < 240)
+	{
+	cSprite = ((ppudot >> 3) & 0x07);
+	sprite = secOam + (cSprite << 2);
+	yOffset = scanline - (sprite[0]);
+	flipY = ((sprite[2] >> 7) & 1);
+	spriteRow = (yOffset & 7) + flipY * (7 - ((yOffset & 7) << 1));
 	if (ppuController & 0x20) /* 8x16 sprites */
 		patternOffset = (((sprite[1] & 0x01) << 12) 	/* select pattern table */
 		+ ((sprite[1] & 0xfe) << 4) 					/* offset for top tile (16b per tile) */
 		+ (((yOffset << 1) ^ (flipY << 4)) & 0x10)); 	/* select bottom tile if either offset 8+ or flipped sprite */
-
 	else if (!(ppuController & 0x20)) /* 8x8 sprites */
 		patternOffset = (sprite[1] << 4) + ((ppuController & 0x08) ? 0x1000 : 0);
-
+	spriteLow = *ppuread(patternOffset + spriteRow);
+	ppuOamAddress = 0;
+	}
+}
+void sfHT ()
+{
+	if (scanline < 240)
+	{
+	spriteHigh = *ppuread(patternOffset + spriteRow + 8);
+	ppuOamAddress = 0;
+	uint8_t flipX = ((sprite[2] >> 6) & 1);
+	uint8_t nPalette = (sprite[2] & 3);
 	/* decode pattern data and store in buffer */
 	for (int pcol = 0; pcol < 8; pcol++)
 	{
 		uint8_t spritePixel = (7 - pcol - flipX * (7 - (pcol << 1)));
-		uint8_t pixelData = ((*ppuread(patternOffset + spriteRow)     >> spritePixel) & 0x01) +
-						   (((*ppuread(patternOffset + spriteRow + 8) >> spritePixel) & 0x01) << 1);
+		uint8_t pixelData = (((spriteLow >> spritePixel) & 0x01) +
+						   (((spriteHigh >> spritePixel) & 0x01) << 1));
 		toggle_a12(patternOffset + spriteRow);
 		if (pixelData && (spriteBuffer[sprite[3] + pcol])==0xff && !(sprite[3] == 0xff))
 		{/* TODO: this PPU access probably should not be here, screws up mmc3 irq? */
 			spriteBuffer[sprite[3] + pcol] = *ppuread(0x3f10 + (nPalette << 2) + pixelData);
-			if (isSpriteZero == x)
+			if (isSpriteZero == cSprite)
 			{
 				zeroBuffer[sprite[3] + pcol] = 1;
 			}
 			priorityBuffer[sprite[3] + pcol] = (sprite[2] & 0x20);
 		}
 	}
+	}
 }
-
-uint8_t bgData, ntData, attData, tileLow, tileHigh;
-uint16_t tileShifterLow, tileShifterHigh, attShifterHigh, attShifterLow, colShifter;
+void dfNT () { }
+void hINC()
+{
+if (ppuMask & 0x18)
+	{
+	if ((ppuV & 0x1f) == 0x1f)
+	{
+		ppuV &= ~0x1f;
+		ppuV ^= 0x0400; /* switch nametable horizontally */
+	}
+	else
+		ppuV++; /* next tile */
+	}
+}
+void vINC()
+{
+	if (ppuMask & 0x18)
+	{
+		if ((ppuV & 0x7000) != 0x7000)
+			ppuV += 0x1000;
+		else
+		{
+			ppuV &= ~0x7000;
+			uint8_t coarseY = ((ppuV & 0x3e0) >> 5);
+			if (coarseY == 29)
+			{
+				coarseY = 0;
+				ppuV ^= 0x0800;
+			} else if (coarseY == 31)
+				coarseY = 0;
+			else
+				coarseY++;
+			ppuV = (ppuV & ~0x03e0) | (coarseY << 5);
+		}
+	}
+}
 
 void reload_tile_shifter()
 {
@@ -257,55 +340,16 @@ void reload_tile_shifter()
 	attShifterHigh = ((attShifterHigh & 0xff00) | ((attData & 2) ? 0xff : 0x00));
 }
 
-void read_tile_data(uint8_t x)
-{
-	if (ppuMask & 0x18)
-	{
-	uint16_t a;
-	switch (x) {
-	case 1:
-		a = (0x2000 | (ppuV&0xfff));
-		ntData = *ppuread(a);
-		toggle_a12(a);
-		break;
-	case 3:
-		a = (0x2fc0 | ((ppuV >> 4) & 0x38) | ((ppuV >> 2) & 0x07));
-		bgData = *ppuread(a);
-		attData = ((bgData >> ((((ppuV >> 1) & 1) | ((ppuV >> 5) & 2)) << 1)) & 3);
-		toggle_a12(a);
-		break;
-	case 5:
-		a = ((ntData << 4) + ((ppuController & 0x10) << 8) + ((ppuV >> 12) & 7));
-		tileLow = *ppuread(a);
-		toggle_a12(a);
-		break;
-	case 7:
-		a = ((ntData << 4) + ((ppuController & 0x10) << 8) + ((ppuV >> 12) & 7) + 8);
-		tileHigh = *ppuread(a);
-		toggle_a12(a);
-		break;
-	}
-	}
-}
-
 void ppu_render()
 {/* save for render
  * color mask
  */
-	if (!ppudot) /* idle */
-	{
-	}
-	else if (ppudot >= 1 && ppudot <= 257) /* tile data fetch */
+	if (ppudot >= 1 && ppudot <= 257) /* tile data fetch */
 	{
 		if (ppudot <=256)
 		{
-		read_tile_data(ppudot%8);
-		if (!(ppudot%8))
-			horizontal_increase();
 		if (ppudot%8 == 2)
-		{
 			reload_tile_shifter();
-		}
 		}
 		if (ppudot >=2)
 		{
@@ -339,66 +383,23 @@ void ppu_render()
 			tileShifterLow = (tileShifterLow << 1);
 			attShifterHigh = (attShifterHigh << 1);
 			attShifterLow = (attShifterLow << 1);
+		if (ppudot == 257)
+		{
+			nSprite2 = 0;
+			memset(spriteBuffer,0xff,256);
+			memset(priorityBuffer,0,256);
+			memset(zeroBuffer,0,256);
 		}
-	}
-	else if (ppudot >= 257 && ppudot <= 320 && scanline < 240) /* move sprite fetch here? */
-	{
-
+		}
 	}
 	else if (ppudot >= 321 && ppudot <= 336) /* prefetch tiles */
 	{
-		read_tile_data(ppudot%8);
-		if (!(ppudot%8))
-			horizontal_increase();
 		if (ppudot%8 == 1)
-		{
 			reload_tile_shifter();
-		}
 		tileShifterHigh = (tileShifterHigh << 1);
 		tileShifterLow = (tileShifterLow << 1);
 		attShifterHigh = (attShifterHigh << 1);
 		attShifterLow = (attShifterLow << 1);
-	}
-	else if (ppudot >= 337 && ppudot <= 340) /* dummy NT fetches */
-	{
-
-	}
-}
-
-void horizontal_increase()
-{
-if (ppuMask & 0x18)
-	{
-	if ((ppuV & 0x1f) == 0x1f)
-	{
-		ppuV &= ~0x1f;
-		ppuV ^= 0x0400; /* switch nametable horizontally */
-	}
-	else
-		ppuV++; /* next tile */
-	}
-}
-
-void vertical_increase()
-{
-	if (ppuMask & 0x18)
-	{
-		if ((ppuV & 0x7000) != 0x7000)
-			ppuV += 0x1000;
-		else
-		{
-			ppuV &= ~0x7000;
-			uint8_t coarseY = ((ppuV & 0x3e0) >> 5);
-			if (coarseY == 29)
-			{
-				coarseY = 0;
-				ppuV ^= 0x0800;
-			} else if (coarseY == 31)
-				coarseY = 0;
-			else
-				coarseY++;
-			ppuV = (ppuV & ~0x03e0) | (coarseY << 5);
-		}
 	}
 }
 
@@ -603,8 +604,8 @@ void write_ppu_register(uint16_t addr, uint8_t tmpval8) {
 		}
 		else
 		{
-			vertical_increase();
-			horizontal_increase();
+			vINC();
+			hINC();
 		}
 	}
 }

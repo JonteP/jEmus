@@ -24,14 +24,13 @@
  * -save states
  */
 
-
 uint8_t quit = 0, ctrb = 0, ctrb2 = 0, ctr1 = 0, ctr2 = 0;
 uint8_t openBus;
 uint16_t ppu_wait = 0, apu_wait = 0;
 FILE *logfile;
 
 int main() {
-	char *romName = "/home/jonas/eclipse-workspace/uxrom/wanpaku.nes";
+	char *romName = "/home/jonas/eclipse-workspace/g101/ifight.nes";
 	load_rom(romName);
 
 	logfile = fopen("/home/jonas/eclipse-workspace/logfile.txt","w");

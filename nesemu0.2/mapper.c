@@ -381,13 +381,6 @@ void reset_mmc3 () {
 /*            Irem G-101           */
 /*/////////////////////////////////*/
 
-/*
- * TODO:
- *
- * Game specific:
- * - Image fight: garbage BGs
- * - Ai sensei..: does not boot
- */
 
 static inline void reset_g101(), mapper_g101(uint16_t, uint8_t);
 
@@ -396,7 +389,8 @@ uint8_t g101Prg0, g101Prg1, g101PrgMode,
 		g101Chr4, g101Chr5, g101Chr6, g101Chr7;
 static inline void g101_prg_bank_switch(), g101_chr_bank_switch();
 
-void mapper_g101(uint16_t address, uint8_t value) {
+void mapper_g101(uint16_t address, uint8_t value)
+{
 	if ((address & 0xf007) >= 0x8000 && (address & 0xf007) < 0x9000) {
 		g101Prg0 = value;
 		g101_prg_bank_switch();
@@ -438,8 +432,8 @@ void mapper_g101(uint16_t address, uint8_t value) {
 void g101_prg_bank_switch() {
 	if (g101PrgMode) {
 		prg_8_0(cart.prgSize - 0x4000);
-		prg_8_1((g101Prg0 & ((cart.prgSize >> 13) -1)) * 0x2000);
-		prg_8_2((g101Prg1 & ((cart.prgSize >> 13) -1)) * 0x2000);
+		prg_8_1((g101Prg1 & ((cart.prgSize >> 13) -1)) * 0x2000);
+		prg_8_2((g101Prg0 & ((cart.prgSize >> 13) -1)) * 0x2000);
 		prg_8_3(cart.prgSize - 0x2000);
 	} else {
 		prg_8_0((g101Prg0 & ((cart.prgSize >> 13) -1)) * 0x2000);
@@ -450,14 +444,14 @@ void g101_prg_bank_switch() {
 }
 
 void g101_chr_bank_switch() {
-	chr_1_0((g101Chr0 & 0x7f) * 0x400);
-	chr_1_1((g101Chr1 & 0x7f) * 0x400);
-	chr_1_2((g101Chr2 & 0x7f) * 0x400);
-	chr_1_3((g101Chr3 & 0x7f) * 0x400);
-	chr_1_4((g101Chr4 & 0x7f) * 0x400);
-	chr_1_5((g101Chr5 & 0x7f) * 0x400);
-	chr_1_6((g101Chr6 & 0x7f) * 0x400);
-	chr_1_7((g101Chr7 & 0x7f) * 0x400);
+	chr_1_0((g101Chr0 & ((cart.chrSize >> 10) -1)) * 0x400);
+	chr_1_1((g101Chr1 & ((cart.chrSize >> 10) -1)) * 0x400);
+	chr_1_2((g101Chr2 & ((cart.chrSize >> 10) -1)) * 0x400);
+	chr_1_3((g101Chr3 & ((cart.chrSize >> 10) -1)) * 0x400);
+	chr_1_4((g101Chr4 & ((cart.chrSize >> 10) -1)) * 0x400);
+	chr_1_5((g101Chr5 & ((cart.chrSize >> 10) -1)) * 0x400);
+	chr_1_6((g101Chr6 & ((cart.chrSize >> 10) -1)) * 0x400);
+	chr_1_7((g101Chr7 & ((cart.chrSize >> 10) -1)) * 0x400);
 }
 
 void reset_g101() {

@@ -235,7 +235,7 @@ void run_apu(uint16_t ntimes) { /* apu cycle times */
 		if (apucc == CPU_CLOCK)
 		{
 			apucc = 0;
-			skipSamples = superCounter - 48000;
+			skipSamples = superCounter - (48000+1);
 			if (skipSamples < 0)
 				skipSamples = 0;
 			superCounter = 0;
