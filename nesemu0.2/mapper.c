@@ -602,23 +602,23 @@ void vrc24_prg_bank_switch() {
 void vrc24_chr_bank_switch() {
 	if (!strcmp(cart.slot,"vrc2")) {
 		if (cart.vrcChr) {
-			chr_1_0((vrcChr0 & 0xff) * 0x400);
-			chr_1_1((vrcChr1 & 0xff) * 0x400);
-			chr_1_2((vrcChr2 & 0xff) * 0x400);
-			chr_1_3((vrcChr3 & 0xff) * 0x400);
-			chr_1_4((vrcChr4 & 0xff) * 0x400);
-			chr_1_5((vrcChr5 & 0xff) * 0x400);
-			chr_1_6((vrcChr6 & 0xff) * 0x400);
-			chr_1_7((vrcChr7 & 0xff) * 0x400);
+			chr_1_0((vrcChr0 & ((cart.chrSize >> 10) -1)) * 0x400);
+			chr_1_1((vrcChr1 & ((cart.chrSize >> 10) -1)) * 0x400);
+			chr_1_2((vrcChr2 & ((cart.chrSize >> 10) -1)) * 0x400);
+			chr_1_3((vrcChr3 & ((cart.chrSize >> 10) -1)) * 0x400);
+			chr_1_4((vrcChr4 & ((cart.chrSize >> 10) -1)) * 0x400);
+			chr_1_5((vrcChr5 & ((cart.chrSize >> 10) -1)) * 0x400);
+			chr_1_6((vrcChr6 & ((cart.chrSize >> 10) -1)) * 0x400);
+			chr_1_7((vrcChr7 & ((cart.chrSize >> 10) -1)) * 0x400);
 		} else if (!cart.vrcChr) {
-			chr_1_0((vrcChr0 >> 1) * 0x400);
-			chr_1_1((vrcChr1 >> 1) * 0x400);
-			chr_1_2((vrcChr2 >> 1) * 0x400);
-			chr_1_3((vrcChr3 >> 1) * 0x400);
-			chr_1_4((vrcChr4 >> 1) * 0x400);
-			chr_1_5((vrcChr5 >> 1) * 0x400);
-			chr_1_6((vrcChr6 >> 1) * 0x400);
-			chr_1_7((vrcChr7 >> 1) * 0x400);
+			chr_1_0(((vrcChr0 >> 1) & ((cart.chrSize >> 10) -1)) * 0x400);
+			chr_1_1(((vrcChr1 >> 1) & ((cart.chrSize >> 10) -1)) * 0x400);
+			chr_1_2(((vrcChr2 >> 1) & ((cart.chrSize >> 10) -1)) * 0x400);
+			chr_1_3(((vrcChr3 >> 1) & ((cart.chrSize >> 10) -1)) * 0x400);
+			chr_1_4(((vrcChr4 >> 1) & ((cart.chrSize >> 10) -1)) * 0x400);
+			chr_1_5(((vrcChr5 >> 1) & ((cart.chrSize >> 10) -1)) * 0x400);
+			chr_1_6(((vrcChr6 >> 1) & ((cart.chrSize >> 10) -1)) * 0x400);
+			chr_1_7(((vrcChr7 >> 1) & ((cart.chrSize >> 10) -1)) * 0x400);
 		}
 	} else if (!strcmp(cart.slot,"vrc4")){
 		chr_1_0(vrcChr0 * 0x400);

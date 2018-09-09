@@ -5,7 +5,6 @@
 #define SAMPLES_PER_SEC 48000
 #define BUFFER_SIZE (8192)
 #define CPU_CLOCK 1789773 /*1789773 (official?); 1786831*/
-#define SAMPLE_RATIO (CPU_CLOCK / SAMPLES_PER_SEC)
 
 #include <stdint.h>
 extern uint8_t apuStatus, apuFrameCounter, pulse1Length, pulse2Length,
@@ -15,7 +14,7 @@ extern uint8_t apuStatus, apuFrameCounter, pulse1Length, pulse2Length,
 		noiseLength, noiseMode, noiseControl, dmcOutput, dmcControl, dmcInt, frameInt, frameWriteDelay, frameWrite, dmcRestart, dmcBitsLeft, dmcSilence;
 extern int8_t pulse1Duty, pulse2Duty;
 extern uint16_t pulse2Timer, pulse1Timer, triTimer, triTemp, noiseShift, noiseTimer, noiseTable[0x10],
-				rateTable[0x10], dmcRate, dmcTemp, dmcAddress, dmcCurAdd, dmcLength, dmcBytesLeft, framecc, sampleCounter, lastOutputCounter;
+				rateTable[0x10], dmcRate, dmcTemp, dmcAddress, dmcCurAdd, dmcLength, dmcBytesLeft, framecc, sampleCounter;
 extern int16_t pulse1Temp, pulse2Temp;
 extern uint8_t lengthTable[0x20], frameCounter;
 extern uint32_t frameIrqDelay, apucc, frameIrqTime;

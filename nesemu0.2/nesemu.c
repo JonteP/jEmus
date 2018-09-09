@@ -30,7 +30,7 @@ uint16_t ppu_wait = 0, apu_wait = 0;
 FILE *logfile;
 
 int main() {
-	char *romName = "/home/jonas/eclipse-workspace/uxrom/wanpaku.nes";
+	char *romName = "/home/jonas/eclipse-workspace/vrc4/tmnt2.nes";
 	load_rom(romName);
 
 	logfile = fopen("/home/jonas/eclipse-workspace/logfile.txt","w");
