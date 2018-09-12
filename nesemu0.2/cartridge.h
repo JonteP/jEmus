@@ -12,7 +12,7 @@ typedef struct gameInfos_ {
 typedef struct gameFeatures_ {
 	char slot[20];
 	char pcb[20];
-	uint8_t mirroring;
+	uint_fast8_t mirroring;
 	long chrSize;
 	long prgSize;
 	long wramSize;
@@ -27,7 +27,7 @@ typedef struct gameFeatures_ {
 
 extern gameFeatures cart;
 extern int psize, csize;
-extern uint8_t *prg, *chr, *bwram, *wramSource, mirroring[4][4], wramEnable;
+extern uint_fast8_t *prg, *chr, *bwram, *wramSource, mirroring[4][4], wramEnable;
 
 void load_rom(), close_rom();
 

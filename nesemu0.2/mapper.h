@@ -2,8 +2,8 @@
 #define MAPPER_H_
 #include <stdint.h>
 
-void init_mapper(void), write_mapper_register(uint16_t, uint8_t), vrc_irq(void),
+void init_mapper(void), write_mapper_register(uint_fast16_t, uint_fast8_t), vrc_irq(void),
      mmc3_irq(void);
-extern uint8_t mapperInt;
+extern uint_fast8_t mapperInt;
 
 #endif /* MAPPER_H_ */

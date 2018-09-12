@@ -12,7 +12,7 @@
 reset_t rstFlag;
 
 						 /* 0 |1 |2 |3 |4 |5 |6 |7 |8 |9 |a |b |c |d |e |f       */
-static uint8_t ctable[] = { 7, 6, 0, 8, 3, 3, 5, 5, 3, 2, 2, 2, 4, 4, 6, 6, /* 0 */
+static uint_fast8_t ctable[] = { 7, 6, 0, 8, 3, 3, 5, 5, 3, 2, 2, 2, 4, 4, 6, 6, /* 0 */
 							2, 5, 0, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7, /* 1 */
 							6, 6, 0, 8, 3, 3, 5, 5, 4, 2, 2, 2, 4, 4, 6, 6, /* 2 */
 							2, 5, 0, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7, /* 3 */
@@ -30,8 +30,8 @@ static uint8_t ctable[] = { 7, 6, 0, 8, 3, 3, 5, 5, 3, 2, 2, 2, 4, 4, 6, 6, /* 0
 							2, 5, 0, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7  /* f */
 							};
 
-static inline void write_cpu_register(uint16_t, uint8_t), power_reset(void), cpuwrite(uint16_t, uint8_t), interrupt_polling();
-static inline uint8_t read_cpu_register(uint16_t);
+static inline void write_cpu_register(uint16_t, uint_fast8_t), power_reset(void), cpuwrite(uint16_t, uint_fast8_t), interrupt_polling();
+static inline uint_fast8_t read_cpu_register(uint16_t);
 static inline void accum(), immed(), zpage(), zpagex(), zpagey(), absol(), absxR(), absxW(), absyR(), absyW(), indx(), indyR(), indyW();
 static inline void adc(), ahx(), alr(), and(), anc(), arr(), asl(), asli(), axs(), branch(), bit(), brkop(), clc(), cld(),
 				   cli(), clv(), cmp(), cpx(), cpy(), dcp(), dec(), dex(), dey(), eor(), inc(), isc(), inx(), iny(), jmpa(), jmpi(), jsr(), las(),
@@ -39,19 +39,19 @@ static inline void adc(), ahx(), alr(), and(), anc(), arr(), asl(), asli(), axs(
 				   sax(), sbc(), sec(), sed(), sei(), shx(), shy(), slo(), sre(), sta(), stx(), sty(), tas(), tax(), tay(), tsx(), txa(), txs(),
 				   tya(), xaa(), none();
 
-uint8_t mode, opcode, addmode, addcycle, tmpval8, s = 0, dummy, pcl, pch, dummywrite = 0, op, irqPulled = 0, nmiPulled = 0, irqPending = 0, nmiPending = 0, intDelay = 0;
+uint_fast8_t mode, opcode, addmode, addcycle, tmpval8, s = 0, dummy, pcl, pch, dummywrite = 0, op, irqPulled = 0, nmiPulled = 0, irqPending = 0, nmiPending = 0, intDelay = 0;
 uint16_t addr, tmpval16;
 
 /* Mapped memory */
-uint8_t *prgSlot[0x8], cpuRam[0x800];
+uint_fast8_t *prgSlot[0x8], cpuRam[0x800];
 
 /* Internal registers */
-uint8_t cpuA = 0x00, cpuX = 0x00, cpuY = 0x00, cpuP = 0x00, cpuS = 0x00;
-uint16_t cpuPC;
+static uint_fast8_t cpuA = 0x00, cpuX = 0x00, cpuY = 0x00, cpuP = 0x00, cpuS = 0x00;
+static uint16_t cpuPC;
 uint32_t cpucc = 0;
 
 /* Vector pointers */
-const uint16_t nmi = 0xfffa, rst = 0xfffc, irq = 0xfffe;
+static const uint16_t nmi = 0xfffa, rst = 0xfffc, irq = 0xfffe;
 
 void opdecode() {
 
@@ -107,6 +107,7 @@ void opdecode() {
 		apu_wait += 7;
 		ppu_wait += 7 * 3;
 		cpucc += 7;
+	/*	printf("IRQ %i,%i\n",scanline,ppudot); */
 		interrupt_handle(IRQ);
 		irqPending = 0;
 	}
@@ -375,7 +376,7 @@ int pageCross;
 void branch() {
 	synchronize(1);
 	interrupt_polling();
-	uint8_t reflag[4] = { 7, 6, 0, 1 };
+	uint_fast8_t reflag[4] = { 7, 6, 0, 1 };
 	/* fetch operand */											/* cycle 2 */
 	if (((cpuP >> reflag[(op >> 6) & 3]) & 1) == ((op >> 5) & 1)) {
 		if (((cpuPC + 1) & 0xff00)	!= ((cpuPC + ((int8_t) cpuread(cpuPC) + 1)) & 0xff00)) {
@@ -578,8 +579,7 @@ void jsr() {
 void lda() {
 	synchronize(1);
 	interrupt_polling();
-	tmpval8 = cpuread(addr);						/* cycle 4 */
-	cpuA = tmpval8;
+	cpuA = cpuread(addr);						/* cycle 4 */
 	bitset(&cpuP, cpuA == 0, 1);
 	bitset(&cpuP, cpuA >= 0x80, 7);
 }
@@ -587,8 +587,7 @@ void lda() {
 void ldx() {
 	synchronize(1);
 	interrupt_polling();
-	tmpval8 = cpuread(addr);						/* cycle 4 */
-	cpuX = tmpval8;
+	cpuX = cpuread(addr);						/* cycle 4 */
 	bitset(&cpuP, cpuX == 0, 1);
 	bitset(&cpuP, cpuX >= 0x80, 7);
 }
@@ -596,8 +595,7 @@ void ldx() {
 void ldy() {
 	synchronize(1);
 	interrupt_polling();
-	tmpval8 = cpuread(addr);						/* cycle 4 */
-	cpuY = tmpval8;
+	cpuY = cpuread(addr);						/* cycle 4 */
 	bitset(&cpuP, cpuY == 0, 1);
 	bitset(&cpuP, cpuY >= 0x80, 7);
 }
@@ -680,7 +678,7 @@ void plp() {
 /* RLA (r-m-w) */
 
 void rol() {
-	uint8_t bkp;
+	uint_fast8_t bkp;
 	synchronize(2);
 	tmpval8 = cpuread(addr);			/* cycle 4 */
 	cpuwrite(addr,tmpval8);				/* cycle 5 */
@@ -711,7 +709,7 @@ void roli() {
 }
 
 void ror() {
-	uint8_t bkp;
+	uint_fast8_t bkp;
 	synchronize(2);
 	tmpval8 = cpuread(addr);					/* cycle 4 */
 	cpuwrite(addr,tmpval8);						/* cycle 5 */
@@ -880,8 +878,8 @@ void tya() {
 void none() {
 							}
 
-uint8_t read_cpu_register(uint16_t address) {
-	uint8_t value;
+uint_fast8_t read_cpu_register(uint16_t address) {
+	uint_fast8_t value;
 	switch (address) {
 	case 0x4015: /* APU status read */
 		value = (dmcInt ? 0x80 : 0) | (frameInt ? 0x40 : 0) | ((dmcBytesLeft) ? 0x10 : 0) | (noiseLength ? 0x08 : 0) | (triLength ? 0x04 : 0) | (pulse2Length ? 0x02 : 0) | (pulse1Length ? 0x01 : 0);
@@ -902,7 +900,7 @@ uint8_t read_cpu_register(uint16_t address) {
 	return value;
 }
 
-void write_cpu_register(uint16_t address, uint8_t value) {
+void write_cpu_register(uint16_t address, uint_fast8_t value) {
 	uint16_t source;
 	switch (address) {
 	case 0x4000: /* Pulse 1 duty, envel., volume */
@@ -1015,9 +1013,6 @@ void write_cpu_register(uint16_t address, uint8_t value) {
 			run_ppu(ppu_wait);
 			run_apu(apu_wait);
 		}
-	/*	apu_wait += 513;
-		ppu_wait += 513 * 3;
-		cpucc += 513; */
 		break;
 	case 0x4015: /* APU status */
 		dmcInt = 0;
@@ -1054,8 +1049,8 @@ void write_cpu_register(uint16_t address, uint8_t value) {
 	}
 }
 
-uint8_t cpuread(uint16_t address) {
-	uint8_t value;
+uint_fast8_t cpuread(uint16_t address) {
+	uint_fast8_t value;
 	if (address >= 0x8000)
 		value = prgSlot[(address>>12)&~8][address&0xfff];
 	else if (address >= 0x6000 && address < 0x8000) {
@@ -1077,7 +1072,7 @@ uint8_t cpuread(uint16_t address) {
 	return value;
 }
 
-void cpuwrite(uint16_t address, uint8_t value) {
+void cpuwrite(uint16_t address, uint_fast8_t value) {
 	if (address >= 0x8000)
 		write_mapper_register(address, value);
 	else if (address >= 0x6000 && address < 0x8000) {
@@ -1151,7 +1146,7 @@ void interrupt_polling() {
 	}
 }
 
-void synchronize(uint8_t x) {
+void synchronize(uint_fast8_t x) {
 	apu_wait += addcycle;
 	ppu_wait += addcycle * 3;
 	cpucc += addcycle;

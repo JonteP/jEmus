@@ -23,7 +23,7 @@ typedef struct windowHandle_ {
 	int screenHeight;
 } windowHandle;
 extern windowHandle handleMain, handleNametable;
-extern uint8_t nametableActive, patternActive, paletteActive, isPaused;
+extern uint_fast8_t nametableActive, patternActive, paletteActive, isPaused;
 
 SDL_Window *windowMain, *windowNametable;
 SDL_Renderer *renderMain, *renderNametable;

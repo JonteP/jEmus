@@ -8,7 +8,7 @@
 #include "ppu.h"
 #include "cartridge.h"
 
-uint8_t mapperInt = 0;
+uint_fast8_t mapperInt = 0;
 static inline void prg_8_0(uint32_t offset), prg_8_1(uint32_t offset), prg_8_2(uint32_t offset), prg_8_3(uint32_t offset),
 				   prg_16low(uint32_t offset), prg_16high(uint32_t offset), prg_32(uint32_t offset),
 				   chr_8(uint32_t offset), chr_4low(uint32_t offset), chr_4high(uint32_t offset),
@@ -44,9 +44,9 @@ void reset_nrom() {
  * -Battletoads: crashes at level 2 - timing issue
  * */
 
-static inline void reset_axrom(), mapper_axrom(uint8_t);
+static inline void reset_axrom(), mapper_axrom(uint_fast8_t);
 
-void mapper_axrom(uint8_t value) {
+void mapper_axrom(uint_fast8_t value) {
 	prg_32((value & 0x07) * 0x8000);
 	(value & 0x10) ? (cart.mirroring = 3) : (cart.mirroring = 2);
 }
@@ -65,9 +65,9 @@ void reset_axrom() {
  * -bus conflicts
  *
  * */
-static inline void reset_cnrom(), mapper_cnrom(uint8_t);
+static inline void reset_cnrom(), mapper_cnrom(uint_fast8_t);
 
-void mapper_cnrom (uint8_t value) {
+void mapper_cnrom (uint_fast8_t value) {
 	chr_8((value & ((csize >> 13) - 1)) * 0x2000);
 
 }
@@ -88,10 +88,10 @@ void reset_cnrom () {
  *
  */
 
-static inline void reset_uxrom(), mapper_uxrom(uint8_t);
+static inline void reset_uxrom(), mapper_uxrom(uint_fast8_t);
 
-void mapper_uxrom (uint8_t value) {
-	uint8_t bank;
+void mapper_uxrom (uint_fast8_t value) {
+	uint_fast8_t bank;
 	if (!strcmp(cart.slot,"un1rom"))
 		bank = ((value >> 2) & 0x07);
 	else
@@ -123,13 +123,13 @@ void reset_uxrom () {
  */
 
 /* mmc1 globals */
-uint8_t mmc1Shift = 0, mmc1Buffer,
+static uint_fast8_t mmc1Shift = 0, mmc1Buffer,
 		mmc1Reg0, mmc1Reg1, mmc1Reg2, mmc1Reg3;
-uint32_t mmc1RamOffset, mmc1PrgOffset = 0;
+static uint32_t mmc1PrgOffset = 0;
 
-static inline void mapper_mmc1(uint16_t, uint8_t), reset_mmc1(), mmc1_prg_bank_switch(), mmc1_chr_bank_switch();
+static inline void mapper_mmc1(uint_fast16_t, uint_fast8_t), reset_mmc1(), mmc1_prg_bank_switch(), mmc1_chr_bank_switch();
 
-void mapper_mmc1(uint16_t address, uint8_t value) {
+void mapper_mmc1(uint_fast16_t address, uint_fast8_t value) {
 	/* TODO: clean implementation - mmc1 checks write cycle instead */
 	if (!dummywrite) {
 	if (value & 0x80) {
@@ -195,8 +195,8 @@ void mmc1_prg_bank_switch() {
 	if (cart.prgSize == 0x80000)
 		size = (cart.prgSize>>1);
 	else size = cart.prgSize;
-	 uint8_t mmc1PrgSize = (mmc1Reg0 & 0x08); /* 0 32k, 1 16k */
-	 uint8_t mmc1PrgSelect = (mmc1Reg0 & 0x04); /* 0 low, 1 high */
+	 uint_fast8_t mmc1PrgSize = (mmc1Reg0 & 0x08); /* 0 32k, 1 16k */
+	 uint_fast8_t mmc1PrgSelect = (mmc1Reg0 & 0x04); /* 0 low, 1 high */
 	if (mmc1PrgSize) {
 		if (mmc1PrgSelect) { /* switch 0x8000, fix 0xc000 to last bank */
 			prg_16low((mmc1Reg3 & ((size >> 14) - 1)) * 0x4000 + mmc1PrgOffset);
@@ -213,7 +213,7 @@ void mmc1_prg_bank_switch() {
 }
 
 void mmc1_chr_bank_switch() {
-	uint8_t mmc1ChrSize = (mmc1Reg0 & 0x10); /* 0 8k,  1 4k */
+	uint_fast8_t mmc1ChrSize = (mmc1Reg0 & 0x10); /* 0 8k,  1 4k */
 	if (mmc1ChrSize) { /* 4k banks */
 		chr_4low((mmc1Reg1 & ((csize >> 12) - 1)) * 0x1000);
 		chr_4high((mmc1Reg2 & ((csize >> 12) - 1)) * 0x1000);
@@ -256,11 +256,11 @@ void reset_mmc1() {
  *-Rockman 5: IRQ issues - shaking screen
  */
 
-uint8_t mmc3BankSelect, mmc3Reg[0x08], mmc3IrqEnable,
+static uint_fast8_t mmc3BankSelect, mmc3Reg[0x08], mmc3IrqEnable,
 		mmc3PramProtect, mmc3IrqLatch, mmc3IrqReload, mmc3IrqCounter;
-static inline void mapper_mmc3(uint16_t, uint8_t), reset_mmc3(), mmc3_prg_bank_switch(), mmc3_chr_bank_switch();
+static inline void mapper_mmc3(uint_fast16_t, uint_fast8_t), reset_mmc3(), mmc3_prg_bank_switch(), mmc3_chr_bank_switch();
 
-void mapper_mmc3 (uint16_t address, uint8_t value) {
+void mapper_mmc3 (uint_fast16_t address, uint_fast8_t value) {
 	switch ((address>>13) & 3) {
 			case 0:
 				if (!(address %2)) { /* Bank select (0x8000) */
@@ -332,14 +332,7 @@ void mmc3_chr_bank_switch() {
 		chr_1_7(mmc3Reg[5] * 0x400);
 	}
 }
-/*
- * when 2006 is updated
- * when 2007 is written and not rendering and after vram increments?
- * when data is fetched during rendering
- * when 2007 is read and... what?
- *
- * create a ppuwrite as well to avoid clocking on writes
- */
+
 void mmc3_irq ()
 {
 	if (mmc3IrqReload)
@@ -382,14 +375,13 @@ void reset_mmc3 () {
 /*/////////////////////////////////*/
 
 
-static inline void reset_g101(), mapper_g101(uint16_t, uint8_t);
+static inline void reset_g101(), mapper_g101(uint_fast16_t, uint_fast8_t), g101_prg_bank_switch(), g101_chr_bank_switch();
 
-uint8_t g101Prg0, g101Prg1, g101PrgMode,
+static uint_fast8_t g101Prg0, g101Prg1, g101PrgMode,
 	    g101Chr0, g101Chr1, g101Chr2, g101Chr3,
 		g101Chr4, g101Chr5, g101Chr6, g101Chr7;
-static inline void g101_prg_bank_switch(), g101_chr_bank_switch();
 
-void mapper_g101(uint16_t address, uint8_t value)
+void mapper_g101(uint_fast16_t address, uint_fast8_t value)
 {
 	if ((address & 0xf007) >= 0x8000 && (address & 0xf007) < 0x9000) {
 		g101Prg0 = value;
@@ -466,6 +458,9 @@ void reset_g101() {
 /*            Konami VRC           */
 /*/////////////////////////////////*/
 
+static uint_fast8_t vrcIrqControl = 0, vrcIrqLatch, vrcIrqCounter, vrcIrqCycles[3] = { 114, 114, 113 }, vrcIrqCc = 0;
+static int16_t vrcIrqPrescale;
+
 /*/////////////////////////////////*/
 /*            VRC 2 / 4            */
 /*/////////////////////////////////*/
@@ -477,15 +472,14 @@ void reset_g101() {
  *
  */
 
-uint8_t vrc24SwapMode, vrcIrqControl = 0, vrcIrqInt, vrcIrqLatch, vrcIrqCounter,
-		vrcPrg0, vrcPrg1, vrcIrqCycles[3] = { 114, 114, 113 }, vrcIrqCc = 0;
-uint16_t vrcChr0 = 0, vrcChr1 = 0, vrcChr2 = 0, vrcChr3 = 0,
+static uint_fast8_t vrc24SwapMode, vrcPrg0, vrcPrg1;
+static uint_fast16_t vrcChr0 = 0, vrcChr1 = 0, vrcChr2 = 0, vrcChr3 = 0,
 		 vrcChr4 = 0, vrcChr5 = 0, vrcChr6 = 0, vrcChr7 = 0;
-int16_t vrcIrqPrescale;
 
-static inline void mapper_vrc24(uint16_t, uint8_t), reset_vrc24(), vrc24_chr_bank_switch(), vrc24_prg_bank_switch();
 
-void mapper_vrc24(uint16_t address, uint8_t value) {
+static inline void mapper_vrc24(uint_fast16_t, uint_fast8_t), reset_vrc24(), vrc24_chr_bank_switch(), vrc24_prg_bank_switch();
+
+void mapper_vrc24(uint_fast16_t address, uint_fast8_t value) {
 	/* reroute addressing */
 	if (cart.vrcPrg1 > 1)
 		address = (address & 0xff00) | ((address>>(cart.vrcPrg1-1)) & 0x02) | ((address>>cart.vrcPrg0) & 0x01);
@@ -577,7 +571,7 @@ void mapper_vrc24(uint16_t address, uint8_t value) {
 		vrcIrqControl = (value & 0x07);
 		if (vrcIrqControl & 0x02) {
 			vrcIrqCounter = vrcIrqLatch;
-			vrcIrqPrescale = vrcIrqCycles[0]; /* in reality, it counts CPU cycles */
+			vrcIrqPrescale = vrcIrqCycles[0];
 			vrcIrqCc = 0;
 		}
 		mapperInt = 0;
@@ -621,14 +615,14 @@ void vrc24_chr_bank_switch() {
 			chr_1_7(((vrcChr7 >> 1) & ((cart.chrSize >> 10) -1)) * 0x400);
 		}
 	} else if (!strcmp(cart.slot,"vrc4")){
-		chr_1_0(vrcChr0 * 0x400);
-		chr_1_1(vrcChr1 * 0x400);
-		chr_1_2(vrcChr2 * 0x400);
-		chr_1_3(vrcChr3 * 0x400);
-		chr_1_4(vrcChr4 * 0x400);
-		chr_1_5(vrcChr5 * 0x400);
-		chr_1_6(vrcChr6 * 0x400);
-		chr_1_7(vrcChr7 * 0x400);
+		chr_1_0((vrcChr0 & ((cart.chrSize >> 10) -1)) * 0x400);
+		chr_1_1((vrcChr1 & ((cart.chrSize >> 10) -1)) * 0x400);
+		chr_1_2((vrcChr2 & ((cart.chrSize >> 10) -1)) * 0x400);
+		chr_1_3((vrcChr3 & ((cart.chrSize >> 10) -1)) * 0x400);
+		chr_1_4((vrcChr4 & ((cart.chrSize >> 10) -1)) * 0x400);
+		chr_1_5((vrcChr5 & ((cart.chrSize >> 10) -1)) * 0x400);
+		chr_1_6((vrcChr6 & ((cart.chrSize >> 10) -1)) * 0x400);
+		chr_1_7((vrcChr7 & ((cart.chrSize >> 10) -1)) * 0x400);
 	}
 }
 
@@ -639,7 +633,132 @@ void reset_vrc24() {
 	prg_8_3(cart.prgSize-0x2000);
 	vrc24_prg_bank_switch();
 	chr_8(0);
-	vrc24SwapMode = 0;
+}
+
+/*/////////////////////////////////*/
+/*              VRC 6              */
+/*/////////////////////////////////*/
+
+static uint_fast8_t vrc6Prg8, vrc6Prg16, vrc6Chr0, vrc6Chr1, vrc6Chr2, vrc6Chr3, vrc6Chr4, vrc6Chr5, vrc6Chr6, vrc6Chr7;
+static inline void mapper_vrc6(uint_fast16_t, uint_fast8_t), reset_vrc6(), vrc6_chr_bank_switch(), vrc6_prg_bank_switch();
+
+void mapper_vrc6(uint_fast16_t address, uint_fast8_t value)
+{
+	if ((address&0xf003) >= 0x8000 && (address&0xf003) <= 0x8003) /* 16k PRG select */
+	{
+		vrc6Prg16 = (value & 0x0f);
+		vrc6_prg_bank_switch();
+	}
+	else if ((address&0xf003) >= 0xc000 && (address&0xf003) <= 0xc003) /* 8k PRG select */
+	{
+		vrc6Prg8 = (value & 0x1f);
+		vrc6_prg_bank_switch();
+	}
+	else if ((address&0xf003) == 0xb003) /* PPU banking */
+	{
+	/*	printf("Mirroring: %02x, %i,%i\n",value,scanline,ppudot); */
+		switch (value & 0x0c)
+		{
+		case 0x00:
+			cart.mirroring = 1;
+			break;
+		case 0x04:
+			cart.mirroring = 0;
+			break;
+		case 0x08:
+			cart.mirroring = 2;
+			break;
+		case 0x0c:
+			cart.mirroring = 3;
+			break;
+		}
+		wramEnable = (value >> 7);
+	}
+	else if ((address&0xf003) == 0xd000) /* CHR select */
+	{
+		vrc6Chr0 = value;
+		vrc6_chr_bank_switch();
+	}
+	else if ((address&0xf003) == 0xd001) /* CHR select */
+	{
+		vrc6Chr1 = value;
+		vrc6_chr_bank_switch();
+	}
+	else if ((address&0xf003) == 0xd002) /* CHR select */
+	{
+		vrc6Chr2 = value;
+		vrc6_chr_bank_switch();
+	}
+	else if ((address&0xf003) == 0xd003) /* CHR select */
+	{
+		vrc6Chr3 = value;
+		vrc6_chr_bank_switch();
+	}
+	else if ((address&0xf003) == 0xe000) /* CHR select */
+	{
+		vrc6Chr4 = value;
+		vrc6_chr_bank_switch();
+	}
+	else if ((address&0xf003) == 0xe001) /* CHR select */
+	{
+		vrc6Chr5 = value;
+		vrc6_chr_bank_switch();
+	}
+	else if ((address&0xf003) == 0xe002) /* CHR select */
+	{
+		vrc6Chr6 = value;
+		vrc6_chr_bank_switch();
+	}
+	else if ((address&0xf003) == 0xe003) /* CHR select */
+	{
+		vrc6Chr7 = value;
+		vrc6_chr_bank_switch();
+	}
+	else if ((address&0xf003) == 0xf000) /* IRQ Latch */
+	{
+		vrcIrqLatch = value;
+	}
+	else if ((address&0xf003) == 0xf001) /* IRQ Control */
+	{
+		vrcIrqControl = (value & 0x07);
+		if (vrcIrqControl & 0x02)
+		{
+			vrcIrqCounter = vrcIrqLatch;
+			vrcIrqPrescale = vrcIrqCycles[0];
+			vrcIrqCc = 0;
+		}
+		mapperInt = 0;
+	}
+	else if ((address&0xf003) == 0xf002) /* IRQ Acknowledge */
+	{
+		mapperInt = 0;
+		vrcIrqControl = (vrcIrqControl & 0x04) | ((vrcIrqControl & 0x01) << 1);
+	}
+}
+
+void vrc6_chr_bank_switch()
+{
+	chr_1_0((vrc6Chr0 & ((cart.chrSize >> 10) -1)) * 0x400);
+	chr_1_1((vrc6Chr1 & ((cart.chrSize >> 10) -1)) * 0x400);
+	chr_1_2((vrc6Chr2 & ((cart.chrSize >> 10) -1)) * 0x400);
+	chr_1_3((vrc6Chr3 & ((cart.chrSize >> 10) -1)) * 0x400);
+	chr_1_4((vrc6Chr4 & ((cart.chrSize >> 10) -1)) * 0x400);
+	chr_1_5((vrc6Chr5 & ((cart.chrSize >> 10) -1)) * 0x400);
+	chr_1_6((vrc6Chr6 & ((cart.chrSize >> 10) -1)) * 0x400);
+	chr_1_7((vrc6Chr7 & ((cart.chrSize >> 10) -1)) * 0x400);
+}
+
+void vrc6_prg_bank_switch()
+{
+	prg_16low((vrc6Prg16 & ((cart.prgSize >> 14) - 1)) * 0x4000);
+	prg_8_2((vrc6Prg8 & ((cart.prgSize >> 13) - 1)) * 0x2000);
+	prg_8_3(cart.prgSize - 0x2000);
+}
+
+void reset_vrc6()
+{
+	prg_8_3(cart.prgSize-0x2000);
+	chr_8(0);
 }
 
 void vrc_clock_irq()
@@ -821,13 +940,15 @@ void init_mapper() {
 	} else if (!strcmp(cart.slot,"vrc2") ||
 			!strcmp(cart.slot,"vrc4")) {
 		reset_vrc24();
+	} else if (!strcmp(cart.slot,"vrc6")) {
+		reset_vrc6();
 	} else if (!strcmp(cart.slot,"g101")) {
 		reset_g101();
 	} else
 		reset_default();
 }
 
-void write_mapper_register(uint16_t address, uint8_t value) {
+void write_mapper_register(uint_fast16_t address, uint_fast8_t value) {
 
 	if ((!strcmp(cart.slot,"sxrom") ||
 			!strcmp(cart.slot,"sxrom_a") ||
@@ -852,6 +973,9 @@ void write_mapper_register(uint16_t address, uint8_t value) {
 	else if (!strcmp(cart.slot,"vrc2") ||
 				!strcmp(cart.slot,"vrc4")) {
 		mapper_vrc24(address,value);
+	}
+	else if (!strcmp(cart.slot,"vrc6")) {
+		mapper_vrc6(address,value);
 	}
 	else if (!strcmp(cart.slot,"g101")) {
 		mapper_g101(address,value);

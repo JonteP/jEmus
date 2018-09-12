@@ -12,24 +12,24 @@ static inline void extract_xml_data(xmlNode * s_node), xml_hash_compare(xmlNode 
 				   load_by_header();
 
 /* iNES */
-const uint8_t id[4] = { 0x4e, 0x45, 0x53, 0x1a };
-uint8_t header[0x10];
+const uint_fast8_t id[4] = { 0x4e, 0x45, 0x53, 0x1a };
+uint_fast8_t header[0x10];
 
 /* XML */
 xmlDoc *nesXml;
 xmlNode *root;
 xmlChar *sphash, *schash;
-uint8_t hashMatch = 0;
+uint_fast8_t hashMatch = 0;
 
 /* common cartridge related */
 gameInfos gameInfo;
 gameFeatures cart;
 int psize, csize;
 unsigned char phash[SHA_DIGEST_LENGTH], chash[SHA_DIGEST_LENGTH];
-uint8_t *prg, *chr, *bwram, *wram, wramEnable = 0, *wramSource;
+uint_fast8_t *prg, *chr, *bwram, *wram, wramEnable = 0, *wramSource;
 FILE *romFile, *bwramFile;
 char *bwramName;
-uint8_t mirroring[4][4] = { { 0, 0, 1, 1 }, 	/* horizontal mirroring 	*/
+uint_fast8_t mirroring[4][4] = { { 0, 0, 1, 1 }, 	/* horizontal mirroring 	*/
 							{ 0, 1, 0, 1 }, 	/* vertical mirroring 		*/
 							{ 0, 0, 0, 0 },		/* one screen, low page 	*/
 							{ 1, 1, 1, 1 } };	/* one screen, high page 	*/
@@ -143,7 +143,7 @@ void set_wram()
 
 void load_by_header()
 {
-	uint8_t mapper = ((header[7] & 0xf0) | ((header[6] & 0xf0) >> 4));
+	uint_fast8_t mapper = ((header[7] & 0xf0) | ((header[6] & 0xf0) >> 4));
 	cart.prgSize = psize;
 	if (csize)
 	{
@@ -177,6 +177,9 @@ void load_by_header()
 		set_wram();
 		cart.vrcPrg1 = 7;
 		cart.vrcPrg0 = 6;
+		break;
+	case 24:
+		sprintf(cart.slot,"%s","vrc6");
 		break;
 	case 180:
 		sprintf(cart.slot,"%s","unrom_cc");

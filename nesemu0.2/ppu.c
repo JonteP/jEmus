@@ -10,31 +10,32 @@
 #include "6502.h"
 #include "cartridge.h"
 
-static inline void check_nmi(), horizontal_t_to_v(), vertical_t_to_v(), ppu_render(), reload_tile_shifter(), toggle_a12(uint16_t), ppuwrite(uint16_t, uint8_t);
-static inline uint8_t * ppuread(uint16_t);
+static inline void check_nmi(), horizontal_t_to_v(), vertical_t_to_v(), ppu_render(), reload_tile_shifter(), toggle_a12(uint_fast16_t), ppuwrite(uint_fast16_t, uint_fast8_t);
+static inline uint_fast8_t * ppuread(uint_fast16_t);
 
-uint8_t *chrSlot[0x8], nameTableA[0x400], nameTableB[0x400], palette[0x20], oam[0x100], frameBuffer[SHEIGHT][SWIDTH], nameBuffer[SHEIGHT][SWIDTH<<1], patternBuffer[SWIDTH>>1][SWIDTH], paletteBuffer[SWIDTH>>4][SWIDTH>>1];
-uint8_t ppuOamAddress, vblank_period = 0, nmiSuppressed = 0;
-uint8_t throttle = 1;
+uint_fast8_t *chrSlot[0x8], oam[0x100], frameBuffer[SHEIGHT][SWIDTH], nameBuffer[SHEIGHT][SWIDTH<<1], patternBuffer[SWIDTH>>1][SWIDTH], paletteBuffer[SWIDTH>>4][SWIDTH>>1];
+uint_fast8_t ppuOamAddress;
+uint_fast8_t throttle = 1;
 int16_t ppudot = 0, scanline = 0;
 
-uint8_t primOam[0x100], secOam[0x20];
+static uint_fast8_t nameTableA[0x400], nameTableB[0x400], palette[0x20];
+static uint_fast8_t vblank_period = 0, nmiSuppressed = 0, secOam[0x20];
 
 /* PPU internal registers */
-uint8_t ppuW = 0, ppuX = 0;
-uint16_t ppuT, ppuV;
+static uint_fast8_t ppuW = 0, ppuX = 0;
+static uint_fast16_t ppuT, ppuV;
 
 /* PPU external registers */
-uint8_t ppuController, ppuMask, ppuData, ppuStatusNmi = 0, ppuStatusSpriteZero = 0, ppuStatusOverflow = 0;
+static uint_fast8_t ppuController, ppuMask, ppuData, ppuStatusNmi = 0, ppuStatusSpriteZero = 0, ppuStatusOverflow = 0;
 
 uint32_t frame = 0, nmiFlipFlop = 0;
 int32_t ppucc = 0;
 
-uint8_t miniCount = 0, ppuStatusNmiDelay = 0;
+static uint_fast8_t ppuStatusNmiDelay = 0;
 
 static inline void none(), seZ(), seRD(), seWD(), seRR(), seWW(), tfNT(), tfAT(), tfLT(), tfHT(), sfNT(), sfAT(), sfLT(), sfHT(), dfNT(), hINC(), vINC();
 
-void run_ppu (uint16_t ntimes) {
+void run_ppu (uint_fast16_t ntimes) {
 	static void (*spriteEvaluation[0x341])() = {
 	seZ,  seRD, seWD, seRD, seWD, seRD, seWD, seRD, seWD, seRD, seWD, seRD, seWD, seRD, seWD, seRD,
 	seWD, seRD, seWD, seRD, seWD, seRD, seWD, seRD, seWD, seRD, seWD, seRD, seWD, seRD, seWD, seRD,
@@ -160,10 +161,11 @@ void run_ppu (uint16_t ntimes) {
 	ppu_wait--;
 	}
 }
-uint8_t bgData, ntData, attData, tileLow, tileHigh, spriteLow, spriteHigh;
-uint16_t tileShifterLow, tileShifterHigh, attShifterHigh, attShifterLow, colShifter;
-uint8_t oamOverflow, nSprite1, nSprite2, nData, data, nData2;
-uint8_t spriteBuffer[256], zeroBuffer[256], priorityBuffer[256], isSpriteZero = 0xff;
+static uint_fast8_t bgData, ntData, attData, tileLow, tileHigh, spriteLow, spriteHigh;
+static uint_fast16_t tileShifterLow, tileShifterHigh, attShifterHigh, attShifterLow;
+static uint_fast8_t oamOverflow, nSprite1, nSprite2, nData, data, nData2;
+static uint_fast8_t spriteBuffer[256], zeroBuffer[256], priorityBuffer[256], isSpriteZero = 0xff;
+
 void none () {}
 void seZ ()
 {
@@ -197,6 +199,7 @@ void seRR ()
 		}
 	}
 }
+
 void seWW ()
 {
 	if (!oamOverflow)
@@ -220,36 +223,38 @@ void seWW ()
 		}
 	}
 }
+
 void tfNT ()
 {
-	uint16_t a = (0x2000 | (ppuV&0xfff));
+	uint_fast16_t a = (0x2000 | (ppuV&0xfff));
 	ntData = *ppuread(a);
 	toggle_a12(a);
 }
 void tfAT ()
 {
-	uint16_t a = (0x2fc0 | ((ppuV >> 4) & 0x38) | ((ppuV >> 2) & 0x07));
+	uint_fast16_t a = (0x2fc0 | ((ppuV >> 4) & 0x38) | ((ppuV >> 2) & 0x07));
 	bgData = *ppuread(a);
 	attData = ((bgData >> ((((ppuV >> 1) & 1) | ((ppuV >> 5) & 2)) << 1)) & 3);
 	toggle_a12(a);
 }
 void tfLT ()
 {
-	uint16_t a = ((ntData << 4) + ((ppuController & 0x10) << 8) + ((ppuV >> 12) & 7));
+	uint_fast16_t a = ((ntData << 4) + ((ppuController & 0x10) << 8) + ((ppuV >> 12) & 7));
 	tileLow = *ppuread(a);
 	toggle_a12(a);
 }
 void tfHT ()
 {
-	uint16_t a = ((ntData << 4) + ((ppuController & 0x10) << 8) + ((ppuV >> 12) & 7) + 8);
+	uint_fast16_t a = ((ntData << 4) + ((ppuController & 0x10) << 8) + ((ppuV >> 12) & 7) + 8);
 	tileHigh = *ppuread(a);
 	toggle_a12(a);
 }
 void sfNT () { ppuOamAddress = 0; }
 void sfAT () { ppuOamAddress = 0; }
 
-uint8_t cSprite, *sprite, yOffset, flipY, spriteRow;
-uint16_t patternOffset;
+static uint_fast8_t cSprite, *sprite, yOffset, flipY, spriteRow;
+static uint_fast16_t patternOffset;
+
 void sfLT ()
 {
 	if (scanline < 240)
@@ -269,31 +274,32 @@ void sfLT ()
 	ppuOamAddress = 0;
 	}
 }
+
 void sfHT ()
 {
 	if (scanline < 240)
 	{
-	spriteHigh = *ppuread(patternOffset + spriteRow + 8);
-	ppuOamAddress = 0;
-	uint8_t flipX = ((sprite[2] >> 6) & 1);
-	uint8_t nPalette = (sprite[2] & 3);
+		spriteHigh = *ppuread(patternOffset + spriteRow + 8);
+		ppuOamAddress = 0;
+		uint_fast8_t flipX = ((sprite[2] >> 6) & 1);
+		uint_fast8_t nPalette = (sprite[2] & 3);
 	/* decode pattern data and store in buffer */
-	for (int pcol = 0; pcol < 8; pcol++)
-	{
-		uint8_t spritePixel = (7 - pcol - flipX * (7 - (pcol << 1)));
-		uint8_t pixelData = (((spriteLow >> spritePixel) & 0x01) +
+		for (int pcol = 0; pcol < 8; pcol++)
+		{
+			uint_fast8_t spritePixel = (7 - pcol - flipX * (7 - (pcol << 1)));
+			uint_fast8_t pixelData = (((spriteLow >> spritePixel) & 0x01) +
 						   (((spriteHigh >> spritePixel) & 0x01) << 1));
-		toggle_a12(patternOffset + spriteRow);
-		if (pixelData && (spriteBuffer[sprite[3] + pcol])==0xff && !(sprite[3] == 0xff))
-		{/* TODO: this PPU access probably should not be here, screws up mmc3 irq? */
-			spriteBuffer[sprite[3] + pcol] = *ppuread(0x3f10 + (nPalette << 2) + pixelData);
-			if (isSpriteZero == cSprite)
-			{
-				zeroBuffer[sprite[3] + pcol] = 1;
+			toggle_a12(patternOffset + spriteRow);
+			if (pixelData && (spriteBuffer[sprite[3] + pcol])==0xff && !(sprite[3] == 0xff))
+			{/* TODO: this PPU access probably should not be here, screws up mmc3 irq? */
+				spriteBuffer[sprite[3] + pcol] = *ppuread(0x3f10 + (nPalette << 2) + pixelData);
+				if (isSpriteZero == cSprite)
+				{
+					zeroBuffer[sprite[3] + pcol] = 1;
+				}
+				priorityBuffer[sprite[3] + pcol] = (sprite[2] & 0x20);
 			}
-			priorityBuffer[sprite[3] + pcol] = (sprite[2] & 0x20);
 		}
-	}
 	}
 }
 void dfNT () { }
@@ -319,7 +325,7 @@ void vINC()
 		else
 		{
 			ppuV &= ~0x7000;
-			uint8_t coarseY = ((ppuV & 0x3e0) >> 5);
+			uint_fast8_t coarseY = ((ppuV & 0x3e0) >> 5);
 			if (coarseY == 29)
 			{
 				coarseY = 0;
@@ -354,12 +360,12 @@ void ppu_render()
 		}
 		if (ppudot >=2)
 		{
-		uint8_t pValue;
+		uint_fast8_t pValue;
 		int16_t cDot = ppudot - 2;
 		pValue = ((attShifterHigh >> (12 - ppuX)) & 8) | ((attShifterLow >> (13 - ppuX)) & 4) | ((tileShifterHigh >> (14 - ppuX)) & 2) | ((tileShifterLow >> (15 - ppuX)) & 1);
-		uint8_t bgColor = (!(ppuMask & 0x18) && (ppuV & 0x3f00) == 0x3f00) ? *ppuread(ppuV & 0x3fff) : *ppuread(0x3f00);
-		uint8_t isSprite = (spriteBuffer[cDot]!=0xff && (ppuMask & 0x10) && ((cDot > 7) || (ppuMask & 0x04)));
-		uint8_t isBg = ((pValue & 0x03) && (ppuMask & 0x08) && ((cDot > 7) || (ppuMask & 0x02)));
+		uint_fast8_t bgColor = (!(ppuMask & 0x18) && (ppuV & 0x3f00) == 0x3f00) ? *ppuread(ppuV & 0x3fff) : *ppuread(0x3f00);
+		uint_fast8_t isSprite = (spriteBuffer[cDot]!=0xff && (ppuMask & 0x10) && ((cDot > 7) || (ppuMask & 0x04)));
+		uint_fast8_t isBg = ((pValue & 0x03) && (ppuMask & 0x08) && ((cDot > 7) || (ppuMask & 0x02)));
 		if (scanline < 240)
 		{
 			if (isSprite && isBg)
@@ -421,10 +427,10 @@ void vertical_t_to_v()
 }
 
 void draw_nametable () {
-	uint8_t	*tilesrcA, npalA, attsrcA, paletteIndexA;
-	uint16_t tileOffsetA;
-	uint8_t	*tilesrcB, npalB, attsrcB, paletteIndexB;
-	uint16_t tileOffsetB;
+	uint_fast8_t	*tilesrcA, npalA, attsrcA, paletteIndexA;
+	uint_fast16_t tileOffsetA;
+	uint_fast8_t	*tilesrcB, npalB, attsrcB, paletteIndexB;
+	uint_fast16_t tileOffsetB;
 	for (int tileRow = 0; tileRow < 30; tileRow++) {
 		for (int tileColumn = 0; tileColumn < 32; tileColumn++) {
 			tileOffsetA = 16 * nameTableA[tileRow * 32 + tileColumn] + ((ppuController & 0x10) <<8);
@@ -455,10 +461,10 @@ void draw_nametable () {
 }
 
 void draw_pattern () {
-	uint8_t	*tilesrcA, npalA;
-	uint16_t tileOffsetA, palSourceA;
-	uint8_t	*tilesrcB, npalB;
-	uint16_t tileOffsetB, palSourceB;
+	uint_fast8_t	*tilesrcA, npalA;
+	uint_fast16_t tileOffsetA, palSourceA;
+	uint_fast8_t	*tilesrcB, npalB;
+	uint_fast16_t tileOffsetB, palSourceB;
 	for (int tileRow = 0; tileRow < 16; tileRow++) {
 		for (int tileColumn = 0; tileColumn < 16; tileColumn++) {
 			tileOffsetA = 16 * ((tileRow << 4) + tileColumn);
@@ -501,9 +507,9 @@ void draw_palette () {
 	}
 }
 
-uint8_t ppureg = 0, vbuff = 0;
-uint8_t read_ppu_register(uint16_t addr) {
-	uint8_t tmpval8;
+static uint_fast8_t ppureg = 0, vbuff = 0;
+uint_fast8_t read_ppu_register(uint_fast16_t addr) {
+	unsigned int tmpval8;
 	switch (addr & 0x2007) {
 	case 0x2002:
 		if (ppucc == 343 || ppucc == 344) {/* suppress if read and set at same time */
@@ -536,7 +542,7 @@ uint8_t read_ppu_register(uint16_t addr) {
 	return tmpval8;
 }
 
-void write_ppu_register(uint16_t addr, uint8_t tmpval8) {
+void write_ppu_register(uint_fast16_t addr, uint_fast8_t tmpval8) {
 	ppureg = tmpval8;
 	switch (addr & 0x2007) {
 	case 0x2000:
@@ -598,7 +604,9 @@ void write_ppu_register(uint16_t addr, uint8_t tmpval8) {
 			if ((ppuV & 0x3fff) >= 0x3f00)
 				ppuwrite((ppuV & 0x3fff),(ppuData & 0x3f));
 			else if ((ppuV & 0x3fff) >= 0x2000 || cart.cramSize)
+			{
 				ppuwrite((ppuV & 0x3fff),ppuData);
+			}
 			ppuV += (ppuController & 0x04) ? 32 : 1;
 			toggle_a12(ppuV);
 			break;
@@ -611,7 +619,7 @@ void write_ppu_register(uint16_t addr, uint8_t tmpval8) {
 	}
 }
 
-uint8_t * ppuread(uint16_t address)
+uint_fast8_t * ppuread(uint_fast16_t address)
 {
 	if (address < 0x2000) /* pattern tables */
 	{
@@ -633,7 +641,7 @@ uint8_t * ppuread(uint16_t address)
 	return 0;
 }
 
-void ppuwrite(uint16_t address, uint8_t value) {
+void ppuwrite(uint_fast16_t address, uint_fast8_t value) {
 	if (address < 0x2000 && cart.cramSize) /* pattern tables */
 	{
 		chrSlot[(address>>10)][address&0x3ff] = value;
@@ -665,8 +673,8 @@ void check_nmi()
 	}
 }
 
-uint16_t lastAddress = 0x0000;
-void toggle_a12(uint16_t address)
+uint_fast16_t lastAddress = 0x0000;
+void toggle_a12(uint_fast16_t address)
 {
 	if ((address & 0x1000) && ((address ^ lastAddress) & 0x1000) && !strcmp(cart.slot,"txrom"))
 	{

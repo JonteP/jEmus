@@ -1,4 +1,5 @@
 #include "my_sdl.h"
+#include "SDL.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -10,12 +11,12 @@
 #include "6502.h"
 
 SDL_AudioSpec AudioSettings = {0};
-uint8_t nametableActive = 0, patternActive = 0, paletteActive = 0, isPaused = 0, fullscreen = 0;
+uint_fast8_t nametableActive = 0, patternActive = 0, paletteActive = 0, isPaused = 0, fullscreen = 0;
 uint16_t pulseQueueCounter = 0;
 
 					/*       00      |      01      |      02      |      03      |        */
 					/*  R  | G  | B  | R  | G  | B  | R  | G  | B  | R  | G  | B  |        */
-uint8_t colarray[] = { 124, 124, 124,   0,   0, 252,   0,   0, 188,  68,  40, 188, /* 0x00 */
+uint_fast8_t colarray[] = { 124, 124, 124,   0,   0, 252,   0,   0, 188,  68,  40, 188, /* 0x00 */
 					   148,   0, 132, 168,   0,  32, 168,  16,   0, 136,  20,   0, /* 0x04 */
 					    80,  48,   0,   0, 120,   0,   0, 104,   0,   0,  88,   0, /* 0x08 */
 						 0,  64,  88,   0,   0,   0,   0,   0,   0,   0,   0,   0, /* 0x0c */
@@ -35,7 +36,7 @@ uint8_t colarray[] = { 124, 124, 124,   0,   0, 252,   0,   0, 188,  68,  40, 18
 
 					 /*       00      |      01      |      02      |      03      |        */
 					 /*  R  | G  | B  | R  | G  | B  | R  | G  | B  | R  | G  | B  |        */
-uint8_t colblargg[] = {  84,  84,  84,   0,  30, 116,   8,  16, 144,  48,   0, 136,
+uint_fast8_t colblargg[] = {  84,  84,  84,   0,  30, 116,   8,  16, 144,  48,   0, 136,
 					     68,   0, 100,  92,   0,  48,  84,   4,   0,  60,  24,   0,
 						 32,  42,   0,   8,  58,   0,   0,  64,   0,   0,  60,   0,
 						  0,  50,  60,   0,   0,   0,   0,   0,   0,   0,   0,   0,
@@ -54,7 +55,7 @@ uint8_t colblargg[] = {  84,  84,  84,   0,  30, 116,   8,  16, 144,  48,   0, 1
 
 windowHandle handleMain, handleNametable, handlePattern, handlePalette;
 
-static inline void render_window (windowHandle, uint8_t *), idle_time();
+static inline void render_window (windowHandle, uint_fast8_t *), idle_time();
 
 void init_sdl() {
 	SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO);
@@ -69,7 +70,7 @@ void init_sdl() {
 	AudioSettings.format = AUDIO_F32;
 	AudioSettings.channels = CHANNELS;
 	AudioSettings.callback = NULL;
-	AudioSettings.samples = BUFFER_SIZE>>1;
+	AudioSettings.samples = BUFFER_SIZE>>2;
 	SDL_OpenAudio(&AudioSettings, 0);
 	SDL_PauseAudio(0);
 	SDL_ClearQueuedAudio(1);
@@ -146,7 +147,7 @@ void render_frame()
 	}
 }
 
-void render_window (windowHandle handle, uint8_t * buffer)
+void render_window (windowHandle handle, uint_fast8_t * buffer)
 {
 	SDL_Rect SrcR;
 	  SrcR.x = 0;
@@ -168,27 +169,11 @@ void render_window (windowHandle handle, uint8_t * buffer)
 
 void output_sound()
 {
-	int outBuffer;
-	float *SoundBuffer;
-	uint32_t a = SDL_GetQueuedAudioSize(1);
-	if (BUFFER_SIZE > (a/(sizeof(float))))
-	{
-		if (sampleCounter <= (BUFFER_SIZE - (a/(sizeof(float)))))
-			outBuffer = sampleCounter;
-		else
-			outBuffer = (sampleCounter - (BUFFER_SIZE - (a/(sizeof(float)))));
-		SoundBuffer = malloc(outBuffer*sizeof(float));
-		for(int i=0;i<outBuffer;i++) {
-			SoundBuffer[i] = sampleBuffer[i];
-		}
-
-	int audioError = SDL_QueueAudio(1, SoundBuffer, (outBuffer<<2));
+	if (!throttle)
+		SDL_ClearQueuedAudio(1);
+	int audioError = SDL_QueueAudio(1, sampleBuffer, (sampleCounter<<2));
 	if (audioError)
 		printf("SDL_QueueAduio failed: %s\n", SDL_GetError());
-	free(SoundBuffer);
-	}
-	else
-		printf("skip\n");
 	sampleCounter = 0;
 }
 
@@ -223,23 +208,24 @@ void io_handle()
 					SDL_SetWindowFullscreen(handleMain.win, 0);
 				break;
 			case SDL_SCANCODE_P:
-				isPaused ^= 1;
+				if (!(event.key.repeat))
+					isPaused ^= 1;
 				break;
-			case SDL_SCANCODE_N:
+			case SDL_SCANCODE_F5:
 				nametableActive ^= 1;
 				if (nametableActive)
 					handleNametable = create_handle ("Nametable", 1000, 100, WWIDTH, WHEIGHT>>1, SWIDTH<<1, SHEIGHT);
 				else if (!nametableActive)
 					destroy_handle (&handleNametable);
 				break;
-			case SDL_SCANCODE_O:
+			case SDL_SCANCODE_F6:
 				patternActive ^= 1;
 				if (patternActive)
 					handlePattern = create_handle ("Pattern table", 1000, 500, WWIDTH, WHEIGHT>>1, SWIDTH, SWIDTH>>1);
 				else if (!patternActive)
 					destroy_handle (&handlePattern);
 				break;
-			case SDL_SCANCODE_C:
+			case SDL_SCANCODE_F4:
 				paletteActive ^= 1;
 				if (paletteActive)
 					handlePalette = create_handle ("Palette", 1000, 1000, WWIDTH>>1, WHEIGHT>>4, SWIDTH>>1, SWIDTH>>4);
