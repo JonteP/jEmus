@@ -579,7 +579,7 @@ void mapper_vrc24(uint_fast16_t address, uint_fast8_t value) {
 		mapperInt = 0;
 	} else if ((address&0xf003) == 0xf003) { /* IRQ Acknowledge */
 		mapperInt = 0;
-		vrcIrqControl = ((vrcIrqControl & 0x04) | ((vrcIrqControl & 0x01) << 1) | 0x01);
+		vrcIrqControl = ((vrcIrqControl & 0x04) | ((vrcIrqControl & 0x01) << 1) | (vrcIrqControl & 0x01));
 	}
 }
 
@@ -734,7 +734,7 @@ void mapper_vrc6(uint_fast16_t address, uint_fast8_t value)
 	else if ((address&0xf003) == 0xf002) /* IRQ Acknowledge */
 	{
 		mapperInt = 0;
-		vrcIrqControl = ((vrcIrqControl & 0x04) | ((vrcIrqControl & 0x01) << 1) | 0x01);
+		vrcIrqControl = ((vrcIrqControl & 0x04) | ((vrcIrqControl & 0x01) << 1) | (vrcIrqControl & 0x01));
 	}
 }
 
