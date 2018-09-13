@@ -30,7 +30,7 @@ uint16_t ppu_wait = 0, apu_wait = 0;
 FILE *logfile;
 
 int main() {
-	char *romName = "/home/jonas/eclipse-workspace/mmc1/ninja.nes";
+	char *romName = "/home/jonas/eclipse-workspace/vrc6/akuden.nes";
 	load_rom(romName);
 
 	logfile = fopen("/home/jonas/eclipse-workspace/logfile.txt","w");
@@ -45,6 +45,8 @@ int main() {
 	{
 		opdecode();
 		synchronize(0);
+		if (mapperInt)
+			irqPulled = 1;
 	}
 
 	fclose(logfile);

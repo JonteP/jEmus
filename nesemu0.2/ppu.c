@@ -86,8 +86,6 @@ void run_ppu (uint_fast16_t ntimes) {
 
 
 	while (ntimes) {
-		if (mapperInt)
-			irqPulled = 1;
 		ppudot++;
 		ppucc++;
 
@@ -125,6 +123,7 @@ void run_ppu (uint_fast16_t ntimes) {
 			ppuStatusSpriteZero = 0;
 			nmiPulled = 0;
 			vblank_period = 0;
+			ppuStatusOverflow = 0;
 		}
 		if (ppudot ==2)
 			ppuStatusNmiDelay = 0;
@@ -163,25 +162,29 @@ void run_ppu (uint_fast16_t ntimes) {
 }
 static uint_fast8_t bgData, ntData, attData, tileLow, tileHigh, spriteLow, spriteHigh;
 static uint_fast16_t tileShifterLow, tileShifterHigh, attShifterHigh, attShifterLow;
-static uint_fast8_t oamOverflow, nSprite1, nSprite2, nData, data, nData2;
+static uint_fast8_t oamOverflow1, oamOverflow2, nSprite1, nSprite2, nData, data, nData2;
 static uint_fast8_t spriteBuffer[256], zeroBuffer[256], priorityBuffer[256], isSpriteZero = 0xff;
-
+static uint_fast8_t foundSprites = 0;
 void none () {}
 void seZ ()
 {
 	isSpriteZero = 0xff;
-	oamOverflow = 0;
+	oamOverflow1 = 0;
+	oamOverflow2 = 0;
 	nSprite1 = 0;
 	nSprite2 = 0;
 	nData = 0;
 	nData2 = 0;
+	foundSprites = 0;
 }
 void seRD () { data = 0xff; }
 void seWD () { secOam[(ppudot >> 1) - 1] = data; }
 void seRR ()
 {
+	if (ppudot == 65)
+		nSprite1 = (ppuOamAddress >> 2);
 	if (nSprite1 == 64) {
-		oamOverflow = 1;
+		oamOverflow1 = 1;
 		nSprite1 = 0;
 	}
 	data = oam[(nSprite1 << 2) + nData]; /* read y coordinate */
@@ -191,18 +194,25 @@ void seRR ()
 	}
 	else
 	{
+		if (!nData  && !oamOverflow1)
+		{
+			foundSprites++;
+			if (foundSprites > 8)
+				ppuStatusOverflow = 1;
+		}
 		nData++;
 		if (nData == 4)
 		{
 			nData = 0;
 			nSprite1++;
+
 		}
 	}
 }
 
 void seWW ()
 {
-	if (!oamOverflow)
+	if (!(oamOverflow1 | oamOverflow2))
 	{
 		secOam[(nSprite2 << 2) + nData2] = data;
 		if (nData2 == 3)
@@ -212,7 +222,7 @@ void seWW ()
 			if (nSprite2 == 8)
 			{
 				nSprite2 = 0;
-				oamOverflow = 1;
+				oamOverflow2 = 1;
 			}
 		}
 		else
@@ -534,6 +544,7 @@ uint_fast8_t read_ppu_register(uint_fast16_t addr) {
 		/* TODO: buffer update when reading palette */
 		else if ((ppuV) >= 0x3f00) {
 			tmpval8 = *ppuread(ppuV) & ((ppuMask & 0x01) ? 0x30 : 0xff);
+			vbuff = tmpval8;
 		}
 		ppuV += (ppuController & 0x04) ? 32 : 1;
 		toggle_a12(ppuV);
@@ -550,8 +561,9 @@ void write_ppu_register(uint_fast16_t addr, uint_fast8_t tmpval8) {
 		ppuT &= 0xf3ff;
 		ppuT |= ((ppuController & 3)<<10);
 		if (!(ppuController & 0x80)) {
-			nmiPulled = 0;
+			nmiFlipFlop = 0;
 			nmiSuppressed = 0;
+			nmiPulled = 0;
 		} else if (ppuController & 0x80) {
 			check_nmi();
 		}

@@ -345,7 +345,8 @@ void mmc3_irq ()
 			mmc3IrqReload = 1;
 		}
 	}
-	else if (mmc3IrqCounter > 0){
+	else if (mmc3IrqCounter > 0)
+	{
 		mmc3IrqCounter--;
 		if (mmc3IrqCounter == 0)
 			{
@@ -458,6 +459,7 @@ void reset_g101() {
 /*            Konami VRC           */
 /*/////////////////////////////////*/
 
+static inline void vrc_clock_irq();
 static uint_fast8_t vrcIrqControl = 0, vrcIrqLatch, vrcIrqCounter, vrcIrqCycles[3] = { 114, 114, 113 }, vrcIrqCc = 0;
 static int16_t vrcIrqPrescale;
 
@@ -577,7 +579,7 @@ void mapper_vrc24(uint_fast16_t address, uint_fast8_t value) {
 		mapperInt = 0;
 	} else if ((address&0xf003) == 0xf003) { /* IRQ Acknowledge */
 		mapperInt = 0;
-		vrcIrqControl = (vrcIrqControl & 0x04) | ((vrcIrqControl & 0x01) << 1);
+		vrcIrqControl = ((vrcIrqControl & 0x04) | ((vrcIrqControl & 0x01) << 1) | 0x01);
 	}
 }
 
@@ -732,7 +734,7 @@ void mapper_vrc6(uint_fast16_t address, uint_fast8_t value)
 	else if ((address&0xf003) == 0xf002) /* IRQ Acknowledge */
 	{
 		mapperInt = 0;
-		vrcIrqControl = (vrcIrqControl & 0x04) | ((vrcIrqControl & 0x01) << 1);
+		vrcIrqControl = ((vrcIrqControl & 0x04) | ((vrcIrqControl & 0x01) << 1) | 0x01);
 	}
 }
 

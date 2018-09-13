@@ -144,6 +144,7 @@ void set_wram()
 void load_by_header()
 {
 	uint_fast8_t mapper = ((header[7] & 0xf0) | ((header[6] & 0xf0) >> 4));
+	printf("Mapper: %i\n",mapper);
 	cart.prgSize = psize;
 	if (csize)
 	{
@@ -166,7 +167,7 @@ void load_by_header()
 		set_wram();
 		break;
 	case 3:
-		sprintf(cart.slot,"%s","cnrom");
+		sprintf(cart.slot,"%s","unrom");
 		break;
 	case 4:
 		sprintf(cart.slot,"%s","txrom");

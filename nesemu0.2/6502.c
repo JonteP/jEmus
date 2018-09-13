@@ -102,7 +102,7 @@ void opdecode() {
 		cpucc += 7;
 		interrupt_handle(NMI);
 		nmiPending = 0;
-		irqPending = 0;
+		intDelay = 0;
 	} else if (irqPending && !intDelay) {
 		apu_wait += 7;
 		ppu_wait += 7 * 3;
@@ -944,7 +944,6 @@ void write_cpu_register(uint16_t address, uint_fast8_t value) {
 		pulse2Duty = 0;
 		break;
 	case 0x4008: /* Triangle misc. */
-		if (apuStatus & 4)
 			triControl = value;
 		break;
 	case 0x400a: /* Triangle timer low */

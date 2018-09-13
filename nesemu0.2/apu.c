@@ -108,9 +108,7 @@ void run_apu(uint_fast16_t ntimes) { /* apu cycle times */
 		pulse1Change = (sweep1&8) ? -((pulse1Timer>>sweep1Shift)+1) : (pulse1Timer>>sweep1Shift);
 		pulse2Change = (sweep2&8) ? -(pulse2Timer>>sweep2Shift) : (pulse2Timer>>sweep2Shift);
 		if ((pulse1Change + pulse1Timer) > 0x7ff || pulse1Timer < 8)
-		{
 			pulse1Mute = 1;
-		}
 		else
 			pulse1Mute = 0;
 
