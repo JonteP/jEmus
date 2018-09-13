@@ -642,6 +642,8 @@ void reset_vrc24() {
 /*/////////////////////////////////*/
 
 static uint_fast8_t vrc6Prg8, vrc6Prg16, vrc6Chr0, vrc6Chr1, vrc6Chr2, vrc6Chr3, vrc6Chr4, vrc6Chr5, vrc6Chr6, vrc6Chr7;
+static uint_fast8_t vrc6Pulse1Mode, vrc6Pulse1Duty, vrc6Pulse1Volume, vrc6Pulse2Mode, vrc6Pulse2Duty, vrc6Pulse2Volume, vrc6SawAccumulator, vrc6Pulse1Enable, vrc6Pulse2Enable, vrc6SawEnable;
+static uint_fast16_t vrc6Pulse1Period, vrc6Pulse2Period, vrc6SawPeriod;
 static inline void mapper_vrc6(uint_fast16_t, uint_fast8_t), reset_vrc6(), vrc6_chr_bank_switch(), vrc6_prg_bank_switch();
 
 void mapper_vrc6(uint_fast16_t address, uint_fast8_t value)
@@ -735,6 +737,57 @@ void mapper_vrc6(uint_fast16_t address, uint_fast8_t value)
 	{
 		mapperInt = 0;
 		vrcIrqControl = ((vrcIrqControl & 0x04) | ((vrcIrqControl & 0x01) << 1) | (vrcIrqControl & 0x01));
+	}
+	else if ((address&0xf003) == 0x9000) /* Pulse 1 control */
+	{
+		vrc6Pulse1Mode = (value & 0x80);
+		vrc6Pulse1Duty = ((value >> 4) & 7);
+		vrc6Pulse1Volume = (value & 0xf);
+	}
+	else if ((address&0xf003) == 0x9001) /* Pulse 1 period low */
+	{
+		vrc6Pulse1Period = ((vrc6Pulse1Period & 0x0f00) | value);
+	}
+	else if ((address&0xf003) == 0x9002) /* Pulse 1 period high */
+	{
+		vrc6Pulse1Period = ((vrc6Pulse1Period & 0x00ff) | ((value & 0xf) << 8));
+		vrc6Pulse1Enable = (value & 0x80);
+	}
+	else if ((address&0xf003) == 0x9003) /* Pulse 1 frequency */
+	{
+		/* unused by commerical games */
+	}
+	else if ((address&0xf003) == 0xa000) /* Pulse 2 control */
+	{
+		vrc6Pulse2Mode = (value & 0x80);
+		vrc6Pulse2Duty = ((value >> 4) & 7);
+		vrc6Pulse2Volume = (value & 0xf);
+	}
+	else if ((address&0xf003) == 0xa001) /* Pulse 2 period low */
+	{
+		vrc6Pulse2Period = ((vrc6Pulse2Period & 0x0f00) | value);
+	}
+	else if ((address&0xf003) == 0xa002) /* Pulse 2 period high */
+	{
+		vrc6Pulse2Period = ((vrc6Pulse2Period & 0x00ff) | ((value & 0xf) << 8));
+		vrc6Pulse2Enable = (value & 0x80);
+	}
+	else if ((address&0xf003) == 0xa003) /* Pulse 2 frequency */
+	{
+		/* unused by commerical games */
+	}
+	else if ((address&0xf003) == 0xb000) /* Saw accumulator */
+	{
+		vrc6SawAccumulator = (value & 0x3f);
+	}
+	else if ((address&0xf003) == 0xb001) /* Saw period low */
+	{
+		vrc6SawPeriod = ((vrc6SawPeriod & 0x0f00) | value);
+	}
+	else if ((address&0xf003) == 0xb002) /* Saw period high */
+	{
+		vrc6SawPeriod = ((vrc6SawPeriod & 0x00ff) | ((value & 0xf) << 8));
+		vrc6SawEnable = (value & 0x80);
 	}
 }
 
