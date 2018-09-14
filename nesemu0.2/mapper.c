@@ -533,13 +533,6 @@ void reset_vrc1()
 /*            VRC 2 / 4            */
 /*/////////////////////////////////*/
 
-/* TODO:
- *
- *-Microwire interface in VRC2
- *-readback of written value in some games...
- *
- */
-
 static uint_fast8_t vrc24SwapMode, vrcPrg0, vrcPrg1;
 static uint_fast16_t vrcChr0 = 0, vrcChr1 = 0, vrcChr2 = 0, vrcChr3 = 0,
 		 vrcChr4 = 0, vrcChr5 = 0, vrcChr6 = 0, vrcChr7 = 0;

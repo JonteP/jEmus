@@ -171,7 +171,7 @@ void run_apu(uint_fast16_t ntimes) { /* apu cycle times */
 				noiseTemp = noiseTimer;
 				noiseShift = ((noiseShift>>1) | ((noiseMode ? ((noiseShift&1) ^ ((noiseShift>>1)&1)) : ((noiseShift&1) ^ ((noiseShift>>1)&1)))<<14));
 			}
-			if (cpucc%2)
+			else if (cpucc%2)
 				noiseTemp--;
 		} else
 			noiseSample = 0;
