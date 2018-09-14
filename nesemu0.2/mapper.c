@@ -464,6 +464,72 @@ static uint_fast8_t vrcIrqControl = 0, vrcIrqLatch, vrcIrqCounter, vrcIrqCycles[
 static int16_t vrcIrqPrescale;
 
 /*/////////////////////////////////*/
+/*              VRC 1              */
+/*/////////////////////////////////*/
+
+uint_fast8_t vrc1Prg0, vrc1Prg1, vrc1Prg2, vrc1Chr0, vrc1Chr1;
+static inline void mapper_vrc1(uint_fast16_t, uint_fast8_t), reset_vrc1(), vrc1_chr_bank_switch(), vrc1_prg_bank_switch();
+
+void mapper_vrc1(uint_fast16_t address, uint_fast8_t value)
+{
+	if (address >= 0x8000 && address <= 0x8fff) /* PRG select 0 */
+	{
+		vrc1Prg0 = (value & 0x0f);
+		vrc1_prg_bank_switch();
+	}
+	if (address >= 0xa000 && address <= 0xafff) /* PRG select 1 */
+	{
+		vrc1Prg1 = (value & 0x0f);
+		vrc1_prg_bank_switch();
+	}
+	if (address >= 0xc000 && address <= 0xcfff) /* PRG select 2 */
+	{
+		vrc1Prg2 = (value & 0x0f);
+		vrc1_prg_bank_switch();
+	}
+	if (address >= 0x9000 && address <= 0x9fff) /* Mirroring + CHR */
+	{
+		cart.mirroring = (1 - (value & 0x01));
+		vrc1Chr0 = ((vrc1Chr0 & 0x0f) | ((value & 0x02) << 3));
+		vrc1Chr1 = ((vrc1Chr1 & 0x0f) | ((value & 0x04) << 2));
+		vrc1_chr_bank_switch();
+	}
+	if (address >= 0xe000 && address <= 0xefff) /* CHR select 0 */
+	{
+		vrc1Chr0 = ((vrc1Chr0 & 0x10) | (value & 0x0f));
+		vrc1_chr_bank_switch();
+	}
+	if (address >= 0xf000 && address <= 0xffff) /* CHR select 1 */
+	{
+		vrc1Chr1 = ((vrc1Chr1 & 0x10) | (value & 0x0f));
+		vrc1_chr_bank_switch();
+	}
+
+}
+
+void vrc1_chr_bank_switch()
+{
+	chr_4low((vrc1Chr0 & ((cart.chrSize >> 12) - 1)) * 0x1000);
+	chr_4high((vrc1Chr1 & ((cart.chrSize >> 12) - 1)) * 0x1000);
+}
+
+void vrc1_prg_bank_switch()
+{
+	prg_8_0((vrc1Prg0 & ((cart.prgSize>>13)-1)) * 0x2000);
+	prg_8_1((vrc1Prg1 & ((cart.prgSize>>13)-1)) * 0x2000);
+	prg_8_2((vrc1Prg2 & ((cart.prgSize>>13)-1)) * 0x2000);
+	prg_8_3(cart.prgSize - 0x2000);
+
+}
+
+void reset_vrc1()
+{
+	prg_32(0);
+	prg_8_3(cart.prgSize - 0x2000);
+	chr_8(0);
+}
+
+/*/////////////////////////////////*/
 /*            VRC 2 / 4            */
 /*/////////////////////////////////*/
 
@@ -1067,7 +1133,10 @@ void init_mapper() {
 		reset_axrom();
 	} else if (!strcmp(cart.slot,"txrom")) {
 		reset_mmc3();
-	} else if (!strcmp(cart.slot,"vrc2") ||
+	} else if (!strcmp(cart.slot,"vrc1")) {
+		reset_vrc1();
+	}
+	else if (!strcmp(cart.slot,"vrc2") ||
 			!strcmp(cart.slot,"vrc4")) {
 		reset_vrc24();
 	} else if (!strcmp(cart.slot,"vrc6")) {
@@ -1101,6 +1170,9 @@ void write_mapper_register(uint_fast16_t address, uint_fast8_t value) {
 	}
 	else if (!strcmp(cart.slot,"axrom")) {
 		mapper_axrom(value);
+	}
+	else if (!strcmp(cart.slot,"vrc1")) {
+		mapper_vrc1(address,value);
 	}
 	else if (!strcmp(cart.slot,"vrc2") ||
 				!strcmp(cart.slot,"vrc4")) {

@@ -105,7 +105,7 @@ void load_rom(char *rom)
 		wramEnable = 1;
 	} else
 		wramEnable = 0;
-	printf("PCB: %s\n",cart.pcb);
+	printf("PCB: %s (%s)\n",cart.pcb,cart.slot);
 	printf("PRG size: %li bytes\n",cart.prgSize);
 	printf("CHR size: %li bytes\n",cart.chrSize);
 	printf("WRAM size: %li bytes\n",cart.wramSize);
