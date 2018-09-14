@@ -8,7 +8,7 @@
 #include "ppu.h"
 #include "cartridge.h"
 
-uint_fast8_t mapperInt = 0;
+uint_fast8_t mapperInt = 0, expSound = 0;
 static inline void prg_8_0(uint32_t offset), prg_8_1(uint32_t offset), prg_8_2(uint32_t offset), prg_8_3(uint32_t offset),
 				   prg_16low(uint32_t offset), prg_16high(uint32_t offset), prg_32(uint32_t offset),
 				   chr_8(uint32_t offset), chr_4low(uint32_t offset), chr_4high(uint32_t offset),
@@ -642,9 +642,12 @@ void reset_vrc24() {
 /*/////////////////////////////////*/
 
 static uint_fast8_t vrc6Prg8, vrc6Prg16, vrc6Chr0, vrc6Chr1, vrc6Chr2, vrc6Chr3, vrc6Chr4, vrc6Chr5, vrc6Chr6, vrc6Chr7;
-static uint_fast8_t vrc6Pulse1Mode, vrc6Pulse1Duty, vrc6Pulse1Volume, vrc6Pulse2Mode, vrc6Pulse2Duty, vrc6Pulse2Volume, vrc6SawAccumulator, vrc6Pulse1Enable, vrc6Pulse2Enable, vrc6SawEnable;
-static uint_fast16_t vrc6Pulse1Period, vrc6Pulse2Period, vrc6SawPeriod;
+static uint_fast8_t vrc6Pulse1Mode, vrc6Pulse1Duty, vrc6Pulse1Volume, vrc6Pulse2Mode, vrc6Pulse2Duty, vrc6Pulse2Volume,
+					vrc6SawAccumulator,	vrc6Pulse1Enable, vrc6Pulse2Enable, vrc6SawEnable, vrc6Pulse1DutyCounter, vrc6Pulse2DutyCounter,
+					vrc6SawAccCounter = 0, vrc6SawAcc = 0;
+static uint_fast16_t vrc6Pulse1Period, vrc6Pulse2Period, vrc6SawPeriod, vrc6Pulse1Counter = 0, vrc6Pulse2Counter = 0, vrc6SawCounter = 0;
 static inline void mapper_vrc6(uint_fast16_t, uint_fast8_t), reset_vrc6(), vrc6_chr_bank_switch(), vrc6_prg_bank_switch();
+
 
 void mapper_vrc6(uint_fast16_t address, uint_fast8_t value)
 {
@@ -752,6 +755,8 @@ void mapper_vrc6(uint_fast16_t address, uint_fast8_t value)
 	{
 		vrc6Pulse1Period = ((vrc6Pulse1Period & 0x00ff) | ((value & 0xf) << 8));
 		vrc6Pulse1Enable = (value & 0x80);
+		if (!vrc6Pulse1Enable)
+			vrc6Pulse1DutyCounter = 15;
 	}
 	else if ((address&0xf003) == 0x9003) /* Pulse 1 frequency */
 	{
@@ -771,6 +776,8 @@ void mapper_vrc6(uint_fast16_t address, uint_fast8_t value)
 	{
 		vrc6Pulse2Period = ((vrc6Pulse2Period & 0x00ff) | ((value & 0xf) << 8));
 		vrc6Pulse2Enable = (value & 0x80);
+		if (!vrc6Pulse2Enable)
+			vrc6Pulse2DutyCounter = 15;
 	}
 	else if ((address&0xf003) == 0xa003) /* Pulse 2 frequency */
 	{
@@ -788,6 +795,11 @@ void mapper_vrc6(uint_fast16_t address, uint_fast8_t value)
 	{
 		vrc6SawPeriod = ((vrc6SawPeriod & 0x00ff) | ((value & 0xf) << 8));
 		vrc6SawEnable = (value & 0x80);
+		if (!vrc6SawEnable)
+		{
+			vrc6SawAccCounter = 0;
+			vrc6SawAcc = 0;
+		}
 	}
 }
 
@@ -808,6 +820,65 @@ void vrc6_prg_bank_switch()
 	prg_16low((vrc6Prg16 & ((cart.prgSize >> 14) - 1)) * 0x4000);
 	prg_8_2((vrc6Prg8 & ((cart.prgSize >> 13) - 1)) * 0x2000);
 	prg_8_3(cart.prgSize - 0x2000);
+}
+
+float vrc6_sound()
+{
+	uint_fast8_t sample1 = 0;
+	uint_fast8_t sample2 = 0;
+	uint_fast8_t sample3 = (vrc6SawAcc >> 3);
+
+	if (((vrc6Pulse1DutyCounter <= vrc6Pulse1Duty) || vrc6Pulse1Mode) && vrc6Pulse1Enable)
+		sample1 = vrc6Pulse1Volume;
+	if (!vrc6Pulse1Counter)
+	{
+		vrc6Pulse1Counter = vrc6Pulse1Period;
+		if (!vrc6Pulse1DutyCounter)
+			vrc6Pulse1DutyCounter = 15;
+		else if (vrc6Pulse1Enable)
+		{
+			vrc6Pulse1DutyCounter--;
+		}
+	}
+	else
+		vrc6Pulse1Counter--;
+
+	if (((vrc6Pulse2DutyCounter <= vrc6Pulse2Duty) || vrc6Pulse2Mode) && vrc6Pulse2Enable)
+			sample2 = vrc6Pulse2Volume;
+	if (!vrc6Pulse2Counter)
+	{
+		vrc6Pulse2Counter = vrc6Pulse2Period;
+		if (!vrc6Pulse2DutyCounter)
+			vrc6Pulse2DutyCounter = 15;
+		else if (vrc6Pulse2Enable)
+		{
+			vrc6Pulse2DutyCounter--;
+		}
+	}
+	else
+		vrc6Pulse2Counter--;
+
+	if (!vrc6SawCounter)
+	{
+		vrc6SawCounter = vrc6SawPeriod;
+		if (vrc6SawAccCounter == 13)
+		{
+			vrc6SawAccCounter = 0;
+			vrc6SawAcc = 0;
+		}
+		else if (vrc6SawEnable)
+		{
+			vrc6SawAccCounter++;
+			if (!(vrc6SawAccCounter%2))
+			{
+				vrc6SawAcc += vrc6SawAccumulator;
+			}
+		}
+	}
+	else
+		vrc6SawCounter--;
+
+	return ((sample1 + sample2 + sample3));
 }
 
 void reset_vrc6()
@@ -996,6 +1067,8 @@ void init_mapper() {
 			!strcmp(cart.slot,"vrc4")) {
 		reset_vrc24();
 	} else if (!strcmp(cart.slot,"vrc6")) {
+	    expansion_sound = &vrc6_sound;
+	    expSound = 1;
 		reset_vrc6();
 	} else if (!strcmp(cart.slot,"g101")) {
 		reset_g101();

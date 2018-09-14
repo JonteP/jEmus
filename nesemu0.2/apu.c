@@ -31,7 +31,7 @@ static float tnd_table[203] =  { 0.0067, 0.0133, 0.0199, 0.0265, 0.0330, 0.0394,
 						   0.6732, 0.6756, 0.6779, 0.6802, 0.6825, 0.6847, 0.6870, 0.6893, 0.6915, 0.6938, 0.6960, 0.6982, 0.7004,
 						   0.7026, 0.7048, 0.7070, 0.7091, 0.7113, 0.7134, 0.7156, 0.7177, 0.7198, 0.7219, 0.7240, 0.7261, 0.7282,
 						   0.7303, 0.7323, 0.7344, 0.7364, 0.7384, 0.7405, 0.7425, 0.7445 };
-static float pulseMixSample = 0, tndMixSample = 0;
+static float pulseMixSample = 0, tndMixSample = 0, expSample = 0;
 static uint_fast8_t frameCounter = 0, sweep1Counter = 0, sweep2Counter = 0, env1Decay = 0, env2Decay = 0, envNoiseDecay = 0,
 					triLinear = 0, dmcBitsLeft = 8, dmcShift = 0, pulse1Mute = 0, pulse2Mute = 0, sCount = 0;
 static int_fast8_t triSeq = 0, triBuff = 0;
@@ -202,16 +202,23 @@ void run_apu(uint_fast16_t ntimes) { /* apu cycle times */
 
 		tndMixSample += tnd_table[3 * triSample + 2 * noiseSample + dmcOutput];
 
+		if (expSound)
+			expSample += (expansion_sound() / 60);
+
 		tmpcnt++;
 		if (tmpcnt==sTable[sCount]) {
 			sCount++;
 			if (sCount==7)
 				sCount = 0;
-			sampleBuffer[sampleCounter++] = (pulseMixSample/tmpcnt) + (tndMixSample/tmpcnt);
+			if (expSound)
+				sampleBuffer[sampleCounter++] = ((pulseMixSample/tmpcnt) + (tndMixSample/tmpcnt) + (expSample/tmpcnt)) / 2;
+			else
+				sampleBuffer[sampleCounter++] = (pulseMixSample/tmpcnt) + (tndMixSample/tmpcnt);
 			if (sampleCounter == BUFFER_SIZE)
 				output_sound();
 			pulseMixSample = 0;
 			tndMixSample = 0;
+			expSample = 0;
 			tmpcnt = 0;
 		}
 		ntimes--;

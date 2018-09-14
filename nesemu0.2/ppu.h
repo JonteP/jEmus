@@ -2,8 +2,8 @@
 #define PPU_H_
 #include <stdint.h>
 
-#define WWIDTH 320 /*1280 */
-#define WHEIGHT 240 /*1024 */
+#define WWIDTH 640 /*1280 */
+#define WHEIGHT 480 /*1024 */
 #define SWIDTH 256
 #define SHEIGHT 240
 #define WPOSX 100
