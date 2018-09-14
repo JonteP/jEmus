@@ -18,9 +18,11 @@ typedef struct gameFeatures_ {
 	long wramSize;
 	long bwramSize;
 	long cramSize;
-	long vrcPrg1;
-	long vrcPrg0;
-	long vrcChr;
+	long vrc24Prg1;
+	long vrc24Prg0;
+	long vrc24Chr;
+	long vrc6Prg1;
+	long vrc6Prg0;
 	char mmc1_type[20];
 	char mmc3_type[20];
 } gameFeatures;

@@ -478,15 +478,14 @@ static uint_fast8_t vrc24SwapMode, vrcPrg0, vrcPrg1;
 static uint_fast16_t vrcChr0 = 0, vrcChr1 = 0, vrcChr2 = 0, vrcChr3 = 0,
 		 vrcChr4 = 0, vrcChr5 = 0, vrcChr6 = 0, vrcChr7 = 0;
 
-
 static inline void mapper_vrc24(uint_fast16_t, uint_fast8_t), reset_vrc24(), vrc24_chr_bank_switch(), vrc24_prg_bank_switch();
 
 void mapper_vrc24(uint_fast16_t address, uint_fast8_t value) {
 	/* reroute addressing */
-	if (cart.vrcPrg1 > 1)
-		address = (address & 0xff00) | ((address>>(cart.vrcPrg1-1)) & 0x02) | ((address>>cart.vrcPrg0) & 0x01);
+	if (cart.vrc24Prg1 > 1)
+		address = (address & 0xff00) | ((address>>(cart.vrc24Prg1-1)) & 0x02) | ((address>>cart.vrc24Prg0) & 0x01);
 	else
-		address = (address & 0xff00) | ((address<<(1-cart.vrcPrg1)) & 0x02) | ((address>>cart.vrcPrg0) & 0x01);
+		address = (address & 0xff00) | ((address<<(1-cart.vrc24Prg1)) & 0x02) | ((address>>cart.vrc24Prg0) & 0x01);
 
 	/* handle register writes */
 	if ((address&0xf003) >= 0x8000 && (address&0xf003) <= 0x8003) { /* PRG select 0 */
@@ -597,7 +596,7 @@ void vrc24_prg_bank_switch() {
 
 void vrc24_chr_bank_switch() {
 	if (!strcmp(cart.slot,"vrc2")) {
-		if (cart.vrcChr) {
+		if (cart.vrc24Chr) {
 			chr_1_0((vrcChr0 & ((cart.chrSize >> 10) -1)) * 0x400);
 			chr_1_1((vrcChr1 & ((cart.chrSize >> 10) -1)) * 0x400);
 			chr_1_2((vrcChr2 & ((cart.chrSize >> 10) -1)) * 0x400);
@@ -606,7 +605,7 @@ void vrc24_chr_bank_switch() {
 			chr_1_5((vrcChr5 & ((cart.chrSize >> 10) -1)) * 0x400);
 			chr_1_6((vrcChr6 & ((cart.chrSize >> 10) -1)) * 0x400);
 			chr_1_7((vrcChr7 & ((cart.chrSize >> 10) -1)) * 0x400);
-		} else if (!cart.vrcChr) {
+		} else if (!cart.vrc24Chr) {
 			chr_1_0(((vrcChr0 >> 1) & ((cart.chrSize >> 10) -1)) * 0x400);
 			chr_1_1(((vrcChr1 >> 1) & ((cart.chrSize >> 10) -1)) * 0x400);
 			chr_1_2(((vrcChr2 >> 1) & ((cart.chrSize >> 10) -1)) * 0x400);
@@ -651,6 +650,10 @@ static inline void mapper_vrc6(uint_fast16_t, uint_fast8_t), reset_vrc6(), vrc6_
 
 void mapper_vrc6(uint_fast16_t address, uint_fast8_t value)
 {
+
+	address = (address & 0xff00) | ((address<<(1-cart.vrc6Prg1)) & 0x02) | ((address>>cart.vrc6Prg0) & 0x01);
+
+
 	if ((address&0xf003) >= 0x8000 && (address&0xf003) <= 0x8003) /* 16k PRG select */
 	{
 		vrc6Prg16 = (value & 0x0f);
@@ -883,6 +886,7 @@ float vrc6_sound()
 
 void reset_vrc6()
 {
+	prg_32(0);
 	prg_8_3(cart.prgSize-0x2000);
 	chr_8(0);
 }

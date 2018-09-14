@@ -176,8 +176,8 @@ void load_by_header()
 	case 21:
 		sprintf(cart.slot,"%s","vrc4");
 		set_wram();
-		cart.vrcPrg1 = 7;
-		cart.vrcPrg0 = 6;
+		cart.vrc24Prg1 = 7;
+		cart.vrc24Prg0 = 6;
 		break;
 	case 24:
 		sprintf(cart.slot,"%s","vrc6");
@@ -206,19 +206,23 @@ void extract_xml_data(xmlNode * s_node) {
 			else if (!xmlStrcmp(nam,(xmlChar *)"pcb"))
 				strcpy(cart.pcb,(char *)val);
 			else if (!xmlStrcmp(nam,(xmlChar *)"vrc2-pin3"))
-				cart.vrcPrg1 = strtol((char *)val+5,NULL,10);
+				cart.vrc24Prg1 = strtol((char *)val+5,NULL,10);
 			else if (!xmlStrcmp(nam,(xmlChar *)"vrc2-pin4"))
-				cart.vrcPrg0 = strtol((char *)val+5,NULL,10);
+				cart.vrc24Prg0 = strtol((char *)val+5,NULL,10);
 			else if (!xmlStrcmp(nam,(xmlChar *)"vrc4-pin3"))
-				cart.vrcPrg1 = strtol((char *)val+5,NULL,10);
+				cart.vrc24Prg1 = strtol((char *)val+5,NULL,10);
 			else if (!xmlStrcmp(nam,(xmlChar *)"vrc4-pin4"))
-				cart.vrcPrg0 = strtol((char *)val+5,NULL,10);
+				cart.vrc24Prg0 = strtol((char *)val+5,NULL,10);
 			else if (!xmlStrcmp(nam,(xmlChar *)"vrc2-pin21")) {
 				if (!xmlStrcmp(val,(xmlChar *)"NC"))
-					cart.vrcChr = 0;
+					cart.vrc24Chr = 0;
 				else
-					cart.vrcChr = 1;
+					cart.vrc24Chr = 1;
 			}
+			else if (!xmlStrcmp(nam,(xmlChar *)"vrc6-pin9"))
+				cart.vrc6Prg1 = strtol((char *)val+5,NULL,10);
+			else if (!xmlStrcmp(nam,(xmlChar *)"vrc6-pin10"))
+				cart.vrc6Prg0 = strtol((char *)val+5,NULL,10);
 			else if (!xmlStrcmp(nam,(xmlChar *)"mmc1_type"))
 				strcpy(cart.mmc1_type,(char *)val);
 			else if (!xmlStrcmp(nam,(xmlChar *)"mirroring")) {
