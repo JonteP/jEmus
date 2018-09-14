@@ -693,6 +693,7 @@ void vrc24_chr_bank_switch() {
 	}
 }
 
+uint_fast8_t wramBit = 0, wramBitVal;
 void reset_vrc24() {
 	vrc24SwapMode = 0;
 	vrcPrg0 = 0;
@@ -700,6 +701,8 @@ void reset_vrc24() {
 	prg_8_3(cart.prgSize-0x2000);
 	vrc24_prg_bank_switch();
 	chr_8(0);
+	if (!strcmp(cart.slot,"vrc2") && (!cart.wramSize && !cart.bwramSize))
+		wramBit = 1;
 }
 
 /*/////////////////////////////////*/

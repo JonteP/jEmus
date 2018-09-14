@@ -6,6 +6,6 @@ void init_mapper(void), write_mapper_register(uint_fast16_t, uint_fast8_t), vrc_
      mmc3_irq(void);
 float vrc6_sound(void);
 float (*expansion_sound)(void);
-extern uint_fast8_t mapperInt, expSound;
+extern uint_fast8_t mapperInt, expSound, wramBit, wramBitVal;
 
 #endif /* MAPPER_H_ */

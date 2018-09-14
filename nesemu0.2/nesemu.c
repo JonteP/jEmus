@@ -30,7 +30,7 @@ uint16_t ppu_wait = 0, apu_wait = 0;
 FILE *logfile;
 
 int main() {
-	char *romName = "/home/jonas/eclipse-workspace/vrc1/exbox.nes";
+	char *romName = "/home/jonas/eclipse-workspace/axrom/btoads.nes";
 	load_rom(romName);
 
 	logfile = fopen("/home/jonas/eclipse-workspace/logfile.txt","w");
