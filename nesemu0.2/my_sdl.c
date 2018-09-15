@@ -11,7 +11,7 @@
 #include "6502.h"
 
 SDL_AudioSpec AudioSettings = {0};
-uint_fast8_t nametableActive = 0, patternActive = 0, paletteActive = 0, isPaused = 0, fullscreen = 0;
+uint_fast8_t nametableActive = 0, patternActive = 0, paletteActive = 0, isPaused = 0, fullscreen = 0, stateSave = 0, stateLoad = 0;
 uint16_t pulseQueueCounter = 0;
 
 					/*       00      |      01      |      02      |      03      |        */
@@ -192,11 +192,11 @@ void io_handle()
 				break;
 			case SDL_SCANCODE_F1:
 				printf("Saving state\n");
-				save_state();
+				stateSave = 1;
 				break;
 			case SDL_SCANCODE_F2:
 				printf("Loading state\n");
-				load_state();
+				stateLoad = 1;
 				break;
 			case SDL_SCANCODE_F3:
 				printf("Resetting\n");

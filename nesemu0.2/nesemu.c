@@ -28,7 +28,7 @@ uint_fast8_t quit = 0, ctrb = 0, ctrb2 = 0, ctr1 = 0, ctr2 = 0;
 uint_fast8_t openBus;
 uint16_t ppu_wait = 0, apu_wait = 0;
 FILE *logfile;
-char *romName = "/home/jonas/eclipse-workspace/vrc6/akuden.nes";
+char *romName = "/home/jonas/eclipse-workspace/vrc1/goemon.nes";
 
 int main() {
 	load_rom(romName);
@@ -47,6 +47,16 @@ int main() {
 		synchronize(0);
 		if (mapperInt)
 			irqPulled = 1;
+		if (stateLoad)
+		{
+			stateLoad = 0;
+			load_state();
+		}
+		else if (stateSave)
+		{
+			stateSave = 0;
+			save_state();
+		}
 	}
 
 	fclose(logfile);
@@ -54,12 +64,18 @@ int main() {
 	close_sdl();
 }
 
+/* TODO:
+ * -save mirroring mode
+ * -save state between cpu instructions
+ * -save slot banks
+ */
 void save_state()
 {
 	char *stateName = strdup(romName);
 	sprintf(stateName+strlen(stateName)-3,"sta");
 	FILE *stateFile = fopen(stateName, "w");
 	fwrite(prgSlot,sizeof(prgSlot),1,stateFile);
+	fwrite(prgBank,sizeof(prgBank),1,stateFile);
 	fwrite(cpuRam,sizeof(cpuRam),1,stateFile);
 	fwrite(&cpuA,sizeof(cpuA),1,stateFile);
 	fwrite(&cpuX,sizeof(cpuX),1,stateFile);
@@ -68,6 +84,7 @@ void save_state()
 	fwrite(&cpuS,sizeof(cpuS),1,stateFile);
 	fwrite(&cpuPC,sizeof(cpuPC),1,stateFile);
 	fwrite(chrSlot,sizeof(chrSlot),1,stateFile);
+	fwrite(chrBank,sizeof(chrBank),1,stateFile);
 	fwrite(oam,sizeof(oam),1,stateFile);
 	fwrite(nameTableA,sizeof(nameTableA),1,stateFile);
 	fwrite(nameTableB,sizeof(nameTableB),1,stateFile);
@@ -78,10 +95,13 @@ void save_state()
 	fwrite(&ppuX,sizeof(ppuX),1,stateFile);
 	fwrite(&ppuT,sizeof(ppuT),1,stateFile);
 	fwrite(&ppuV,sizeof(ppuV),1,stateFile);
+	fwrite(&cart.mirroring,sizeof(cart.mirroring),1,stateFile);
 	if (cart.wramSize)
 		fwrite(wram,cart.wramSize,1,stateFile);
 	else if (cart.bwramSize)
 		fwrite(bwram,cart.bwramSize,1,stateFile);
+	if (cart.cramSize)
+		fwrite(chr,cart.cramSize,1,stateFile);
 	fclose(stateFile);
 }
 
@@ -91,6 +111,7 @@ void load_state()
 	sprintf(stateName+strlen(stateName)-3,"sta");
 	FILE *stateFile = fopen(stateName, "r");
 	fread(prgSlot,sizeof(prgSlot),1,stateFile);
+	fread(prgBank,sizeof(prgBank),1,stateFile);
 	fread(cpuRam,sizeof(cpuRam),1,stateFile);
 	fread(&cpuA,sizeof(cpuA),1,stateFile);
 	fread(&cpuX,sizeof(cpuX),1,stateFile);
@@ -99,6 +120,7 @@ void load_state()
 	fread(&cpuS,sizeof(cpuS),1,stateFile);
 	fread(&cpuPC,sizeof(cpuPC),1,stateFile);
 	fread(chrSlot,sizeof(chrSlot),1,stateFile);
+	fread(chrBank,sizeof(chrBank),1,stateFile);
 	fread(oam,sizeof(oam),1,stateFile);
 	fread(nameTableA,sizeof(nameTableA),1,stateFile);
 	fread(nameTableB,sizeof(nameTableB),1,stateFile);
@@ -109,9 +131,12 @@ void load_state()
 	fread(&ppuX,sizeof(ppuX),1,stateFile);
 	fread(&ppuT,sizeof(ppuT),1,stateFile);
 	fread(&ppuV,sizeof(ppuV),1,stateFile);
+	fread(&cart.mirroring,sizeof(cart.mirroring),1,stateFile);
 	if (cart.wramSize)
 		fread(wram,cart.wramSize,1,stateFile);
 	else if (cart.bwramSize)
 		fread(bwram,cart.bwramSize,1,stateFile);
+	if (cart.cramSize)
+		fread(chr,cart.cramSize,1,stateFile);
 	fclose(stateFile);
 }

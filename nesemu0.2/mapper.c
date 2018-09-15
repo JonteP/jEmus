@@ -8,13 +8,15 @@
 #include "ppu.h"
 #include "cartridge.h"
 
-uint_fast8_t mapperInt = 0, expSound = 0;
+uint_fast8_t mapperInt = 0, expSound = 0,
+			 prgBank[8], chrBank[8];
 static inline void prg_8_0(uint32_t offset), prg_8_1(uint32_t offset), prg_8_2(uint32_t offset), prg_8_3(uint32_t offset),
 				   prg_16low(uint32_t offset), prg_16high(uint32_t offset), prg_32(uint32_t offset),
 				   chr_8(uint32_t offset), chr_4low(uint32_t offset), chr_4high(uint32_t offset),
 				   chr_2_0(uint32_t offset), chr_2_1(uint32_t offset), chr_2_2(uint32_t offset), chr_2_3(uint32_t offset),
 				   chr_1_0(uint32_t offset), chr_1_1(uint32_t offset), chr_1_2(uint32_t offset), chr_1_3(uint32_t offset),
-				   chr_1_4(uint32_t offset), chr_1_5(uint32_t offset), chr_1_6(uint32_t offset), chr_1_7(uint32_t offset);
+				   chr_1_4(uint32_t offset), chr_1_5(uint32_t offset), chr_1_6(uint32_t offset), chr_1_7(uint32_t offset),
+				   prg_bank_switch(), chr_bank_switch();
 
 /*/////////////////////////////////*/
 /*               NROM              */
@@ -22,14 +24,26 @@ static inline void prg_8_0(uint32_t offset), prg_8_1(uint32_t offset), prg_8_2(u
 
 static inline void reset_nrom();
 
-void reset_nrom() {
-	if (cart.prgSize == 0x4000) {
-		prg_16low(0);
-		prg_16high(0);
-} else {
-	prg_32(0);
-}
-	chr_8(0);
+void reset_nrom()
+{
+	prgBank[0] = 0;
+	prgBank[1] = 1;
+	prgBank[2] = 2;
+	prgBank[3] = 3;
+	prgBank[4] = cart.pSlots - 4;
+	prgBank[5] = cart.pSlots - 3;
+	prgBank[6] = cart.pSlots - 2;
+	prgBank[7] = cart.pSlots - 1;
+	prg_bank_switch();
+	chrBank[0] = 0;
+	chrBank[1] = 1;
+	chrBank[2] = 2;
+	chrBank[3] = 3;
+	chrBank[4] = 4;
+	chrBank[5] = 5;
+	chrBank[6] = 6;
+	chrBank[7] = 7;
+	chr_bank_switch();
 }
 
 /*/////////////////////////////////*/
@@ -43,17 +57,20 @@ void reset_nrom() {
  * Game specific:
  * -Battletoads: crashes at level 2 - timing issue
  * */
+static inline void mapper_axrom(uint_fast8_t);
 
-static inline void reset_axrom(), mapper_axrom(uint_fast8_t);
 
 void mapper_axrom(uint_fast8_t value) {
-	prg_32((value & 0x07) * 0x8000);
+	prgBank[0] = ((value & 0x07) << 3);
+	prgBank[1] = prgBank[0] + 1;
+	prgBank[2] = prgBank[0] + 2;
+	prgBank[3] = prgBank[0] + 3;
+	prgBank[4] = prgBank[0] + 4;
+	prgBank[5] = prgBank[0] + 5;
+	prgBank[6] = prgBank[0] + 6;
+	prgBank[7] = prgBank[0] + 7;
+	prg_bank_switch();
 	(value & 0x10) ? (cart.mirroring = 3) : (cart.mirroring = 2);
-}
-
-void reset_axrom() {
-	prg_32(0);
-	chr_8(0);
 }
 
 /*/////////////////////////////////*/
@@ -65,16 +82,18 @@ void reset_axrom() {
  * -bus conflicts
  *
  * */
-static inline void reset_cnrom(), mapper_cnrom(uint_fast8_t);
+static inline void mapper_cnrom(uint_fast8_t);
 
 void mapper_cnrom (uint_fast8_t value) {
-	chr_8((value & ((csize >> 13) - 1)) * 0x2000);
-
-}
-
-void reset_cnrom () {
-	prg_32(0);
-	chr_8(0);
+	chrBank[0] = (value << 3);
+	chrBank[1] = chrBank[0] + 1;
+	chrBank[2] = chrBank[0] + 2;
+	chrBank[3] = chrBank[0] + 3;
+	chrBank[4] = chrBank[0] + 4;
+	chrBank[5] = chrBank[0] + 5;
+	chrBank[6] = chrBank[0] + 6;
+	chrBank[7] = chrBank[0] + 7;
+	chr_bank_switch();
 }
 
 /*/////////////////////////////////*/
@@ -88,7 +107,7 @@ void reset_cnrom () {
  *
  */
 
-static inline void reset_uxrom(), mapper_uxrom(uint_fast8_t);
+static inline void mapper_uxrom(uint_fast8_t);
 
 void mapper_uxrom (uint_fast8_t value) {
 	uint_fast8_t bank;
@@ -104,13 +123,6 @@ void mapper_uxrom (uint_fast8_t value) {
 		prg_16high(cart.prgSize - 0x4000);
 	}
 }
-
-void reset_uxrom () {
-	prg_16low(0);
-	prg_16high(cart.prgSize - 0x4000);
-	chr_8(0);
-}
-
 
 /*/////////////////////////////////*/
 /*              MMC 1              */
@@ -467,66 +479,63 @@ static int16_t vrcIrqPrescale;
 /*              VRC 1              */
 /*/////////////////////////////////*/
 
-uint_fast8_t vrc1Prg0, vrc1Prg1, vrc1Prg2, vrc1Chr0, vrc1Chr1;
-static inline void mapper_vrc1(uint_fast16_t, uint_fast8_t), reset_vrc1(), vrc1_chr_bank_switch(), vrc1_prg_bank_switch();
+uint_fast8_t vrc1Chr0, vrc1Chr1;
+static inline void mapper_vrc1(uint_fast16_t, uint_fast8_t);
 
 void mapper_vrc1(uint_fast16_t address, uint_fast8_t value)
 {
 	if (address >= 0x8000 && address <= 0x8fff) /* PRG select 0 */
 	{
-		vrc1Prg0 = (value & 0x0f);
-		vrc1_prg_bank_switch();
+		prgBank[0] = ((value & 0x0f) << 1);
+		prgBank[1] = prgBank[0] + 1;
+		prg_bank_switch();
 	}
 	if (address >= 0xa000 && address <= 0xafff) /* PRG select 1 */
 	{
-		vrc1Prg1 = (value & 0x0f);
-		vrc1_prg_bank_switch();
+		prgBank[2] = ((value & 0x0f) << 1);
+		prgBank[3] = prgBank[2] + 1;
+		prg_bank_switch();
 	}
 	if (address >= 0xc000 && address <= 0xcfff) /* PRG select 2 */
 	{
-		vrc1Prg2 = (value & 0x0f);
-		vrc1_prg_bank_switch();
+		prgBank[4] = ((value & 0x0f) << 1);
+		prgBank[5] = prgBank[4] + 1;
+		prg_bank_switch();
 	}
 	if (address >= 0x9000 && address <= 0x9fff) /* Mirroring + CHR */
 	{
 		cart.mirroring = (1 - (value & 0x01));
 		vrc1Chr0 = ((vrc1Chr0 & 0x0f) | ((value & 0x02) << 3));
 		vrc1Chr1 = ((vrc1Chr1 & 0x0f) | ((value & 0x04) << 2));
-		vrc1_chr_bank_switch();
+		chrBank[0] = (vrc1Chr0 << 2);
+		chrBank[1] = chrBank[0] + 1;
+		chrBank[2] = chrBank[0] + 2;
+		chrBank[3] = chrBank[0] + 3;
+		chrBank[4] = (vrc1Chr1 << 2);
+		chrBank[5] = chrBank[4] + 1;
+		chrBank[6] = chrBank[4] + 2;
+		chrBank[7] = chrBank[4] + 3;
+		chr_bank_switch();
 	}
 	if (address >= 0xe000 && address <= 0xefff) /* CHR select 0 */
 	{
 		vrc1Chr0 = ((vrc1Chr0 & 0x10) | (value & 0x0f));
-		vrc1_chr_bank_switch();
+		chrBank[0] = (vrc1Chr0 << 2);
+		chrBank[1] = chrBank[0] + 1;
+		chrBank[2] = chrBank[0] + 2;
+		chrBank[3] = chrBank[0] + 3;
+		chr_bank_switch();
 	}
 	if (address >= 0xf000 && address <= 0xffff) /* CHR select 1 */
 	{
 		vrc1Chr1 = ((vrc1Chr1 & 0x10) | (value & 0x0f));
-		vrc1_chr_bank_switch();
+		chrBank[4] = (vrc1Chr1 << 2);
+		chrBank[5] = chrBank[4] + 1;
+		chrBank[6] = chrBank[4] + 2;
+		chrBank[7] = chrBank[4] + 3;
+		chr_bank_switch();
 	}
 
-}
-
-void vrc1_chr_bank_switch()
-{
-	chr_4low((vrc1Chr0 & ((cart.chrSize >> 12) - 1)) * 0x1000);
-	chr_4high((vrc1Chr1 & ((cart.chrSize >> 12) - 1)) * 0x1000);
-}
-
-void vrc1_prg_bank_switch()
-{
-	prg_8_0((vrc1Prg0 & ((cart.prgSize>>13)-1)) * 0x2000);
-	prg_8_1((vrc1Prg1 & ((cart.prgSize>>13)-1)) * 0x2000);
-	prg_8_2((vrc1Prg2 & ((cart.prgSize>>13)-1)) * 0x2000);
-	prg_8_3(cart.prgSize - 0x2000);
-
-}
-
-void reset_vrc1()
-{
-	prg_32(0);
-	prg_8_3(cart.prgSize - 0x2000);
-	chr_8(0);
 }
 
 /*/////////////////////////////////*/
@@ -702,29 +711,29 @@ void reset_vrc24() {
 /*              VRC 6              */
 /*/////////////////////////////////*/
 
-static uint_fast8_t vrc6Prg8, vrc6Prg16, vrc6Chr0, vrc6Chr1, vrc6Chr2, vrc6Chr3, vrc6Chr4, vrc6Chr5, vrc6Chr6, vrc6Chr7;
 static uint_fast8_t vrc6Pulse1Mode, vrc6Pulse1Duty, vrc6Pulse1Volume, vrc6Pulse2Mode, vrc6Pulse2Duty, vrc6Pulse2Volume,
 					vrc6SawAccumulator,	vrc6Pulse1Enable, vrc6Pulse2Enable, vrc6SawEnable, vrc6Pulse1DutyCounter, vrc6Pulse2DutyCounter,
 					vrc6SawAccCounter = 0, vrc6SawAcc = 0;
 static uint_fast16_t vrc6Pulse1Period, vrc6Pulse2Period, vrc6SawPeriod, vrc6Pulse1Counter = 0, vrc6Pulse2Counter = 0, vrc6SawCounter = 0;
-static inline void mapper_vrc6(uint_fast16_t, uint_fast8_t), reset_vrc6(), vrc6_chr_bank_switch(), vrc6_prg_bank_switch();
+static inline void mapper_vrc6(uint_fast16_t, uint_fast8_t), reset_vrc6();
 
 
 void mapper_vrc6(uint_fast16_t address, uint_fast8_t value)
 {
-
 	address = (address & 0xff00) | ((address<<(1-cart.vrc6Prg1)) & 0x02) | ((address>>cart.vrc6Prg0) & 0x01);
-
-
 	if ((address&0xf003) >= 0x8000 && (address&0xf003) <= 0x8003) /* 16k PRG select */
 	{
-		vrc6Prg16 = (value & 0x0f);
-		vrc6_prg_bank_switch();
+		prgBank[0] = ((value & 0x0f) << 2);
+		prgBank[1] = prgBank[0] + 1;
+		prgBank[2] = prgBank[0] + 2;
+		prgBank[3] = prgBank[0] + 3;
+		prg_bank_switch();
 	}
 	else if ((address&0xf003) >= 0xc000 && (address&0xf003) <= 0xc003) /* 8k PRG select */
 	{
-		vrc6Prg8 = (value & 0x1f);
-		vrc6_prg_bank_switch();
+		prgBank[4] = ((value & 0x1f) << 1);
+		prgBank[5] = prgBank[4] + 1;
+		prg_bank_switch();
 	}
 	else if ((address&0xf003) == 0xb003) /* PPU banking */
 	{
@@ -748,43 +757,43 @@ void mapper_vrc6(uint_fast16_t address, uint_fast8_t value)
 	}
 	else if ((address&0xf003) == 0xd000) /* CHR select */
 	{
-		vrc6Chr0 = value;
-		vrc6_chr_bank_switch();
+		chrBank[0] = value;
+		chr_bank_switch();
 	}
 	else if ((address&0xf003) == 0xd001) /* CHR select */
 	{
-		vrc6Chr1 = value;
-		vrc6_chr_bank_switch();
+		chrBank[1] = value;
+		chr_bank_switch();
 	}
 	else if ((address&0xf003) == 0xd002) /* CHR select */
 	{
-		vrc6Chr2 = value;
-		vrc6_chr_bank_switch();
+		chrBank[2] = value;
+		chr_bank_switch();
 	}
 	else if ((address&0xf003) == 0xd003) /* CHR select */
 	{
-		vrc6Chr3 = value;
-		vrc6_chr_bank_switch();
+		chrBank[3] = value;
+		chr_bank_switch();
 	}
 	else if ((address&0xf003) == 0xe000) /* CHR select */
 	{
-		vrc6Chr4 = value;
-		vrc6_chr_bank_switch();
+		chrBank[4] = value;
+		chr_bank_switch();
 	}
 	else if ((address&0xf003) == 0xe001) /* CHR select */
 	{
-		vrc6Chr5 = value;
-		vrc6_chr_bank_switch();
+		chrBank[5] = value;
+		chr_bank_switch();
 	}
 	else if ((address&0xf003) == 0xe002) /* CHR select */
 	{
-		vrc6Chr6 = value;
-		vrc6_chr_bank_switch();
+		chrBank[6] = value;
+		chr_bank_switch();
 	}
 	else if ((address&0xf003) == 0xe003) /* CHR select */
 	{
-		vrc6Chr7 = value;
-		vrc6_chr_bank_switch();
+		chrBank[7] = value;
+		chr_bank_switch();
 	}
 	else if ((address&0xf003) == 0xf000) /* IRQ Latch */
 	{
@@ -868,25 +877,6 @@ void mapper_vrc6(uint_fast16_t address, uint_fast8_t value)
 	}
 }
 
-void vrc6_chr_bank_switch()
-{
-	chr_1_0((vrc6Chr0 & ((cart.chrSize >> 10) -1)) * 0x400);
-	chr_1_1((vrc6Chr1 & ((cart.chrSize >> 10) -1)) * 0x400);
-	chr_1_2((vrc6Chr2 & ((cart.chrSize >> 10) -1)) * 0x400);
-	chr_1_3((vrc6Chr3 & ((cart.chrSize >> 10) -1)) * 0x400);
-	chr_1_4((vrc6Chr4 & ((cart.chrSize >> 10) -1)) * 0x400);
-	chr_1_5((vrc6Chr5 & ((cart.chrSize >> 10) -1)) * 0x400);
-	chr_1_6((vrc6Chr6 & ((cart.chrSize >> 10) -1)) * 0x400);
-	chr_1_7((vrc6Chr7 & ((cart.chrSize >> 10) -1)) * 0x400);
-}
-
-void vrc6_prg_bank_switch()
-{
-	prg_16low((vrc6Prg16 & ((cart.prgSize >> 14) - 1)) * 0x4000);
-	prg_8_2((vrc6Prg8 & ((cart.prgSize >> 13) - 1)) * 0x2000);
-	prg_8_3(cart.prgSize - 0x2000);
-}
-
 float vrc6_sound()
 {
 	uint_fast8_t sample1 = 0;
@@ -948,9 +938,24 @@ float vrc6_sound()
 
 void reset_vrc6()
 {
-	prg_32(0);
-	prg_8_3(cart.prgSize-0x2000);
-	chr_8(0);
+	prgBank[0] = 0;
+	prgBank[1] = 1;
+	prgBank[2] = 2;
+	prgBank[3] = 3;
+	prgBank[4] = 4;
+	prgBank[5] = 5;
+	prgBank[6] = cart.pSlots - 2;
+	prgBank[7] = cart.pSlots - 1;
+	prg_bank_switch();
+	chrBank[0] = 0;
+	chrBank[1] = 1;
+	chrBank[2] = 2;
+	chrBank[3] = 3;
+	chrBank[4] = 4;
+	chrBank[5] = 5;
+	chrBank[6] = 6;
+	chrBank[7] = 7;
+	chr_bank_switch();
 }
 
 void vrc_clock_irq()
@@ -983,10 +988,50 @@ void vrc_irq() {
 	}
 }
 
-void reset_default() {
-	prg_32(psize-0x8000);
-	chr_8(0);
-	cart.mirroring = 1;
+void reset_default()
+{
+	prgBank[0] = 0;
+	prgBank[1] = 1;
+	prgBank[2] = 2;
+	prgBank[3] = 3;
+	prgBank[4] = cart.pSlots - 4;
+	prgBank[5] = cart.pSlots - 3;
+	prgBank[6] = cart.pSlots - 2;
+	prgBank[7] = cart.pSlots - 1;
+	prg_bank_switch();
+	chrBank[0] = 0;
+	chrBank[1] = 1;
+	chrBank[2] = 2;
+	chrBank[3] = 3;
+	chrBank[4] = 4;
+	chrBank[5] = 5;
+	chrBank[6] = 6;
+	chrBank[7] = 7;
+	chr_bank_switch();
+}
+
+void prg_bank_switch()
+{
+	prgSlot[0] = &prg[((prgBank[0] & (cart.pSlots - 1)) << 12)];
+	prgSlot[1] = &prg[((prgBank[1] & (cart.pSlots - 1)) << 12)];
+	prgSlot[2] = &prg[((prgBank[2] & (cart.pSlots - 1)) << 12)];
+	prgSlot[3] = &prg[((prgBank[3] & (cart.pSlots - 1)) << 12)];
+	prgSlot[4] = &prg[((prgBank[4] & (cart.pSlots - 1)) << 12)];
+	prgSlot[5] = &prg[((prgBank[5] & (cart.pSlots - 1)) << 12)];
+	prgSlot[6] = &prg[((prgBank[6] & (cart.pSlots - 1)) << 12)];
+	prgSlot[7] = &prg[((prgBank[7] & (cart.pSlots - 1)) << 12)];
+}
+
+void chr_bank_switch()
+{
+	chrSlot[0] = &chr[((chrBank[0] & (cart.cSlots - 1)) << 10)];
+	chrSlot[1] = &chr[((chrBank[1] & (cart.cSlots - 1)) << 10)];
+	chrSlot[2] = &chr[((chrBank[2] & (cart.cSlots - 1)) << 10)];
+	chrSlot[3] = &chr[((chrBank[3] & (cart.cSlots - 1)) << 10)];
+	chrSlot[4] = &chr[((chrBank[4] & (cart.cSlots - 1)) << 10)];
+	chrSlot[5] = &chr[((chrBank[5] & (cart.cSlots - 1)) << 10)];
+	chrSlot[6] = &chr[((chrBank[6] & (cart.cSlots - 1)) << 10)];
+	chrSlot[7] = &chr[((chrBank[7] & (cart.cSlots - 1)) << 10)];
 }
 
 void prg_16low(uint32_t offset) {
@@ -1113,7 +1158,7 @@ void chr_1_7(uint32_t offset) {
 
 void init_mapper() {
 	if(!strcmp(cart.slot,"nrom")) {
-		reset_nrom();
+		reset_default();
 	} else if(!strcmp(cart.slot,"sxrom") ||
 				!strcmp(cart.slot,"sxrom_a") ||
 					!strcmp(cart.slot,"sorom") ||
@@ -1122,15 +1167,15 @@ void init_mapper() {
 	} else if(!strcmp(cart.slot,"uxrom") ||
 				!strcmp(cart.slot,"un1rom") ||
 					!strcmp(cart.slot,"unrom_cc")) {
-		reset_uxrom();
+		reset_default();
 	} else if (!strcmp(cart.slot,"cnrom")) {
-		reset_cnrom();
+		reset_default();
 	} else if (!strcmp(cart.slot,"axrom")) {
-		reset_axrom();
+		reset_default();
 	} else if (!strcmp(cart.slot,"txrom")) {
 		reset_mmc3();
 	} else if (!strcmp(cart.slot,"vrc1")) {
-		reset_vrc1();
+		reset_default();
 	}
 	else if (!strcmp(cart.slot,"vrc2") ||
 			!strcmp(cart.slot,"vrc4")) {

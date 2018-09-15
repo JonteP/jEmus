@@ -88,6 +88,9 @@ void load_rom(char *rom)
 	}
 	fclose(romFile);
 
+	cart.pSlots = ((cart.prgSize) / 0x1000);
+	cart.cSlots = ((cart.chrSize) / 0x400);
+
 	if (cart.bwramSize) {
 		bwramName = strdup(rom);
 		sprintf(bwramName+strlen(bwramName)-3,"sav");
