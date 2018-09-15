@@ -18,12 +18,12 @@ uint_fast8_t ppuOamAddress;
 uint_fast8_t throttle = 1;
 int16_t ppudot = 0, scanline = 0;
 
-static uint_fast8_t nameTableA[0x400], nameTableB[0x400], palette[0x20];
+uint_fast8_t nameTableA[0x400], nameTableB[0x400], palette[0x20];
 static uint_fast8_t vblank_period = 0, nmiSuppressed = 0, secOam[0x20];
 
 /* PPU internal registers */
-static uint_fast8_t ppuW = 0, ppuX = 0;
-static uint_fast16_t ppuT, ppuV;
+uint_fast8_t ppuW = 0, ppuX = 0;
+uint_fast16_t ppuT, ppuV;
 
 /* PPU external registers */
 static uint_fast8_t ppuController, ppuMask, ppuData, ppuStatusNmi = 0, ppuStatusSpriteZero = 0, ppuStatusOverflow = 0;
@@ -83,7 +83,6 @@ void run_ppu (uint_fast16_t ntimes) {
 	none, sfNT, none, sfAT, none, sfLT, none, sfHT, none, sfNT, none, sfAT, none, sfLT, none, sfHT,
 	none, tfNT, none, tfAT, none, tfLT, none, tfHT, hINC, tfNT, none, tfAT, none, tfLT, none, tfHT,
 	hINC, dfNT, none, dfNT, none };
-
 
 	while (ntimes) {
 		ppudot++;

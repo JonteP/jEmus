@@ -29,7 +29,7 @@ typedef struct gameFeatures_ {
 
 extern gameFeatures cart;
 extern int psize, csize;
-extern uint_fast8_t *prg, *chr, *bwram, *wramSource, mirroring[4][4], wramEnable;
+extern uint_fast8_t *prg, *chr, *bwram, *wram, *wramSource, mirroring[4][4], wramEnable;
 
 void load_rom(), close_rom();
 

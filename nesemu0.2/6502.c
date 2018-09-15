@@ -46,8 +46,8 @@ uint16_t addr, tmpval16;
 uint_fast8_t *prgSlot[0x8], cpuRam[0x800];
 
 /* Internal registers */
-static uint_fast8_t cpuA = 0x00, cpuX = 0x00, cpuY = 0x00, cpuP = 0x00, cpuS = 0x00;
-static uint16_t cpuPC;
+uint_fast8_t cpuA = 0x00, cpuX = 0x00, cpuY = 0x00, cpuP = 0x00, cpuS = 0x00;
+uint16_t cpuPC;
 uint32_t cpucc = 0;
 
 /* Vector pointers */

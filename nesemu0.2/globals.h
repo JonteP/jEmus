@@ -9,7 +9,8 @@ extern uint_fast8_t  ctrb, ctrb2, ctr1, ctr2, nmiPulled, openBus;
 extern uint_fast8_t  quit;
 extern uint16_t ppu_wait, apu_wait;
 extern int32_t ppucc;
-extern FILE *logfile;
+
+void save_state(), load_state();
 
 static inline void bitset(uint_fast8_t * inp, uint_fast8_t val, uint_fast8_t b)
 {

@@ -190,6 +190,14 @@ void io_handle()
 				quit = 1;
 				isPaused = 0;
 				break;
+			case SDL_SCANCODE_F1:
+				printf("Saving state\n");
+				save_state();
+				break;
+			case SDL_SCANCODE_F2:
+				printf("Loading state\n");
+				load_state();
+				break;
 			case SDL_SCANCODE_F3:
 				printf("Resetting\n");
 				rstFlag = SOFT_RESET;
