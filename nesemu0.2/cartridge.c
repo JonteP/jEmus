@@ -88,6 +88,7 @@ void load_rom(char *rom)
 	}
 	fclose(romFile);
 
+
 	cart.pSlots = ((cart.prgSize) / 0x1000);
 	cart.cSlots = ((cart.chrSize) / 0x400);
 

@@ -28,7 +28,7 @@ uint_fast8_t quit = 0, ctrb = 0, ctrb2 = 0, ctr1 = 0, ctr2 = 0;
 uint_fast8_t openBus;
 uint16_t ppu_wait = 0, apu_wait = 0;
 FILE *logfile;
-char *romName = "/home/jonas/eclipse-workspace/vrc1/goemon.nes";
+char *romName = "/home/jonas/eclipse-workspace/mmc1/metroid.nes";
 
 int main() {
 	load_rom(romName);

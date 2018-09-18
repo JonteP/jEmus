@@ -17,7 +17,6 @@ uint_fast8_t *chrSlot[0x8], oam[0x100], frameBuffer[SHEIGHT][SWIDTH], nameBuffer
 uint_fast8_t ppuOamAddress;
 uint_fast8_t throttle = 1;
 int16_t ppudot = 0, scanline = 0;
-
 uint_fast8_t nameTableA[0x400], nameTableB[0x400], palette[0x20];
 static uint_fast8_t vblank_period = 0, nmiSuppressed = 0, secOam[0x20];
 
@@ -450,23 +449,20 @@ void draw_nametable () {
 		    tilesrcB = &chrSlot[(tileOffsetB>>10)][tileOffsetB&0x3ff];
 		    attsrcB = nameTableB[0x3c0 + (tileRow >> 2) * 8 + (tileColumn >> 2)];
 		    npalB = ((attsrcB >> (((tileColumn >> 1) & 1) | (tileRow & 2) ) * 2) & 3);
-					for (int pixelRow = 0; pixelRow < 8; pixelRow++) {
-						for (int pixelColumn = 0; pixelColumn < 8; pixelColumn++) {
-							paletteIndexA = (((tilesrcA[pixelRow]     & (1<<(7-pixelColumn))) ? 1 : 0)
+			for (int pixelRow = 0; pixelRow < 8; pixelRow++) {
+				for (int pixelColumn = 0; pixelColumn < 8; pixelColumn++) {
+					paletteIndexA = (((tilesrcA[pixelRow]     & (1<<(7-pixelColumn))) ? 1 : 0)
 										  + ( (tilesrcA[pixelRow + 8] & (1<<(7-pixelColumn))) ? 2 : 0));
-
-							nameBuffer[(tileRow<<3) + pixelRow][         (tileColumn<<3) + pixelColumn] =
+					nameBuffer[(tileRow<<3) + pixelRow][(tileColumn<<3) + pixelColumn] =
 									paletteIndexA ? *ppuread(0x3f00 + npalA * 4 + paletteIndexA) : *ppuread(0x3f00);
-
-							paletteIndexB = (((tilesrcB[pixelRow]     & (1<<(7-pixelColumn))) ? 1 : 0)
+					paletteIndexB = (((tilesrcB[pixelRow]     & (1<<(7-pixelColumn))) ? 1 : 0)
 										  + ( (tilesrcB[pixelRow + 8] & (1<<(7-pixelColumn))) ? 2 : 0));
-
-							nameBuffer[(tileRow<<3) + pixelRow][SWIDTH + (tileColumn<<3) + pixelColumn] =
+					nameBuffer[(tileRow<<3) + pixelRow][SWIDTH + (tileColumn<<3) + pixelColumn] =
 									paletteIndexB ? *ppuread(0x3f00 + npalB * 4 + paletteIndexB) : *ppuread(0x3f00);
-						}
-					}
 				}
 			}
+		}
+	}
 }
 
 void draw_pattern () {

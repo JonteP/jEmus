@@ -14,6 +14,7 @@
 typedef struct windowHandle_ {
 	SDL_Window *win;
 	SDL_Renderer *rend;
+	SDL_Texture *tex;
 	char *name;
 	int winXPosition;
 	int winYPosition;
@@ -21,6 +22,7 @@ typedef struct windowHandle_ {
 	int winHeight;
 	int screenWidth;
 	int screenHeight;
+	int windowID;
 } windowHandle;
 extern windowHandle handleMain, handleNametable;
 extern uint_fast8_t nametableActive, patternActive, paletteActive, isPaused, stateSave, stateLoad;

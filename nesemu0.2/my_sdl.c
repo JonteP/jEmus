@@ -11,7 +11,7 @@
 #include "6502.h"
 
 SDL_AudioSpec AudioSettings = {0};
-uint_fast8_t nametableActive = 0, patternActive = 0, paletteActive = 0, isPaused = 0, fullscreen = 0, stateSave = 0, stateLoad = 0;
+uint_fast8_t nametableActive = 0, patternActive = 0, paletteActive = 0, isPaused = 0, fullscreen = 0, stateSave = 0, stateLoad = 0, vsync = 0;
 uint16_t pulseQueueCounter = 0;
 
 					/*       00      |      01      |      02      |      03      |        */
@@ -55,7 +55,7 @@ uint_fast8_t colblargg[] = {  84,  84,  84,   0,  30, 116,   8,  16, 144,  48,  
 
 windowHandle handleMain, handleNametable, handlePattern, handlePalette;
 
-static inline void render_window (windowHandle, uint_fast8_t *), idle_time();
+static inline void render_window (windowHandle, void *), idle_time();
 
 void init_sdl() {
 	SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO);
@@ -86,11 +86,29 @@ windowHandle create_handle (char * name, int wpx, int wpy, int ww, int wh, int s
 	handle.screenWidth = sw;
 	handle.screenHeight = sh;
 	handle.win = SDL_CreateWindow(handle.name, handle.winXPosition, handle.winYPosition, handle.winWidth, handle.winHeight, SDL_WINDOW_RESIZABLE);
+	if (handle.win == NULL)
+	{
+		printf("SDL_CreateWindow failed: %s\n", SDL_GetError());
+		exit(EXIT_FAILURE);
+	}
 	handle.rend = SDL_CreateRenderer(handle.win, -1, SDL_RENDERER_ACCELERATED);
+	if (handle.rend == NULL)
+	{
+		printf("SDL_CreateRenderer failed: %s\n", SDL_GetError());
+		exit(EXIT_FAILURE);
+	}
+	handle.tex = SDL_CreateTexture(handle.rend, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, handle.screenWidth, handle.screenHeight);
+	if (handle.tex == NULL)
+	{
+		printf("SDL_CreateTexture failed: %s\n", SDL_GetError());
+		exit(EXIT_FAILURE);
+	}
+	handle.windowID = SDL_GetWindowID(handle.win);
 	return handle;
 }
 
 void destroy_handle (windowHandle * handle) {
+	SDL_DestroyTexture(handle->tex);
 	SDL_DestroyRenderer(handle->rend);
 	SDL_DestroyWindow(handle->win);
 }
@@ -130,13 +148,13 @@ void render_frame()
 		draw_pattern();
 	if (paletteActive)
 		draw_palette();
-	render_window (handleMain, (void *)frameBuffer);
+	render_window (handleMain, frameBuffer);
 	if (nametableActive)
-		render_window (handleNametable, (void *)nameBuffer);
+		render_window (handleNametable, nameBuffer);
 	if (patternActive)
-		render_window (handlePattern, (void *)patternBuffer);
+		render_window (handlePattern, patternBuffer);
 	if (paletteActive)
-		render_window (handlePalette, (void *)paletteBuffer);
+		render_window (handlePalette, paletteBuffer);
 	if (throttle)
 	{
 		idle_time();
@@ -147,24 +165,53 @@ void render_frame()
 	}
 }
 
-void render_window (windowHandle handle, uint_fast8_t * buffer)
+void update_texture(windowHandle handle, uint_fast8_t * buffer)
+{
+	uint_fast8_t * color;
+	Uint32 *dst;
+	int row, col;
+	void *pixels;
+	int pitch;
+	int texError = SDL_LockTexture(handle.tex, NULL, &pixels, &pitch);
+	if (texError)
+	{
+		printf("SDL_LockTexture failed: %s\n", SDL_GetError());
+		exit(EXIT_FAILURE);
+	}
+
+   	for (row = 0; row < handle.screenHeight; ++row)
+   	{
+   		dst = (Uint32*)((Uint8*)pixels + row * pitch);
+		for (col = 0; col < handle.screenWidth; ++col)
+		{
+    		color = colblargg + ((*(buffer + row * handle.screenWidth + col)) * 3);
+    		*dst++ = (0xFF000000|(color[0]<<16)|(color[1]<<8)|color[2]);
+		}
+    }
+    SDL_UnlockTexture(handle.tex);
+}
+
+
+
+void render_window (windowHandle handle, void * buffer)
 {
 	SDL_Rect SrcR;
-	  SrcR.x = 0;
-	  SrcR.y = 8;
-	  SrcR.w = 256;
-	  SrcR.h = 224;
-
-	SDL_Texture *tex;
-	SDL_Surface *surf;
-	surf = SDL_CreateRGBSurfaceFrom(buffer, handle.screenWidth, handle.screenHeight, 8, handle.screenWidth, 0, 0, 0, 0);
-	SDL_SetPaletteColors(surf->format->palette, colors, 0, 64);
-	tex = SDL_CreateTextureFromSurface(handle.rend, surf);
-	SDL_RenderCopy(handle.rend, tex, &SrcR, NULL);
-	SDL_DestroyTexture(tex);
+	SrcR.x = 0;
+	SrcR.y = 8;
+	SrcR.w = 256;
+	SrcR.h = 224;
+	SDL_Rect TrgR;
+	TrgR.x = 240;
+	TrgR.y = 0;
+	TrgR.w = 1440;
+	TrgR.h = 1080;
+	update_texture(handle, buffer);
+	if (fullscreen)
+		SDL_RenderCopy(handle.rend, handle.tex, &SrcR, &TrgR);
+	else
+		SDL_RenderCopy(handle.rend, handle.tex, &SrcR, NULL);
 	SDL_RenderPresent(handle.rend);
 	SDL_RenderClear(handle.rend);
-	SDL_FreeSurface(surf);
 }
 
 void output_sound()
@@ -181,7 +228,6 @@ void io_handle()
 {
 	while (SDL_PollEvent(&event)) {
 		switch (event.type) {
-		/* Keyboard event */
 		/* Pass the event data onto PrintKeyInfo() */
 		case SDL_KEYDOWN:
 			switch (event.key.keysym.scancode) {
@@ -211,9 +257,33 @@ void io_handle()
 			case SDL_SCANCODE_F11:
 				fullscreen ^= 1;
 				if (fullscreen)
+				{
+					SDL_DisplayMode mode;
+					SDL_GetWindowDisplayMode(handleMain.win, &mode);
+					mode.w = 1920;
+					mode.h = 1080;
+					SDL_SetWindowDisplayMode(handleMain.win, &mode);
 					SDL_SetWindowFullscreen(handleMain.win, SDL_WINDOW_FULLSCREEN);
+					SDL_SetWindowGrab(handleMain.win, SDL_TRUE);
+				}
 				else if (!fullscreen)
 					SDL_SetWindowFullscreen(handleMain.win, 0);
+				SDL_SetWindowGrab(handleMain.win, SDL_FALSE);
+				break;
+			case SDL_SCANCODE_F12:
+				vsync ^= 1;
+				if (vsync)
+				{
+					SDL_DestroyRenderer(handleMain.rend);
+					handleMain.rend = SDL_CreateRenderer(handleMain.win, -1, SDL_RENDERER_ACCELERATED|SDL_RENDERER_PRESENTVSYNC);
+					handleMain.tex = SDL_CreateTexture(handleMain.rend, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, 256, 240);
+				}
+				else
+				{
+					SDL_DestroyRenderer(handleMain.rend);
+					handleMain.rend = SDL_CreateRenderer(handleMain.win, -1, SDL_RENDERER_ACCELERATED);
+					handleMain.tex = SDL_CreateTexture(handleMain.rend, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, 256, 240);
+				}
 				break;
 			case SDL_SCANCODE_P:
 				if (!(event.key.repeat))
