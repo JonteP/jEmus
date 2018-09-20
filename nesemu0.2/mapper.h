@@ -2,6 +2,10 @@
 #define MAPPER_H_
 #include <stdint.h>
 
+typedef enum {
+	CHR_RAM,
+	CHR_ROM
+} chrtype_t;
 void init_mapper(void), (*write_mapper_register)(uint_fast16_t, uint_fast8_t), vrc_irq(void),
      mmc3_irq(void);
 float vrc6_sound(void);

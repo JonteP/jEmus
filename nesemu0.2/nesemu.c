@@ -28,9 +28,13 @@ uint_fast8_t quit = 0, ctrb = 0, ctrb2 = 0, ctr1 = 0, ctr2 = 0;
 uint_fast8_t openBus;
 uint16_t ppu_wait = 0, apu_wait = 0;
 FILE *logfile;
-char *romName = "/home/jonas/eclipse-workspace/mmc1/metroid.nes";
+char *romName;
 
-int main() {
+int main(int argc, char *argv[]) {
+	if (argc < 2)
+		romName = "/home/jonas/eclipse-workspace/tqrom/pinbot.nes";
+	else
+		romName = argv[1];
 	load_rom(romName);
 
 	logfile = fopen("/home/jonas/eclipse-workspace/logfile.txt","w");
@@ -69,6 +73,7 @@ int main() {
  * -save state between cpu instructions
  * -save slot banks
  */
+
 void save_state()
 {
 	char *stateName = strdup(romName);
@@ -101,7 +106,7 @@ void save_state()
 	else if (cart.bwramSize)
 		fwrite(bwram,cart.bwramSize,1,stateFile);
 	if (cart.cramSize)
-		fwrite(chr,cart.cramSize,1,stateFile);
+		fwrite(chrRam,cart.cramSize,1,stateFile);
 	fclose(stateFile);
 }
 
@@ -137,6 +142,6 @@ void load_state()
 	else if (cart.bwramSize)
 		fread(bwram,cart.bwramSize,1,stateFile);
 	if (cart.cramSize)
-		fread(chr,cart.cramSize,1,stateFile);
+		fread(chrRam,cart.cramSize,1,stateFile);
 	fclose(stateFile);
 }

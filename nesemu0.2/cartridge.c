@@ -26,7 +26,7 @@ gameInfos gameInfo;
 gameFeatures cart;
 int psize, csize;
 unsigned char phash[SHA_DIGEST_LENGTH], chash[SHA_DIGEST_LENGTH];
-uint_fast8_t *prg, *chr, *bwram, *wram, wramEnable = 0, *wramSource;
+uint_fast8_t *prg, *chrRom, *chrRam, *bwram, *wram, wramEnable = 0, *wramSource;
 FILE *romFile, *bwramFile;
 char *bwramName;
 uint_fast8_t mirroring[4][4] = { { 0, 0, 1, 1 }, 	/* horizontal mirroring 	*/
@@ -79,12 +79,14 @@ void load_rom(char *rom)
 		load_by_header();
 	}
 
-	if (csize) {
-		chr = malloc(csize);
-		fread(chr, csize, 1, romFile);
-	} else {
-		csize = cart.cramSize;
-		chr = malloc(csize);
+	if (cart.chrSize)
+	{
+		chrRom = malloc(cart.chrSize);
+		fread(chrRom, cart.chrSize, 1, romFile);
+	}
+	if (cart.cramSize)
+	{
+		chrRam = malloc(cart.cramSize);
 	}
 	fclose(romFile);
 
@@ -120,7 +122,10 @@ void load_rom(char *rom)
 void close_rom()
 {
 	free(prg);
-	free(chr);
+	if (cart.chrSize)
+		free(chrRom);
+	if (cart.cramSize)
+		free(chrRam);
 	if (cart.bwramSize) {
 		bwramFile = fopen(bwramName, "w");
 		fwrite(bwram,cart.bwramSize,1,bwramFile);
