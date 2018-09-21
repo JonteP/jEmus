@@ -32,7 +32,7 @@ char *romName;
 
 int main(int argc, char *argv[]) {
 	if (argc < 2)
-		romName = "/home/jonas/eclipse-workspace/tqrom/pinbot.nes";
+		romName = "/home/jonas/eclipse-workspace/mmc3/smb3.nes";
 	else
 		romName = argv[1];
 	load_rom(romName);
@@ -79,7 +79,6 @@ void save_state()
 	char *stateName = strdup(romName);
 	sprintf(stateName+strlen(stateName)-3,"sta");
 	FILE *stateFile = fopen(stateName, "w");
-	fwrite(prgSlot,sizeof(prgSlot),1,stateFile);
 	fwrite(prgBank,sizeof(prgBank),1,stateFile);
 	fwrite(cpuRam,sizeof(cpuRam),1,stateFile);
 	fwrite(&cpuA,sizeof(cpuA),1,stateFile);
@@ -88,8 +87,8 @@ void save_state()
 	fwrite(&cpuP,sizeof(cpuP),1,stateFile);
 	fwrite(&cpuS,sizeof(cpuS),1,stateFile);
 	fwrite(&cpuPC,sizeof(cpuPC),1,stateFile);
-	fwrite(chrSlot,sizeof(chrSlot),1,stateFile);
 	fwrite(chrBank,sizeof(chrBank),1,stateFile);
+	fwrite(chrSource,sizeof(chrSource),1,stateFile);
 	fwrite(oam,sizeof(oam),1,stateFile);
 	fwrite(nameTableA,sizeof(nameTableA),1,stateFile);
 	fwrite(nameTableB,sizeof(nameTableB),1,stateFile);
@@ -115,7 +114,6 @@ void load_state()
 	char *stateName = strdup(romName);
 	sprintf(stateName+strlen(stateName)-3,"sta");
 	FILE *stateFile = fopen(stateName, "r");
-	fread(prgSlot,sizeof(prgSlot),1,stateFile);
 	fread(prgBank,sizeof(prgBank),1,stateFile);
 	fread(cpuRam,sizeof(cpuRam),1,stateFile);
 	fread(&cpuA,sizeof(cpuA),1,stateFile);
@@ -124,8 +122,8 @@ void load_state()
 	fread(&cpuP,sizeof(cpuP),1,stateFile);
 	fread(&cpuS,sizeof(cpuS),1,stateFile);
 	fread(&cpuPC,sizeof(cpuPC),1,stateFile);
-	fread(chrSlot,sizeof(chrSlot),1,stateFile);
 	fread(chrBank,sizeof(chrBank),1,stateFile);
+	fread(chrSource,sizeof(chrSource),1,stateFile);
 	fread(oam,sizeof(oam),1,stateFile);
 	fread(nameTableA,sizeof(nameTableA),1,stateFile);
 	fread(nameTableB,sizeof(nameTableB),1,stateFile);
@@ -144,4 +142,6 @@ void load_state()
 	if (cart.cramSize)
 		fread(chrRam,cart.cramSize,1,stateFile);
 	fclose(stateFile);
+	prg_bank_switch();
+	chr_bank_switch();
 }

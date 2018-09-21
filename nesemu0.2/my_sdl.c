@@ -55,7 +55,7 @@ uint_fast8_t colblargg[] = {  84,  84,  84,   0,  30, 116,   8,  16, 144,  48,  
 
 windowHandle handleMain, handleNametable, handlePattern, handlePalette;
 
-static inline void render_window (windowHandle, void *), idle_time();
+static inline void render_window (windowHandle, void *), idle_time(), update_texture(windowHandle, uint_fast8_t *);
 
 void init_sdl() {
 	SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO);

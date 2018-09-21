@@ -11,7 +11,6 @@
 uint_fast8_t mapperInt = 0, expSound = 0,
 			 prgBank[8], chrBank[8];
 chrtype_t chrSource[0x8];
-static inline void prg_bank_switch(), chr_bank_switch();
 
 /*/////////////////////////////////*/
 /*               AxROM             */
@@ -257,7 +256,8 @@ void mmc1_chr_bank_switch() {
  */
 
 static uint_fast8_t mmc3BankSelect = 0, mmc3Reg[0x08] = { 0 }, mmc3IrqEnable = 0,
-		mmc3PramProtect, mmc3IrqLatch = 0, mmc3IrqReload = 0, mmc3IrqCounter = 0, mmc3ChrSource[0x8];
+		mmc3PramProtect, mmc3IrqLatch = 0, mmc3IrqReload = 0, mmc3IrqCounter = 0;
+static chrtype_t mmc3ChrSource[0x8];
 static inline void mapper_mmc3(uint_fast16_t, uint_fast8_t), mmc3_prg_bank_switch(), mmc3_chr_bank_switch();
 
 void mapper_mmc3 (uint_fast16_t address, uint_fast8_t value) {
@@ -265,6 +265,8 @@ void mapper_mmc3 (uint_fast16_t address, uint_fast8_t value) {
 		case 0:
 			if (!(address %2)) { /* Bank select (0x8000) */
 				mmc3BankSelect = value;
+				mmc3_chr_bank_switch();
+				mmc3_prg_bank_switch();
 			} else if (address %2) { /* Bank data (0x8001) */
 				int bank = (mmc3BankSelect & 0x07);
 				mmc3Reg[bank] = value;
@@ -280,7 +282,8 @@ void mapper_mmc3 (uint_fast16_t address, uint_fast8_t value) {
 					}
 					mmc3_chr_bank_switch();
 				}
-				mmc3_prg_bank_switch();
+				else
+					mmc3_prg_bank_switch();
 			}
 			break;
 		case 1:
@@ -1067,6 +1070,7 @@ void init_mapper() {
 	} else if (!strcmp(cart.slot,"txrom") || !strcmp(cart.slot,"tqrom")) {
 		write_mapper_register = &mapper_mmc3;
 		reset_default();
+		memcpy(&mmc3ChrSource, &chrSource, sizeof(chrSource));
 	} else if (!strcmp(cart.slot,"vrc1")) {
 		write_mapper_register = &mapper_vrc1;
 		reset_default();
