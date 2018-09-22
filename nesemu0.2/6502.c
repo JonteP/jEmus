@@ -107,7 +107,6 @@ void opdecode() {
 		apu_wait += 7;
 		ppu_wait += 7 * 3;
 		cpucc += 7;
-	/*	printf("IRQ %i,%i\n",scanline,ppudot); */
 		interrupt_handle(IRQ);
 		irqPending = 0;
 	}

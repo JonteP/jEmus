@@ -32,7 +32,7 @@ char *romName;
 
 int main(int argc, char *argv[]) {
 	if (argc < 2)
-		romName = "/home/jonas/eclipse-workspace/mmc3_test_2/rom_singles/4-scanline_timing.nes";
+		romName = "/home/jonas/eclipse-workspace/mmc3/rockman3.nes";
 	else
 		romName = argv[1];
 	load_rom(romName);
@@ -49,8 +49,6 @@ int main(int argc, char *argv[]) {
 	{
 		opdecode();
 		synchronize(0);
-		if (mapperInt)
-			irqPulled = 1;
 		if (stateLoad)
 		{
 			stateLoad = 0;

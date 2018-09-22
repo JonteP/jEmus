@@ -302,6 +302,7 @@ void mapper_mmc3 (uint_fast16_t address, uint_fast8_t value) {
 				mmc3IrqLatch = value;
 			} else if (address%2) { /* IRQ reload (0xC001) */
 				mmc3IrqReload = 1;
+				mmc3IrqCounter = 0;
 			}
 			break;
 		case 3:
@@ -377,33 +378,25 @@ void mmc3_chr_bank_switch()
 
 void mmc3_irq ()
 {
-	if (mmc3IrqReload)
+	if (mmc3IrqReload || !mmc3IrqCounter)
 	{
 		mmc3IrqReload = 0;
 		mmc3IrqCounter = mmc3IrqLatch;
 		if (mmc3IrqEnable && !mmc3IrqCounter)
 		{
 			mapperInt = 1;
-			irqPulled = 1;
-			mmc3IrqReload = 1;
 		}
 	}
 	else if (mmc3IrqCounter > 0)
 	{
 		mmc3IrqCounter--;
-		printf("Clocked: %i\t%i,%i\n",mmc3IrqCounter,scanline,ppudot);
-		if (mmc3IrqCounter == 0)
-			{
-				mmc3IrqReload = 1;
-				if (mmc3IrqEnable)
-				{
-					mapperInt = 1;
-					irqPulled = 1;
-				}
-			}
+		if (mmc3IrqEnable && !mmc3IrqCounter)
+		{
+			mapperInt = 1;
+		}
 	}
 }
-
+/*266 - 282*/
 /*-----------------------------------IREM------------------------------------*/
 
 /*/////////////////////////////////*/

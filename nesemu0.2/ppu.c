@@ -84,6 +84,12 @@ void run_ppu (uint_fast16_t ntimes) {
 	hINC, dfNT, none, dfNT, none };
 
 	while (ntimes) {
+		if (mapperInt)
+		{
+			irqPulled = 1;
+			mapperInt = 0;
+		}
+
 		ppudot++;
 		ppucc++;
 
@@ -563,7 +569,6 @@ void write_ppu_register(uint_fast16_t addr, uint_fast8_t tmpval8) {
 		break;
 	case 0x2001:
 		ppuMask = tmpval8;
-		printf("ppu mask: %02x\t%i,%i\n",ppuMask,scanline,ppudot);
 		break;
 	case 0x2002:
 		break;
@@ -682,14 +687,12 @@ void toggle_a12(uint_fast16_t address)
 {
 	if ((address & 0x1000) && ((address ^ lastAddress) & 0x1000) && (!strcmp(cart.slot,"txrom") || !strcmp(cart.slot,"tqrom")))
 	{
-
-
 		mmc3_irq();
 	}
 	else if (!(address & 0x1000) && ((address ^ lastAddress) & 0x1000) && !strcmp(cart.slot,"txrom"))
 	{
 	}
-	/*  during sprite fetches, the PPU rapidly alternates between $1xxx and $2xxx, and the MMC3 does not see A13 -
+	/* during sprite fetches, the PPU rapidly alternates between $1xxx and $2xxx, and the MMC3 does not see A13 -
 	 * as such, the PPU will send 8 rising edges on A12 during the sprite fetch portion of the scanline
 	 * (with 8 pixel clocks, or 2.67 CPU cycles between them */
 	lastAddress = address;
