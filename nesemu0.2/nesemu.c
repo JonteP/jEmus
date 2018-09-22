@@ -32,7 +32,7 @@ char *romName;
 
 int main(int argc, char *argv[]) {
 	if (argc < 2)
-		romName = "/home/jonas/eclipse-workspace/lrog017/napoleon.nes";
+		romName = "/home/jonas/eclipse-workspace/holydivr/holydivr.nes";
 	else
 		romName = argv[1];
 	load_rom(romName);

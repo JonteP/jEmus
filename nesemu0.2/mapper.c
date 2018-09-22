@@ -480,6 +480,31 @@ void mapper_g101(uint_fast16_t address, uint_fast8_t value)
 }
 
 /*/////////////////////////////////*/
+/*           Holy Diver            */
+/*/////////////////////////////////*/
+
+static inline void mapper_holydivr(uint_fast16_t, uint_fast8_t);
+
+void mapper_holydivr(uint_fast16_t address, uint_fast8_t value)
+{
+	prgBank[0] = ((value & 0x7) << 2);
+	prgBank[1] = prgBank[0] + 1;
+	prgBank[2] = prgBank[0] + 2;
+	prgBank[3] = prgBank[0] + 3;
+	prg_bank_switch();
+	nametable_mirroring((value >> 3) & 1);
+	chrBank[0] = ((value >> 4) << 3);
+	chrBank[1] = chrBank[0] + 1;
+	chrBank[2] = chrBank[0] + 2;
+	chrBank[3] = chrBank[0] + 3;
+	chrBank[4] = chrBank[0] + 4;
+	chrBank[5] = chrBank[0] + 5;
+	chrBank[6] = chrBank[0] + 6;
+	chrBank[7] = chrBank[0] + 7;
+	chr_bank_switch();
+}
+
+/*/////////////////////////////////*/
 /*             lrog017             */
 /*/////////////////////////////////*/
 
@@ -1195,6 +1220,10 @@ void init_mapper() {
 	} else if (!strcmp(cart.slot,"lrog017")) {
 		write_mapper_register = &mapper_lrog017;
 		reset_lrog017();
-	} else
+	} else if (!strcmp(cart.slot,"holydivr")) {
+			write_mapper_register = &mapper_holydivr;
+			reset_default();
+		}
+	else
 		reset_default();
 }
