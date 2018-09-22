@@ -108,7 +108,10 @@ void run_ppu (uint_fast16_t ntimes) {
 /* PRERENDER SCANLINE */
 	} else if (scanline == 261) {
 		if (ppuMask & 0x18)
+		{
 			(*fetchGraphics[ppudot])();
+			(*spriteEvaluation[ppudot])();
+		}
 		ppu_render();
 		if (ppudot == 1)
 		{
@@ -265,8 +268,6 @@ static uint_fast16_t patternOffset;
 
 void sfLT ()
 {
-	if (scanline < 240)
-	{
 	cSprite = ((ppudot >> 3) & 0x07);
 	sprite = secOam + (cSprite << 2);
 	yOffset = scanline - (sprite[0]);
@@ -280,13 +281,10 @@ void sfLT ()
 		patternOffset = (sprite[1] << 4) + ((ppuController & 0x08) ? 0x1000 : 0);
 	spriteLow = *ppuread(patternOffset + spriteRow);
 	ppuOamAddress = 0;
-	}
 }
 
 void sfHT ()
 {
-	if (scanline < 240)
-	{
 		spriteHigh = *ppuread(patternOffset + spriteRow + 8);
 		ppuOamAddress = 0;
 		uint_fast8_t flipX = ((sprite[2] >> 6) & 1);
@@ -308,7 +306,7 @@ void sfHT ()
 				priorityBuffer[sprite[3] + pcol] = (sprite[2] & 0x20);
 			}
 		}
-	}
+
 }
 void dfNT () { }
 void hINC()
@@ -565,6 +563,7 @@ void write_ppu_register(uint_fast16_t addr, uint_fast8_t tmpval8) {
 		break;
 	case 0x2001:
 		ppuMask = tmpval8;
+		printf("ppu mask: %02x\t%i,%i\n",ppuMask,scanline,ppudot);
 		break;
 	case 0x2002:
 		break;
@@ -683,10 +682,15 @@ void toggle_a12(uint_fast16_t address)
 {
 	if ((address & 0x1000) && ((address ^ lastAddress) & 0x1000) && (!strcmp(cart.slot,"txrom") || !strcmp(cart.slot,"tqrom")))
 	{
+
+
 		mmc3_irq();
 	}
 	else if (!(address & 0x1000) && ((address ^ lastAddress) & 0x1000) && !strcmp(cart.slot,"txrom"))
 	{
 	}
+	/*  during sprite fetches, the PPU rapidly alternates between $1xxx and $2xxx, and the MMC3 does not see A13 -
+	 * as such, the PPU will send 8 rising edges on A12 during the sprite fetch portion of the scanline
+	 * (with 8 pixel clocks, or 2.67 CPU cycles between them */
 	lastAddress = address;
 }

@@ -302,7 +302,6 @@ void mapper_mmc3 (uint_fast16_t address, uint_fast8_t value) {
 				mmc3IrqLatch = value;
 			} else if (address%2) { /* IRQ reload (0xC001) */
 				mmc3IrqReload = 1;
-				mmc3IrqCounter = 0;
 			}
 			break;
 		case 3:
@@ -392,6 +391,7 @@ void mmc3_irq ()
 	else if (mmc3IrqCounter > 0)
 	{
 		mmc3IrqCounter--;
+		printf("Clocked: %i\t%i,%i\n",mmc3IrqCounter,scanline,ppudot);
 		if (mmc3IrqCounter == 0)
 			{
 				mmc3IrqReload = 1;
