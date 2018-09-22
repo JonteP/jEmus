@@ -11,6 +11,7 @@
 uint_fast8_t mapperInt = 0, expSound = 0,
 			 prgBank[8], chrBank[8];
 chrtype_t chrSource[0x8];
+static inline void nametable_mirroring(uint_fast8_t);
 
 /*/////////////////////////////////*/
 /*               AxROM             */
@@ -36,6 +37,7 @@ void mapper_axrom(uint_fast16_t address, uint_fast8_t value) {
 	prgBank[7] = prgBank[0] + 7;
 	prg_bank_switch();
 	(value & 0x10) ? (cart.mirroring = 3) : (cart.mirroring = 2);
+	nametable_mirroring(cart.mirroring);
 }
 
 /*/////////////////////////////////*/
@@ -139,6 +141,7 @@ void mapper_mmc1(uint_fast16_t address, uint_fast8_t value) {
 					cart.mirroring = 0;
 					break;
 				}
+				nametable_mirroring(cart.mirroring);
 				mmc1_prg_bank_switch();
 				mmc1_chr_bank_switch();
 				break;
@@ -289,6 +292,7 @@ void mapper_mmc3 (uint_fast16_t address, uint_fast8_t value) {
 		case 1:
 			if (!(address %2)) { /* Mirroring (0xA000) */
 				cart.mirroring = 1-(value & 0x01);
+				nametable_mirroring(cart.mirroring);
 			} else if (address%2) { /* PRG RAM protect (0xA001) */
 				mmc3PramProtect = value;
 			}
@@ -400,6 +404,8 @@ void mmc3_irq ()
 	}
 }
 
+/*-----------------------------------IREM------------------------------------*/
+
 /*/////////////////////////////////*/
 /*            Irem G-101           */
 /*/////////////////////////////////*/
@@ -426,7 +432,10 @@ void mapper_g101(uint_fast16_t address, uint_fast8_t value)
 	} else if ((address & 0xf007) >= 0x9000 && (address & 0xf007) < 0xa000) {
 		g101PrgMode = (value & 0x02);
 		if (!(cart.mirroring == 3))
+		{
 			cart.mirroring = (value & 0x01) ? 0 : 1;
+			nametable_mirroring(cart.mirroring);
+		}
 		if (g101PrgMode) {
 			prgBank[0] = cart.pSlots - 4;
 			prgBank[1] = cart.pSlots - 3;
@@ -471,6 +480,64 @@ void mapper_g101(uint_fast16_t address, uint_fast8_t value)
 }
 
 /*/////////////////////////////////*/
+/*             lrog017             */
+/*/////////////////////////////////*/
+
+static inline void mapper_lrog017(uint_fast16_t, uint_fast8_t);
+
+void mapper_lrog017(uint_fast16_t address, uint_fast8_t value)
+{
+	chrBank[0] = ((value >> 4) << 1);
+	chrBank[1] = chrBank[0] + 1;
+	chr_bank_switch();
+	prgBank[0] = ((value & 0xf) << 3);
+	prgBank[1] = prgBank[0] + 1;
+	prgBank[2] = prgBank[0] + 2;
+	prgBank[3] = prgBank[0] + 3;
+	prgBank[4] = prgBank[0] + 4;
+	prgBank[5] = prgBank[0] + 5;
+	prgBank[6] = prgBank[0] + 6;
+	prgBank[7] = prgBank[0] + 7;
+	prg_bank_switch();
+}
+
+void reset_lrog017()
+{
+	chrSource[0] = CHR_ROM;
+	chrSource[1] = CHR_ROM;
+	chrSource[2] = CHR_RAM;
+	chrSource[3] = CHR_RAM;
+	chrSource[4] = CHR_RAM;
+	chrSource[5] = CHR_RAM;
+	chrSource[6] = CHR_RAM;
+	chrSource[7] = CHR_RAM;
+	prgBank[0] = 0;
+	prgBank[1] = 1;
+	prgBank[2] = 2;
+	prgBank[3] = 3;
+	prgBank[4] = cart.pSlots - 4;
+	prgBank[5] = cart.pSlots - 3;
+	prgBank[6] = cart.pSlots - 2;
+	prgBank[7] = cart.pSlots - 1;
+	prg_bank_switch();
+	chrBank[0] = 0;
+	chrBank[1] = 1;
+	chrBank[2] = 0;
+	chrBank[3] = 1;
+	chrBank[4] = 2;
+	chrBank[5] = 3;
+	chrBank[6] = 4;
+	chrBank[7] = 5;
+	chr_bank_switch();
+	nameSlot[0] = chrRam + 0x1800;
+	nameSlot[1] = chrRam + 0x1c00;
+	nameSlot[2] = ciram;
+	nameSlot[3] = ciram + 0x400;
+}
+
+/*-----------------------------------KONAMI------------------------------------*/
+
+/*/////////////////////////////////*/
 /*            Konami VRC           */
 /*/////////////////////////////////*/
 
@@ -508,6 +575,7 @@ void mapper_vrc1(uint_fast16_t address, uint_fast8_t value)
 	if (address >= 0x9000 && address <= 0x9fff) /* Mirroring + CHR */
 	{
 		cart.mirroring = (1 - (value & 0x01));
+		nametable_mirroring(cart.mirroring);
 		vrc1Chr0 = ((vrc1Chr0 & 0x0f) | ((value & 0x02) << 3));
 		vrc1Chr1 = ((vrc1Chr1 & 0x0f) | ((value & 0x04) << 2));
 		chrBank[0] = (vrc1Chr0 << 2);
@@ -612,8 +680,10 @@ void mapper_vrc24(uint_fast16_t address, uint_fast8_t value) {
 				cart.mirroring = 3;
 				break;
 			}
+			nametable_mirroring(cart.mirroring);
 		} else if (!strcmp(cart.slot,"vrc2")) {
 			cart.mirroring = (value&1) ? 0 : 1;
+			nametable_mirroring(cart.mirroring);
 		}
 	} else if ((address&0xf003) == 0xb000) { /* CHR select 0 low */
 		chrBank[0] = (chrBank[0] & 0x1f0) | (value & 0xf);
@@ -759,6 +829,7 @@ void mapper_vrc6(uint_fast16_t address, uint_fast8_t value)
 			cart.mirroring = 3;
 			break;
 		}
+		nametable_mirroring(cart.mirroring);
 		wramEnable = (value >> 7);
 	}
 	else if ((address&0xf003) == 0xd000) /* CHR select */
@@ -1014,6 +1085,7 @@ void reset_default()
 	chrBank[6] = 6;
 	chrBank[7] = 7;
 	chr_bank_switch();
+	nametable_mirroring(cart.mirroring);
 }
 
 void prg_bank_switch()
@@ -1038,6 +1110,37 @@ void chr_bank_switch()
 	chrSlot[5] = (chrSource[5] == CHR_RAM) ? &chrRam[((chrBank[5] & ((cart.cramSize >> 10) - 1)) << 10)] : &chrRom[((chrBank[5] & ((cart.chrSize >> 10) - 1)) << 10)];
 	chrSlot[6] = (chrSource[6] == CHR_RAM) ? &chrRam[((chrBank[6] & ((cart.cramSize >> 10) - 1)) << 10)] : &chrRom[((chrBank[6] & ((cart.chrSize >> 10) - 1)) << 10)];
 	chrSlot[7] = (chrSource[7] == CHR_RAM) ? &chrRam[((chrBank[7] & ((cart.cramSize >> 10) - 1)) << 10)] : &chrRom[((chrBank[7] & ((cart.chrSize >> 10) - 1)) << 10)];
+}
+
+void nametable_mirroring(uint_fast8_t mode)
+{
+	switch (mode)
+	{
+	case 0: /* horizontal */
+		nameSlot[0] = ciram;
+		nameSlot[1] = ciram;
+		nameSlot[2] = ciram + 0x400;
+		nameSlot[3] = ciram + 0x400;
+		break;
+	case 1: /* vertical */
+		nameSlot[0] = ciram;
+		nameSlot[1] = ciram + 0x400;
+		nameSlot[2] = ciram;
+		nameSlot[3] = ciram + 0x400;
+		break;
+	case 2: /* one-page low */
+		nameSlot[0] = ciram;
+		nameSlot[1] = ciram;
+		nameSlot[2] = ciram;
+		nameSlot[3] = ciram;
+		break;
+	case 3: /* one-page high */
+		nameSlot[0] = ciram + 0x400;
+		nameSlot[1] = ciram + 0x400;
+		nameSlot[2] = ciram + 0x400;
+		nameSlot[3] = ciram + 0x400;
+		break;
+	}
 }
 
 void init_mapper() {
@@ -1089,6 +1192,9 @@ void init_mapper() {
 	} else if (!strcmp(cart.slot,"g101")) {
 		write_mapper_register = &mapper_g101;
 		reset_default();
+	} else if (!strcmp(cart.slot,"lrog017")) {
+		write_mapper_register = &mapper_lrog017;
+		reset_lrog017();
 	} else
 		reset_default();
 }

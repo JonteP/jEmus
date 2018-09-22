@@ -262,6 +262,7 @@ void io_handle()
 					SDL_GetWindowDisplayMode(handleMain.win, &mode);
 					mode.w = 1920;
 					mode.h = 1080;
+					mode.refresh_rate = 60;
 					SDL_SetWindowDisplayMode(handleMain.win, &mode);
 					SDL_SetWindowFullscreen(handleMain.win, SDL_WINDOW_FULLSCREEN);
 					SDL_SetWindowGrab(handleMain.win, SDL_TRUE);

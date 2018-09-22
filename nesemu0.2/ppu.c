@@ -13,11 +13,11 @@
 static inline void check_nmi(), horizontal_t_to_v(), vertical_t_to_v(), ppu_render(), reload_tile_shifter(), toggle_a12(uint_fast16_t), ppuwrite(uint_fast16_t, uint_fast8_t);
 static inline uint_fast8_t * ppuread(uint_fast16_t);
 
-uint_fast8_t *chrSlot[0x8], oam[0x100], frameBuffer[SHEIGHT][SWIDTH], nameBuffer[SHEIGHT][SWIDTH<<1], patternBuffer[SWIDTH>>1][SWIDTH], paletteBuffer[SWIDTH>>4][SWIDTH>>1];
+uint_fast8_t *chrSlot[0x8], *nameSlot[0x4], oam[0x100], frameBuffer[SHEIGHT][SWIDTH], nameBuffer[SHEIGHT][SWIDTH<<1], patternBuffer[SWIDTH>>1][SWIDTH], paletteBuffer[SWIDTH>>4][SWIDTH>>1];
 uint_fast8_t ppuOamAddress;
 uint_fast8_t throttle = 1;
 int16_t ppudot = 0, scanline = 0;
-uint_fast8_t nameTableA[0x400], nameTableB[0x400], palette[0x20];
+uint_fast8_t ciram[0x800], palette[0x20];
 static uint_fast8_t vblank_period = 0, nmiSuppressed = 0, secOam[0x20];
 
 /* PPU internal registers */
@@ -234,13 +234,13 @@ void seWW ()
 
 void tfNT ()
 {
-	uint_fast16_t a = (0x2000 | (ppuV&0xfff));
+	uint_fast16_t a = (0x2000 | (ppuV & 0xfff));
 	ntData = *ppuread(a);
 	toggle_a12(a);
 }
 void tfAT ()
 {
-	uint_fast16_t a = (0x2fc0 | ((ppuV >> 4) & 0x38) | ((ppuV >> 2) & 0x07));
+	uint_fast16_t a = (0x23c0 | (ppuV & 0xc00) | ((ppuV >> 4) & 0x38) | ((ppuV >> 2) & 0x07));
 	bgData = *ppuread(a);
 	attData = ((bgData >> ((((ppuV >> 1) & 1) | ((ppuV >> 5) & 2)) << 1)) & 3);
 	toggle_a12(a);
@@ -441,13 +441,13 @@ void draw_nametable () {
 	uint_fast16_t tileOffsetB;
 	for (int tileRow = 0; tileRow < 30; tileRow++) {
 		for (int tileColumn = 0; tileColumn < 32; tileColumn++) {
-			tileOffsetA = 16 * nameTableA[tileRow * 32 + tileColumn] + ((ppuController & 0x10) <<8);
+			tileOffsetA = 16 * ciram[tileRow * 32 + tileColumn] + ((ppuController & 0x10) <<8);
 		    tilesrcA = &chrSlot[(tileOffsetA>>10)][tileOffsetA&0x3ff];
-		    attsrcA = nameTableA[0x3c0 + (tileRow >> 2) * 8 + (tileColumn >> 2)];
+		    attsrcA = ciram[0x3c0 + (tileRow >> 2) * 8 + (tileColumn >> 2)];
 		    npalA = ((attsrcA >> (((tileColumn >> 1) & 1) | (tileRow & 2) ) * 2) & 3);
-			tileOffsetB = 16 * nameTableB[tileRow * 32 + tileColumn] + ((ppuController & 0x10) <<8);
+			tileOffsetB = 16 * ciram[0x400 + tileRow * 32 + tileColumn] + ((ppuController & 0x10) <<8);
 		    tilesrcB = &chrSlot[(tileOffsetB>>10)][tileOffsetB&0x3ff];
-		    attsrcB = nameTableB[0x3c0 + (tileRow >> 2) * 8 + (tileColumn >> 2)];
+		    attsrcB = ciram[0x7c0 + (tileRow >> 2) * 8 + (tileColumn >> 2)];
 		    npalB = ((attsrcB >> (((tileColumn >> 1) & 1) | (tileRow & 2) ) * 2) & 3);
 			for (int pixelRow = 0; pixelRow < 8; pixelRow++) {
 				for (int pixelColumn = 0; pixelColumn < 8; pixelColumn++) {
@@ -610,7 +610,7 @@ void write_ppu_register(uint_fast16_t addr, uint_fast8_t tmpval8) {
 			ppuData = tmpval8;
 			if ((ppuV & 0x3fff) >= 0x3f00)
 				ppuwrite((ppuV & 0x3fff),(ppuData & 0x3f));
-			else if ((ppuV & 0x3fff) >= 0x2000 || cart.cramSize)
+			else
 			{
 				ppuwrite((ppuV & 0x3fff),ppuData);
 			}
@@ -633,7 +633,7 @@ uint_fast8_t * ppuread(uint_fast16_t address)
 		return &chrSlot[(address>>10)][address&0x3ff];
 	}
 	else if (address >= 0x2000 && address <0x3f00) /* nametables */
-		return mirroring[cart.mirroring][((ppuV&0xc00)>>10)] ? &nameTableB[address&0x3ff] : &nameTableA[address&0x3ff];
+		return &nameSlot[(address>>10) & 3][address&0x3ff];
 	else if (address >= 0x3f00) { /* palette RAM */
 		if (address == 0x3f10)
 			address = 0x3f00;
@@ -649,15 +649,13 @@ uint_fast8_t * ppuread(uint_fast16_t address)
 }
 
 void ppuwrite(uint_fast16_t address, uint_fast8_t value) {
-	if (address < 0x2000 && cart.cramSize) /* pattern tables */
+	if (address < 0x2000) /* pattern tables */
 	{
-		chrSlot[(address>>10)][address&0x3ff] = value;
+		if (chrSource[(address>>10)] == CHR_RAM)
+			chrSlot[(address>>10)][address&0x3ff] = value;
 	}
 	else if (address >= 0x2000 && address <0x3f00) /* nametables */
-		if (mirroring[cart.mirroring][((ppuV&0xc00)>>10)])
-			nameTableB[address&0x3ff] = value;
-		else
-			nameTableA[address&0x3ff] = value;
+		nameSlot[(address>>10) & 3][address&0x3ff] = value;
 	else if (address >= 0x3f00) { /* palette RAM */
 		if (address == 0x3f10)
 			address = 0x3f00;

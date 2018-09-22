@@ -34,6 +34,13 @@ uint_fast8_t mirroring[4][4] = { { 0, 0, 1, 1 }, 	/* horizontal mirroring 	*/
 							{ 0, 0, 0, 0 },		/* one screen, low page 	*/
 							{ 1, 1, 1, 1 } };	/* one screen, high page 	*/
 
+/* horizontal:
+ * nameSlot[0] = ciram;
+ * nameSlot[1] = ciram;
+ * nameSlot[2] = ciram + 0x400;
+ * nameSlot[3] = ciram + 0x400;
+ */
+
 void load_rom(char *rom)
 {
 	romFile = fopen(rom, "r");

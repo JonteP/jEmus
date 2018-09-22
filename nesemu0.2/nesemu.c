@@ -32,7 +32,7 @@ char *romName;
 
 int main(int argc, char *argv[]) {
 	if (argc < 2)
-		romName = "/home/jonas/eclipse-workspace/mmc3/smb3.nes";
+		romName = "/home/jonas/eclipse-workspace/lrog017/napoleon.nes";
 	else
 		romName = argv[1];
 	load_rom(romName);
@@ -90,8 +90,8 @@ void save_state()
 	fwrite(chrBank,sizeof(chrBank),1,stateFile);
 	fwrite(chrSource,sizeof(chrSource),1,stateFile);
 	fwrite(oam,sizeof(oam),1,stateFile);
-	fwrite(nameTableA,sizeof(nameTableA),1,stateFile);
-	fwrite(nameTableB,sizeof(nameTableB),1,stateFile);
+/*	fwrite(nameTableA,sizeof(nameTableA),1,stateFile);
+	fwrite(nameTableB,sizeof(nameTableB),1,stateFile); */
 	fwrite(palette,sizeof(palette),1,stateFile);
 	fwrite(&ppudot,sizeof(ppudot),1,stateFile);
 	fwrite(&scanline,sizeof(scanline),1,stateFile);
@@ -114,33 +114,34 @@ void load_state()
 	char *stateName = strdup(romName);
 	sprintf(stateName+strlen(stateName)-3,"sta");
 	FILE *stateFile = fopen(stateName, "r");
-	fread(prgBank,sizeof(prgBank),1,stateFile);
-	fread(cpuRam,sizeof(cpuRam),1,stateFile);
-	fread(&cpuA,sizeof(cpuA),1,stateFile);
-	fread(&cpuX,sizeof(cpuX),1,stateFile);
-	fread(&cpuY,sizeof(cpuY),1,stateFile);
-	fread(&cpuP,sizeof(cpuP),1,stateFile);
-	fread(&cpuS,sizeof(cpuS),1,stateFile);
-	fread(&cpuPC,sizeof(cpuPC),1,stateFile);
-	fread(chrBank,sizeof(chrBank),1,stateFile);
-	fread(chrSource,sizeof(chrSource),1,stateFile);
-	fread(oam,sizeof(oam),1,stateFile);
-	fread(nameTableA,sizeof(nameTableA),1,stateFile);
-	fread(nameTableB,sizeof(nameTableB),1,stateFile);
-	fread(palette,sizeof(palette),1,stateFile);
-	fread(&ppudot,sizeof(ppudot),1,stateFile);
-	fread(&scanline,sizeof(scanline),1,stateFile);
-	fread(&ppuW,sizeof(ppuW),1,stateFile);
-	fread(&ppuX,sizeof(ppuX),1,stateFile);
-	fread(&ppuT,sizeof(ppuT),1,stateFile);
-	fread(&ppuV,sizeof(ppuV),1,stateFile);
-	fread(&cart.mirroring,sizeof(cart.mirroring),1,stateFile);
+	int readErr = 0;
+	readErr |= fread(prgBank,sizeof(prgBank),1,stateFile);
+	readErr |= fread(cpuRam,sizeof(cpuRam),1,stateFile);
+	readErr |= fread(&cpuA,sizeof(cpuA),1,stateFile);
+	readErr |= fread(&cpuX,sizeof(cpuX),1,stateFile);
+	readErr |= fread(&cpuY,sizeof(cpuY),1,stateFile);
+	readErr |= fread(&cpuP,sizeof(cpuP),1,stateFile);
+	readErr |= fread(&cpuS,sizeof(cpuS),1,stateFile);
+	readErr |= fread(&cpuPC,sizeof(cpuPC),1,stateFile);
+	readErr |= fread(chrBank,sizeof(chrBank),1,stateFile);
+	readErr |= fread(chrSource,sizeof(chrSource),1,stateFile);
+	readErr |= fread(oam,sizeof(oam),1,stateFile);
+/*	readErr |= fread(nameTableA,sizeof(nameTableA),1,stateFile);
+	readErr |= fread(nameTableB,sizeof(nameTableB),1,stateFile); */
+	readErr |= fread(palette,sizeof(palette),1,stateFile);
+	readErr |= fread(&ppudot,sizeof(ppudot),1,stateFile);
+	readErr |= fread(&scanline,sizeof(scanline),1,stateFile);
+	readErr |= fread(&ppuW,sizeof(ppuW),1,stateFile);
+	readErr |= fread(&ppuX,sizeof(ppuX),1,stateFile);
+	readErr |= fread(&ppuT,sizeof(ppuT),1,stateFile);
+	readErr |= fread(&ppuV,sizeof(ppuV),1,stateFile);
+	readErr |= fread(&cart.mirroring,sizeof(cart.mirroring),1,stateFile);
 	if (cart.wramSize)
-		fread(wram,cart.wramSize,1,stateFile);
+		readErr |= fread(wram,cart.wramSize,1,stateFile);
 	else if (cart.bwramSize)
-		fread(bwram,cart.bwramSize,1,stateFile);
+		readErr |= fread(bwram,cart.bwramSize,1,stateFile);
 	if (cart.cramSize)
-		fread(chrRam,cart.cramSize,1,stateFile);
+		readErr |= fread(chrRam,cart.cramSize,1,stateFile);
 	fclose(stateFile);
 	prg_bank_switch();
 	chr_bank_switch();
