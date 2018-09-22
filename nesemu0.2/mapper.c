@@ -560,6 +560,34 @@ void reset_lrog017()
 	nameSlot[3] = ciram + 0x400;
 }
 
+/*-----------------------------------JALECO------------------------------------*/
+
+/*/////////////////////////////////*/
+/*               JF-16             */
+/*/////////////////////////////////*/
+
+static inline void mapper_jf16(uint_fast16_t, uint_fast8_t);
+
+void mapper_jf16(uint_fast16_t address, uint_fast8_t value)
+{
+	prgBank[0] = ((value & 0x7) << 2);
+	prgBank[1] = prgBank[0] + 1;
+	prgBank[2] = prgBank[0] + 2;
+	prgBank[3] = prgBank[0] + 3;
+	prg_bank_switch();
+	nametable_mirroring(((value >> 3) & 1) + 2);
+	chrBank[0] = ((value >> 4) << 3);
+	chrBank[1] = chrBank[0] + 1;
+	chrBank[2] = chrBank[0] + 2;
+	chrBank[3] = chrBank[0] + 3;
+	chrBank[4] = chrBank[0] + 4;
+	chrBank[5] = chrBank[0] + 5;
+	chrBank[6] = chrBank[0] + 6;
+	chrBank[7] = chrBank[0] + 7;
+	chr_bank_switch();
+}
+
+
 /*-----------------------------------KONAMI------------------------------------*/
 
 /*/////////////////////////////////*/
@@ -1202,8 +1230,7 @@ void init_mapper() {
 	} else if (!strcmp(cart.slot,"vrc1")) {
 		write_mapper_register = &mapper_vrc1;
 		reset_default();
-	}
-	else if (!strcmp(cart.slot,"vrc2") ||
+	} else if (!strcmp(cart.slot,"vrc2") ||
 			!strcmp(cart.slot,"vrc4")) {
 		write_mapper_register = &mapper_vrc24;
 		if (!strcmp(cart.slot,"vrc2") && (!cart.wramSize && !cart.bwramSize))
@@ -1223,7 +1250,9 @@ void init_mapper() {
 	} else if (!strcmp(cart.slot,"holydivr")) {
 			write_mapper_register = &mapper_holydivr;
 			reset_default();
-		}
-	else
+	} else if (!strcmp(cart.slot,"jf16")) {
+			write_mapper_register = &mapper_jf16;
+			reset_default();
+	} else
 		reset_default();
 }
