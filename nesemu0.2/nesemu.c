@@ -32,7 +32,7 @@ char *romName;
 
 int main(int argc, char *argv[]) {
 	if (argc < 2)
-		romName = "/home/jonas/eclipse-workspace/mmc3/rockman3.nes";
+		romName = "/home/jonas/eclipse-workspace/mmc3_test_2/rom_singles/5-MMC3.nes";
 	else
 		romName = argv[1];
 	load_rom(romName);
@@ -88,8 +88,8 @@ void save_state()
 	fwrite(chrBank,sizeof(chrBank),1,stateFile);
 	fwrite(chrSource,sizeof(chrSource),1,stateFile);
 	fwrite(oam,sizeof(oam),1,stateFile);
-/*	fwrite(nameTableA,sizeof(nameTableA),1,stateFile);
-	fwrite(nameTableB,sizeof(nameTableB),1,stateFile); */
+	fwrite(nameSlot,sizeof(nameSlot),1,stateFile);
+	fwrite(ciram,sizeof(ciram),1,stateFile);
 	fwrite(palette,sizeof(palette),1,stateFile);
 	fwrite(&ppudot,sizeof(ppudot),1,stateFile);
 	fwrite(&scanline,sizeof(scanline),1,stateFile);
@@ -124,8 +124,8 @@ void load_state()
 	readErr |= fread(chrBank,sizeof(chrBank),1,stateFile);
 	readErr |= fread(chrSource,sizeof(chrSource),1,stateFile);
 	readErr |= fread(oam,sizeof(oam),1,stateFile);
-/*	readErr |= fread(nameTableA,sizeof(nameTableA),1,stateFile);
-	readErr |= fread(nameTableB,sizeof(nameTableB),1,stateFile); */
+	readErr |= fread(nameSlot,sizeof(nameSlot),1,stateFile);
+	readErr |= fread(ciram,sizeof(ciram),1,stateFile);
 	readErr |= fread(palette,sizeof(palette),1,stateFile);
 	readErr |= fread(&ppudot,sizeof(ppudot),1,stateFile);
 	readErr |= fread(&scanline,sizeof(scanline),1,stateFile);

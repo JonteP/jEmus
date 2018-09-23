@@ -84,10 +84,9 @@ void run_ppu (uint_fast16_t ntimes) {
 	hINC, dfNT, none, dfNT, none };
 
 	while (ntimes) {
-		if (mapperInt)
+		if (mapperInt && !irqPulled)
 		{
 			irqPulled = 1;
-			mapperInt = 0;
 		}
 
 		ppudot++;
@@ -245,20 +244,20 @@ void tfNT ()
 {
 	uint_fast16_t a = (0x2000 | (ppuV & 0xfff));
 	ntData = *ppuread(a);
-	toggle_a12(a);
+
 }
 void tfAT ()
 {
 	uint_fast16_t a = (0x23c0 | (ppuV & 0xc00) | ((ppuV >> 4) & 0x38) | ((ppuV >> 2) & 0x07));
 	bgData = *ppuread(a);
 	attData = ((bgData >> ((((ppuV >> 1) & 1) | ((ppuV >> 5) & 2)) << 1)) & 3);
-	toggle_a12(a);
+
 }
 void tfLT ()
 {
 	uint_fast16_t a = ((ntData << 4) + ((ppuController & 0x10) << 8) + ((ppuV >> 12) & 7));
 	tileLow = *ppuread(a);
-	toggle_a12(a);
+
 }
 void tfHT ()
 {
