@@ -251,11 +251,11 @@ void mmc1_chr_bank_switch() {
 
 /* TODO:
  *
- *-Correct IRQ behavior - several games have issues
- * - implement TKSROM and TLSROM (mapper 118)
- *
- *Game specific:
- *-Rockman 5: IRQ issues - shaking screen
+ *-Clean IRQ implementation
+ * remaining IRQ issues:
+ * -Ninja ryuukenden 2 - cut scenes
+ * -Rockman3 - possible obe-line glitch in weapons screen
+ * -Rockman5 - slight glitch in gyromans elevators
  */
 
 static uint_fast8_t mmc3BankSelect = 0, mmc3Reg[0x08] = { 0 }, mmc3IrqEnable = 0,
@@ -283,6 +283,7 @@ void mapper_mmc3 (uint_fast16_t address, uint_fast8_t value) {
 					{
 						mmc3ChrSource[bank] = CHR_ROM;
 					}
+
 					mmc3_chr_bank_switch();
 				}
 				else
@@ -290,7 +291,7 @@ void mapper_mmc3 (uint_fast16_t address, uint_fast8_t value) {
 			}
 			break;
 		case 1:
-			if (!(address %2)) { /* Mirroring (0xA000) */
+			if (!(address %2) && strcmp(cart.slot,"txsrom")) { /* Mirroring (0xA000) */
 				cart.mirroring = 1-(value & 0x01);
 				nametable_mirroring(cart.mirroring);
 			} else if (address%2) { /* PRG RAM protect (0xA001) */
@@ -337,6 +338,13 @@ void mmc3_chr_bank_switch()
 {
 	if (mmc3BankSelect & 0x80)
 	{
+		if (!strcmp(cart.slot,"txsrom"))
+		{
+			nameSlot[0] = (mmc3Reg[2] & 0x80) ? ciram : (ciram + 0x400);
+			nameSlot[1] = (mmc3Reg[3] & 0x80) ? ciram : (ciram + 0x400);
+			nameSlot[2] = (mmc3Reg[4] & 0x80) ? ciram : (ciram + 0x400);
+			nameSlot[3] = (mmc3Reg[5] & 0x80) ? ciram : (ciram + 0x400);
+		}
 		chrBank[0] = mmc3Reg[2];
 		chrBank[1] = mmc3Reg[3];
 		chrBank[2] = mmc3Reg[4];
@@ -356,6 +364,13 @@ void mmc3_chr_bank_switch()
 	}
 	else if (!(mmc3BankSelect & 0x80))
 	{
+		if (!strcmp(cart.slot,"txsrom"))
+		{
+			nameSlot[0] = (mmc3Reg[0] & 0x80) ? ciram : (ciram + 0x400);
+			nameSlot[1] = (mmc3Reg[0] & 0x80) ? ciram : (ciram + 0x400);
+			nameSlot[2] = (mmc3Reg[1] & 0x80) ? ciram : (ciram + 0x400);
+			nameSlot[3] = (mmc3Reg[1] & 0x80) ? ciram : (ciram + 0x400);
+		}
 		chrBank[0] = (mmc3Reg[0] & 0xfe);
 		chrBank[1] = (mmc3Reg[0] | 0x01);
 		chrBank[2] = (mmc3Reg[1] & 0xfe);
@@ -580,7 +595,6 @@ void mapper_jf16(uint_fast16_t address, uint_fast8_t value)
 	chr_bank_switch();
 }
 
-
 /*-----------------------------------KONAMI------------------------------------*/
 
 /*/////////////////////////////////*/
@@ -659,11 +673,9 @@ void mapper_vrc1(uint_fast16_t address, uint_fast8_t value)
 /*/////////////////////////////////*/
 
 static uint_fast8_t vrc24SwapMode = 0;
-static uint_fast16_t vrcChr0 = 0, vrcChr1 = 0, vrcChr2 = 0, vrcChr3 = 0,
-		 vrcChr4 = 0, vrcChr5 = 0, vrcChr6 = 0, vrcChr7 = 0;
 uint_fast8_t wramBit = 0, wramBitVal;
 
-static inline void mapper_vrc24(uint_fast16_t, uint_fast8_t), vrc24_chr_bank_switch();
+static inline void mapper_vrc24(uint_fast16_t, uint_fast8_t);
 
 void mapper_vrc24(uint_fast16_t address, uint_fast8_t value) {
 	/* reroute addressing */
@@ -794,39 +806,6 @@ void mapper_vrc24(uint_fast16_t address, uint_fast8_t value) {
 	} else if ((address&0xf003) == 0xf003) { /* IRQ Acknowledge */
 		mapperInt = 0;
 		vrcIrqControl = ((vrcIrqControl & 0x04) | ((vrcIrqControl & 0x01) << 1) | (vrcIrqControl & 0x01));
-	}
-}
-
-void vrc24_chr_bank_switch() {
-	if (!strcmp(cart.slot,"vrc2")) {
-		if (cart.vrc24Chr) {
-			chr_1_0((vrcChr0 & ((cart.chrSize >> 10) -1)) * 0x400);
-			chr_1_1((vrcChr1 & ((cart.chrSize >> 10) -1)) * 0x400);
-			chr_1_2((vrcChr2 & ((cart.chrSize >> 10) -1)) * 0x400);
-			chr_1_3((vrcChr3 & ((cart.chrSize >> 10) -1)) * 0x400);
-			chr_1_4((vrcChr4 & ((cart.chrSize >> 10) -1)) * 0x400);
-			chr_1_5((vrcChr5 & ((cart.chrSize >> 10) -1)) * 0x400);
-			chr_1_6((vrcChr6 & ((cart.chrSize >> 10) -1)) * 0x400);
-			chr_1_7((vrcChr7 & ((cart.chrSize >> 10) -1)) * 0x400);
-		} else if (!cart.vrc24Chr) {
-			chr_1_0(((vrcChr0 >> 1) & ((cart.chrSize >> 10) -1)) * 0x400);
-			chr_1_1(((vrcChr1 >> 1) & ((cart.chrSize >> 10) -1)) * 0x400);
-			chr_1_2(((vrcChr2 >> 1) & ((cart.chrSize >> 10) -1)) * 0x400);
-			chr_1_3(((vrcChr3 >> 1) & ((cart.chrSize >> 10) -1)) * 0x400);
-			chr_1_4(((vrcChr4 >> 1) & ((cart.chrSize >> 10) -1)) * 0x400);
-			chr_1_5(((vrcChr5 >> 1) & ((cart.chrSize >> 10) -1)) * 0x400);
-			chr_1_6(((vrcChr6 >> 1) & ((cart.chrSize >> 10) -1)) * 0x400);
-			chr_1_7(((vrcChr7 >> 1) & ((cart.chrSize >> 10) -1)) * 0x400);
-		}
-	} else if (!strcmp(cart.slot,"vrc4")){
-		chr_1_0((vrcChr0 & ((cart.chrSize >> 10) -1)) * 0x400);
-		chr_1_1((vrcChr1 & ((cart.chrSize >> 10) -1)) * 0x400);
-		chr_1_2((vrcChr2 & ((cart.chrSize >> 10) -1)) * 0x400);
-		chr_1_3((vrcChr3 & ((cart.chrSize >> 10) -1)) * 0x400);
-		chr_1_4((vrcChr4 & ((cart.chrSize >> 10) -1)) * 0x400);
-		chr_1_5((vrcChr5 & ((cart.chrSize >> 10) -1)) * 0x400);
-		chr_1_6((vrcChr6 & ((cart.chrSize >> 10) -1)) * 0x400);
-		chr_1_7((vrcChr7 & ((cart.chrSize >> 10) -1)) * 0x400);
 	}
 }
 
@@ -1216,7 +1195,8 @@ void init_mapper() {
 	} else if (!strcmp(cart.slot,"axrom")) {
 		write_mapper_register = &mapper_axrom;
 		reset_default();
-	} else if (!strcmp(cart.slot,"txrom") || !strcmp(cart.slot,"tqrom")) {
+	} else if (!strcmp(cart.slot,"txrom") || !strcmp(cart.slot,"tqrom")
+			|| !strcmp(cart.slot,"txsrom")) {
 		write_mapper_register = &mapper_mmc3;
 		reset_default();
 		memcpy(&mmc3ChrSource, &chrSource, sizeof(chrSource));

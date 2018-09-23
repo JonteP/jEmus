@@ -684,7 +684,7 @@ void check_nmi()
 uint_fast16_t lastAddress = 0x0000;
 void toggle_a12(uint_fast16_t address)
 {
-	if ((address & 0x1000) && ((address ^ lastAddress) & 0x1000) && (!strcmp(cart.slot,"txrom") || !strcmp(cart.slot,"tqrom")))
+	if ((address & 0x1000) && ((address ^ lastAddress) & 0x1000) && (!strcmp(cart.slot,"txrom") || !strcmp(cart.slot,"tqrom") || !strcmp(cart.slot,"txsrom")))
 	{
 		mmc3_irq();
 	}
