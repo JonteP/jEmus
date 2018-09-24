@@ -1073,12 +1073,6 @@ void vrc_irq() {
 /*           NAMCOT 34xx           */
 /*/////////////////////////////////*/
 
-/* TODO:
- *
- * -add mappers
- * 	76 (inflated CHR banks)
- */
-
 static inline void mapper_namcot34xx(uint_fast16_t, uint_fast8_t), namcot34xx_bank_switch(void);
 static uint_fast8_t namcot34xxSelect, namcot34xxReg[0x8];
 void mapper_namcot34xx(uint_fast16_t address, uint_fast8_t value)
@@ -1115,14 +1109,28 @@ void namcot34xx_bank_switch()
 		nameSlot[2] = (namcot34xxReg[1] & 0x20) ? ciram : (ciram + 0x400);
 		nameSlot[3] = (namcot34xxReg[1] & 0x20) ? ciram : (ciram + 0x400);
 	}
-	chrBank[0] = (namcot34xxReg[0] & 0xfe);
-	chrBank[1] = (namcot34xxReg[0] | 0x01);
-	chrBank[2] = (namcot34xxReg[1] & 0xfe);
-	chrBank[3] = (namcot34xxReg[1] | 0x01);
-	chrBank[4] = (namcot34xxReg[2] | 0x40);
-	chrBank[5] = (namcot34xxReg[3] | 0x40);
-	chrBank[6] = (namcot34xxReg[4] | 0x40);
-	chrBank[7] = (namcot34xxReg[5] | 0x40);
+	if (!strcmp(cart.slot,"namcot_3446"))
+	{
+		chrBank[0] = (namcot34xxReg[2] << 1);
+		chrBank[1] = chrBank[0] + 1;
+		chrBank[2] = (namcot34xxReg[3] << 1);
+		chrBank[3] = chrBank[2] + 1;
+		chrBank[4] = (namcot34xxReg[4] << 1);
+		chrBank[5] = chrBank[4] + 1;
+		chrBank[6] = (namcot34xxReg[5] << 1);
+		chrBank[7] = chrBank[6] + 1;
+	}
+	else
+	{
+		chrBank[0] = (namcot34xxReg[0] & 0xfe);
+		chrBank[1] = (namcot34xxReg[0] | 0x01);
+		chrBank[2] = (namcot34xxReg[1] & 0xfe);
+		chrBank[3] = (namcot34xxReg[1] | 0x01);
+		chrBank[4] = (namcot34xxReg[2] | 0x40);
+		chrBank[5] = (namcot34xxReg[3] | 0x40);
+		chrBank[6] = (namcot34xxReg[4] | 0x40);
+		chrBank[7] = (namcot34xxReg[5] | 0x40);
+	}
 	prgBank[0] = (namcot34xxReg[6] << 1);
 	prgBank[1] = prgBank[0] + 1;
 	prgBank[2] = (namcot34xxReg[7] << 1);
@@ -1298,7 +1306,7 @@ void init_mapper() {
 	} else if (!strcmp(cart.slot,"jf16")) {
 			write_mapper_register = &mapper_jf16;
 			reset_default();
-	} else if (!strcmp(cart.slot,"namcot_3433") || !strcmp(cart.slot,"namcot_3425")) {
+	} else if (!strcmp(cart.slot,"namcot_3433") || !strcmp(cart.slot,"namcot_3425")  || !strcmp(cart.slot,"namcot_3446")) {
 		write_mapper_register = &mapper_namcot34xx;
 		reset_default();
 } else
