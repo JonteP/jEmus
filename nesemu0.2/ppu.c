@@ -361,6 +361,9 @@ void reload_tile_shifter()
 void ppu_render()
 {/* save for render
  * color mask
+ *
+ * The shifters shift at h=2, the palette address changes at h=3 for the palette lookup, and the pixel is drawn during h=4 (as seen by vid_ changing).
+ * It also looks like the shift registers are actually reloaded at h=9,17,25,... instead of at h=8,16,24,
  */
 	if (ppudot >= 1 && ppudot <= 257) /* tile data fetch */
 	{

@@ -1067,6 +1067,66 @@ void vrc_irq() {
 	}
 }
 
+/*-----------------------------------NAMCO------------------------------------*/
+
+/*/////////////////////////////////*/
+/*           NAMCOT 34xx           */
+/*/////////////////////////////////*/
+
+/* TODO:
+ *
+ * -add mappers
+ * 	76 (inflated CHR banks)
+ * 	95 (nametable banking)
+ */
+
+static inline void mapper_namcot34xx(uint_fast16_t, uint_fast8_t), namcot34xx_bank_switch(void);
+static uint_fast8_t namcot34xxSelect, namcot34xxReg[0x8];
+void mapper_namcot34xx(uint_fast16_t address, uint_fast8_t value)
+{
+	if (cart.mirroring == 5)
+	{
+		int mirrorbit = (value & 0x40);
+		nameSlot[0] = (ciram + (mirrorbit ? 0x400 : 0));
+		nameSlot[1] = (ciram + (mirrorbit ? 0x400 : 0));
+		nameSlot[2] = (ciram + (mirrorbit ? 0x400 : 0));
+		nameSlot[3] = (ciram + (mirrorbit ? 0x400 : 0));
+	}
+	if ((address & 0xe001) < 0xa000)
+	{
+		if (!(address%2))  /* Bank select (0x8000) */
+		{
+			namcot34xxSelect = value;
+		}
+		else if (address%2) /* Bank data (0x8001) */
+		{
+			int bank = (namcot34xxSelect & 0x7);
+			namcot34xxReg[bank] = value;
+			namcot34xx_bank_switch();
+		}
+	}
+}
+
+void namcot34xx_bank_switch()
+{
+	chrBank[0] = (namcot34xxReg[0] & 0xfe);
+	chrBank[1] = (namcot34xxReg[0] | 0x01);
+	chrBank[2] = (namcot34xxReg[1] & 0xfe);
+	chrBank[3] = (namcot34xxReg[1] | 0x01);
+	chrBank[4] = (namcot34xxReg[2] | 0x40);
+	chrBank[5] = (namcot34xxReg[3] | 0x40);
+	chrBank[6] = (namcot34xxReg[4] | 0x40);
+	chrBank[7] = (namcot34xxReg[5] | 0x40);
+	prgBank[0] = (namcot34xxReg[6] << 1);
+	prgBank[1] = prgBank[0] + 1;
+	prgBank[2] = (namcot34xxReg[7] << 1);
+	prgBank[3] = prgBank[2] + 1;
+	chr_bank_switch();
+	prg_bank_switch();
+}
+
+/*----------------------------------------------------------------------------*/
+
 void reset_default()
 {
 	if (cart.chrSize)
@@ -1165,6 +1225,12 @@ void nametable_mirroring(uint_fast8_t mode)
 		nameSlot[2] = ciram + 0x400;
 		nameSlot[3] = ciram + 0x400;
 		break;
+	case 4: /* 4-screen, hardwired */
+		nameSlot[0] = ciram;
+		nameSlot[1] = ciram + 0x400;
+		nameSlot[2] = chrRam;
+		nameSlot[3] = chrRam + 0x400;
+		break;
 	}
 }
 
@@ -1226,6 +1292,9 @@ void init_mapper() {
 	} else if (!strcmp(cart.slot,"jf16")) {
 			write_mapper_register = &mapper_jf16;
 			reset_default();
-	} else
+	} else if (!strcmp(cart.slot,"namcot_3433")) {
+		write_mapper_register = &mapper_namcot34xx;
+		reset_default();
+} else
 		reset_default();
 }

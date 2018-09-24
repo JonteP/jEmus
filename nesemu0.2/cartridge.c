@@ -172,7 +172,10 @@ void load_by_header()
 		cart.chrSize = 0;
 		cart.cramSize = 0x2000;
 	}
-	cart.mirroring = (header[6] & 0x01);
+	if (header[6] & 0x08)
+		cart.mirroring = 4;
+	else
+		cart.mirroring = (header[6] & 0x01);
 	switch (mapper)
 	{
 	case 0:
@@ -248,6 +251,10 @@ void extract_xml_data(xmlNode * s_node) {
 					cart.mirroring = 1;
 				else if (!xmlStrcmp(val,(xmlChar *)"high"))
 					cart.mirroring = 3;
+				else if (!xmlStrcmp(val,(xmlChar *)"4screen"))
+					cart.mirroring = 4;
+				else if (!xmlStrcmp(val,(xmlChar *)"pcb_controlled"))
+					cart.mirroring = 5;
 			}
 			xmlFree(nam);
 			xmlFree(val);
