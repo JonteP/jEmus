@@ -1077,7 +1077,6 @@ void vrc_irq() {
  *
  * -add mappers
  * 	76 (inflated CHR banks)
- * 	95 (nametable banking)
  */
 
 static inline void mapper_namcot34xx(uint_fast16_t, uint_fast8_t), namcot34xx_bank_switch(void);
@@ -1109,6 +1108,13 @@ void mapper_namcot34xx(uint_fast16_t address, uint_fast8_t value)
 
 void namcot34xx_bank_switch()
 {
+	if (!strcmp(cart.slot,"namcot_3425"))
+	{
+		nameSlot[0] = (namcot34xxReg[0] & 0x20) ? ciram : (ciram + 0x400);
+		nameSlot[1] = (namcot34xxReg[0] & 0x20) ? ciram : (ciram + 0x400);
+		nameSlot[2] = (namcot34xxReg[1] & 0x20) ? ciram : (ciram + 0x400);
+		nameSlot[3] = (namcot34xxReg[1] & 0x20) ? ciram : (ciram + 0x400);
+	}
 	chrBank[0] = (namcot34xxReg[0] & 0xfe);
 	chrBank[1] = (namcot34xxReg[0] | 0x01);
 	chrBank[2] = (namcot34xxReg[1] & 0xfe);
@@ -1292,7 +1298,7 @@ void init_mapper() {
 	} else if (!strcmp(cart.slot,"jf16")) {
 			write_mapper_register = &mapper_jf16;
 			reset_default();
-	} else if (!strcmp(cart.slot,"namcot_3433")) {
+	} else if (!strcmp(cart.slot,"namcot_3433") || !strcmp(cart.slot,"namcot_3425")) {
 		write_mapper_register = &mapper_namcot34xx;
 		reset_default();
 } else
