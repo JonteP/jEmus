@@ -265,11 +265,15 @@ void io_handle()
 					mode.refresh_rate = 60;
 					SDL_SetWindowDisplayMode(handleMain.win, &mode);
 					SDL_SetWindowFullscreen(handleMain.win, SDL_WINDOW_FULLSCREEN);
+				    SDL_ShowCursor(SDL_DISABLE);
 					SDL_SetWindowGrab(handleMain.win, SDL_TRUE);
 				}
 				else if (!fullscreen)
+				{
 					SDL_SetWindowFullscreen(handleMain.win, 0);
-				SDL_SetWindowGrab(handleMain.win, SDL_FALSE);
+				    SDL_ShowCursor(SDL_ENABLE);
+					SDL_SetWindowGrab(handleMain.win, SDL_FALSE);
+				}
 				break;
 			case SDL_SCANCODE_F12:
 				vsync ^= 1;

@@ -93,6 +93,9 @@ void opdecode() {
 								          cpx, sbc, nopop, isc,   cpx, sbc, inc, isc, inx, sbc, nopop, sbc,   cpx, sbc, inc, isc, /* e */
 								       branch, sbc,  none, isc, nopop, sbc, inc, isc, sed, sbc, nopop, isc, nopop, sbc, inc, isc  /* f */
 								  };
+	/* static void (*cpuSlot[0x8])(uint_fast16_t, uint_fast8_t) { write_cpu_ram, write_ppu_register, write_cpu_register,  }; */
+
+
 	if (rstFlag)
 		power_reset();
 	if (nmiPending)
@@ -1090,9 +1093,9 @@ void cpuwrite(uint16_t address, uint_fast8_t value) {
 		write_ppu_register(address, value);
 	else if (address >= 0x4000 && address < 0x4020)
 		write_cpu_register(address, value);
-	else {
+/*	else {
 		printf("Warning: CPU address: 0x%04x is not mapped!\n",address);
-	}
+	} */
 }
 
 void interrupt_handle(interrupt_t x) {

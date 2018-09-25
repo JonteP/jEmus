@@ -13,32 +13,7 @@ uint_fast8_t mapperInt = 0, expSound = 0,
 chrtype_t chrSource[0x8];
 static inline void nametable_mirroring(uint_fast8_t);
 
-/*/////////////////////////////////*/
-/*               AxROM             */
-/*/////////////////////////////////*/
-
-/* TODO:
- *
- * -bus conflicts?
- *
- * Game specific:
- * -Battletoads: crashes at level 2 - timing issue
- * */
-static inline void mapper_axrom(uint_fast16_t, uint_fast8_t);
-
-void mapper_axrom(uint_fast16_t address, uint_fast8_t value) {
-	prgBank[0] = ((value & 0x07) << 3);
-	prgBank[1] = prgBank[0] + 1;
-	prgBank[2] = prgBank[0] + 2;
-	prgBank[3] = prgBank[0] + 3;
-	prgBank[4] = prgBank[0] + 4;
-	prgBank[5] = prgBank[0] + 5;
-	prgBank[6] = prgBank[0] + 6;
-	prgBank[7] = prgBank[0] + 7;
-	prg_bank_switch();
-	(value & 0x10) ? (cart.mirroring = 3) : (cart.mirroring = 2);
-	nametable_mirroring(cart.mirroring);
-}
+/*-----------------------------------NINTENDO------------------------------------*/
 
 /*/////////////////////////////////*/
 /*               CNROM             */
@@ -411,7 +386,65 @@ void mmc3_irq ()
 		}
 	}
 }
-/*266 - 282*/
+
+/*-----------------------------------BANDAI------------------------------------*/
+
+/*/////////////////////////////////*/
+/*               FCG               */
+/*/////////////////////////////////*/
+
+/*/////////////////////////////////*/
+/*             LZ93D50             */
+/*/////////////////////////////////*/
+
+/* requires EEPROM emulation and registers at 0x6000-0x7000:
+ * http://wiki.nesdev.com/w/index.php/Bandai_FCG_board
+ * http://forums.nesdev.com/viewtopic.php?f=3&t=9606&p=104643&hilit=I%C2%B2C#p104643
+ */
+
+/*-----------------------------------COLOR DREAMS------------------------------------*/
+
+/*/////////////////////////////////*/
+/*              74x377             */
+/*/////////////////////////////////*/
+
+static inline void mapper_74x377(uint_fast16_t, uint_fast8_t), reset_74x377();
+
+void mapper_74x377(uint_fast16_t address, uint_fast8_t value)
+{
+	prgBank[0] = ((value & 0x03) << 3);
+	prgBank[1] = prgBank[0] + 1;
+	prgBank[2] = prgBank[0] + 2;
+	prgBank[3] = prgBank[0] + 3;
+	prgBank[4] = prgBank[0] + 4;
+	prgBank[5] = prgBank[0] + 5;
+	prgBank[6] = prgBank[0] + 6;
+	prgBank[7] = prgBank[0] + 7;
+	chrBank[0] = ((value >> 4) << 3);
+	chrBank[1] = chrBank[0] + 1;
+	chrBank[2] = chrBank[0] + 2;
+	chrBank[3] = chrBank[0] + 3;
+	chrBank[4] = chrBank[0] + 4;
+	chrBank[5] = chrBank[0] + 5;
+	chrBank[6] = chrBank[0] + 6;
+	chrBank[7] = chrBank[0] + 7;
+	prg_bank_switch();
+	chr_bank_switch();
+}
+
+void reset_74x377()
+{
+	prgBank[0] = 0;
+	prgBank[1] = 1;
+	prgBank[2] = 2;
+	prgBank[3] = 3;
+	prgBank[4] = 4;
+	prgBank[5] = 5;
+	prgBank[6] = 6;
+	prgBank[7] = 7;
+	prg_bank_switch();
+}
+
 /*-----------------------------------IREM------------------------------------*/
 
 /*/////////////////////////////////*/
@@ -544,15 +577,6 @@ void reset_lrog017()
 	chrSource[5] = CHR_RAM;
 	chrSource[6] = CHR_RAM;
 	chrSource[7] = CHR_RAM;
-	prgBank[0] = 0;
-	prgBank[1] = 1;
-	prgBank[2] = 2;
-	prgBank[3] = 3;
-	prgBank[4] = cart.pSlots - 4;
-	prgBank[5] = cart.pSlots - 3;
-	prgBank[6] = cart.pSlots - 2;
-	prgBank[7] = cart.pSlots - 1;
-	prg_bank_switch();
 	chrBank[0] = 0;
 	chrBank[1] = 1;
 	chrBank[2] = 0;
@@ -1139,6 +1163,35 @@ void namcot34xx_bank_switch()
 	prg_bank_switch();
 }
 
+/*-----------------------------------RARE------------------------------------*/
+
+/*/////////////////////////////////*/
+/*               AxROM             */
+/*/////////////////////////////////*/
+
+/* TODO:
+ *
+ * -bus conflicts?
+ *
+ * Game specific:
+ * -Battletoads: crashes at level 2 - timing issue
+ * */
+static inline void mapper_axrom(uint_fast16_t, uint_fast8_t);
+
+void mapper_axrom(uint_fast16_t address, uint_fast8_t value) {
+	prgBank[0] = ((value & 0x07) << 3);
+	prgBank[1] = prgBank[0] + 1;
+	prgBank[2] = prgBank[0] + 2;
+	prgBank[3] = prgBank[0] + 3;
+	prgBank[4] = prgBank[0] + 4;
+	prgBank[5] = prgBank[0] + 5;
+	prgBank[6] = prgBank[0] + 6;
+	prgBank[7] = prgBank[0] + 7;
+	prg_bank_switch();
+	(value & 0x10) ? (cart.mirroring = 3) : (cart.mirroring = 2);
+	nametable_mirroring(cart.mirroring);
+}
+
 /*----------------------------------------------------------------------------*/
 
 void reset_default()
@@ -1249,9 +1302,8 @@ void nametable_mirroring(uint_fast8_t mode)
 }
 
 void init_mapper() {
-	if(!strcmp(cart.slot,"nrom")) {
-		reset_default();
-	} else if(!strcmp(cart.slot,"sxrom") ||
+	reset_default();
+	if(!strcmp(cart.slot,"sxrom") ||
 				!strcmp(cart.slot,"sxrom_a") ||
 					!strcmp(cart.slot,"sorom") ||
 						!strcmp(cart.slot,"sorom_a")) {
@@ -1263,52 +1315,42 @@ void init_mapper() {
 			wramEnable = 1;
 		}
 		write_mapper_register = &mapper_mmc1;
-		reset_default();
 	} else if(!strcmp(cart.slot,"uxrom") ||
 				!strcmp(cart.slot,"un1rom") ||
 					!strcmp(cart.slot,"unrom_cc")) {
 		write_mapper_register = &mapper_uxrom;
-		reset_default();
 	} else if (!strcmp(cart.slot,"cnrom")) {
 		write_mapper_register = &mapper_cnrom;
-		reset_default();
 	} else if (!strcmp(cart.slot,"axrom")) {
 		write_mapper_register = &mapper_axrom;
-		reset_default();
 	} else if (!strcmp(cart.slot,"txrom") || !strcmp(cart.slot,"tqrom")
 			|| !strcmp(cart.slot,"txsrom")) {
 		write_mapper_register = &mapper_mmc3;
-		reset_default();
 		memcpy(&mmc3ChrSource, &chrSource, sizeof(chrSource));
 	} else if (!strcmp(cart.slot,"vrc1")) {
 		write_mapper_register = &mapper_vrc1;
-		reset_default();
 	} else if (!strcmp(cart.slot,"vrc2") ||
 			!strcmp(cart.slot,"vrc4")) {
 		write_mapper_register = &mapper_vrc24;
 		if (!strcmp(cart.slot,"vrc2") && (!cart.wramSize && !cart.bwramSize))
 			wramBit = 1;
-		reset_default();
 	} else if (!strcmp(cart.slot,"vrc6")) {
 		write_mapper_register = &mapper_vrc6;
 	    expansion_sound = &vrc6_sound;
 	    expSound = 1;
-		reset_default();
 	} else if (!strcmp(cart.slot,"g101")) {
 		write_mapper_register = &mapper_g101;
-		reset_default();
 	} else if (!strcmp(cart.slot,"lrog017")) {
 		write_mapper_register = &mapper_lrog017;
 		reset_lrog017();
 	} else if (!strcmp(cart.slot,"holydivr")) {
 			write_mapper_register = &mapper_holydivr;
-			reset_default();
 	} else if (!strcmp(cart.slot,"jf16")) {
 			write_mapper_register = &mapper_jf16;
-			reset_default();
 	} else if (!strcmp(cart.slot,"namcot_3433") || !strcmp(cart.slot,"namcot_3425")  || !strcmp(cart.slot,"namcot_3446")) {
 		write_mapper_register = &mapper_namcot34xx;
-		reset_default();
-} else
-		reset_default();
+	} else if (!strcmp(cart.slot,"discrete_74x377")) {
+		write_mapper_register = &mapper_74x377;
+		reset_74x377();
+	}
 }
