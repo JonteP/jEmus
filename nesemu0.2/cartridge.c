@@ -275,6 +275,8 @@ void extract_xml_data(xmlNode * s_node) {
 					cart.bwramSize = strtol((char *)val,NULL,10);
 				else if (!xmlStrcmp(nam,(xmlChar *)"vram"))
 					cart.cramSize = strtol((char *)val,NULL,10);
+				else if (!xmlStrcmp(nam,(xmlChar *)"vram2"))
+					cart.cramSize += strtol((char *)val,NULL,10);
 				xmlFree(nam);
 				xmlFree(val);
 		}

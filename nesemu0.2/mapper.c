@@ -1192,6 +1192,23 @@ void mapper_axrom(uint_fast16_t address, uint_fast8_t value) {
 	nametable_mirroring(cart.mirroring);
 }
 
+/*-----------------------------------T*HQ------------------------------------*/
+
+/*/////////////////////////////////*/
+/*               CPROM             */
+/*/////////////////////////////////*/
+
+static inline void mapper_cprom(uint_fast16_t, uint_fast8_t);
+
+void mapper_cprom(uint_fast16_t address, uint_fast8_t value)
+{
+	chrBank[4] = ((value & 0x03) << 2);
+	chrBank[5] = chrBank[4] + 1;
+	chrBank[6] = chrBank[4] + 2;
+	chrBank[7] = chrBank[4] + 3;
+	chr_bank_switch();
+}
+
 /*----------------------------------------------------------------------------*/
 
 void reset_default()
@@ -1352,5 +1369,7 @@ void init_mapper() {
 	} else if (!strcmp(cart.slot,"discrete_74x377")) {
 		write_mapper_register = &mapper_74x377;
 		reset_74x377();
+	} else if (!strcmp(cart.slot,"cprom")) {
+		write_mapper_register = &mapper_cprom;
 	}
 }
