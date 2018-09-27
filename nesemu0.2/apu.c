@@ -35,8 +35,7 @@ static float pulseMixSample = 0, tndMixSample = 0, expSample = 0;
 static uint_fast8_t frameCounter = 0, sweep1Counter = 0, sweep2Counter = 0, env1Decay = 0, env2Decay = 0, envNoiseDecay = 0,
 					triLinear = 0, dmcBitsLeft = 8, dmcShift = 0, pulse1Mute = 0, pulse2Mute = 0, sCount = 0;
 static int_fast8_t triSeq = 0, triBuff = 0;
-static uint_fast16_t triTemp, noiseTemp, framecc = 0, pulse1Sample = 0, pulse2Sample = 0, triSample = 0,
-					 tmpcnt = 0, noiseSample = 0;
+static uint_fast16_t triTemp, noiseTemp, framecc = 0, pulse1Sample = 0, pulse2Sample = 0, triSample = 0, tmpcnt = 0, noiseSample = 0;
 static int16_t pulse1Temp = 0, pulse2Temp = 0, pulse1Change = 0, pulse2Change = 0;
 
 uint_fast8_t apuStatus, apuFrameCounter, pulse1Length = 0, pulse2Length = 0, pulse1Control = 0, pulse2Control = 0,
@@ -51,7 +50,8 @@ uint_fast16_t sampleCounter = 0, triTimer = 0, noiseShift, noiseTimer,
 float sampleBuffer[BUFFER_SIZE] = {0};
 uint32_t apucc = 0;
 
-static uint_fast8_t sTable[7]={37,38,37,37,37,38,37};
+float sampleRate, originalSampleRate;
+const int samplesPerSecond = 48000;
 uint_fast8_t lengthTable[0x20] = { 10, 254, 20, 2, 40, 4, 80, 6, 160, 8, 60, 10, 14,
 		12, 26, 14, 12, 16, 24, 18, 48, 20, 96, 22, 192, 24, 72, 26, 16, 28, 32,
 		30 };
@@ -63,6 +63,7 @@ static uint_fast8_t triSequence[0x20] = { 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5,
 uint_fast16_t noiseTable[0x10] = { 4, 8, 16, 32, 64, 96, 128, 160, 202, 254, 380, 508, 762, 1016, 2034, 4068};
 uint_fast16_t rateTable[0x10] = { 428, 380, 340, 320, 286, 254, 226, 214, 190, 160, 142, 128, 106,  84,  72,  54 };
 uint_fast8_t dmcInt = 0, frameInt = 0, frameWriteDelay, frameWrite = 0;
+static int samplesPerSec = 0;
 
 void run_apu(uint_fast16_t ntimes) { /* apu cycle times */
 	while (ntimes) {
@@ -82,6 +83,7 @@ void run_apu(uint_fast16_t ntimes) { /* apu cycle times */
 				frameWriteDelay--;
 		}
 		vrc_irq();
+		ss88006_irq();
 
 		if (dmcInt || frameInt) {
 			irqPulled = 1;
@@ -206,8 +208,9 @@ void run_apu(uint_fast16_t ntimes) { /* apu cycle times */
 			expSample += (expansion_sound() / 60);
 
 		tmpcnt++;
-		if (tmpcnt==sTable[sCount]) {
+		if (tmpcnt==(int)sampleRate) {
 			sCount++;
+			samplesPerSec++;
 			if (sCount==7)
 				sCount = 0;
 			if (expSound)
@@ -219,11 +222,17 @@ void run_apu(uint_fast16_t ntimes) { /* apu cycle times */
 			pulseMixSample = 0;
 			tndMixSample = 0;
 			expSample = 0;
+			sampleRate = (float)(originalSampleRate + sampleRate - tmpcnt);
 			tmpcnt = 0;
 		}
 		ntimes--;
 		apu_wait--;
 		framecc++;
+		if (apucc == cpuClock)
+		{
+			apucc = 0;
+			samplesPerSec = 0;
+		}
 		apucc++;
 	}
 }

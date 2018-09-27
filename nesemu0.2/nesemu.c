@@ -24,6 +24,8 @@
  * -save states
  */
 
+const float originalFps = 60.098823055, originalCpuClock = 1789773, cyclesPerFrame = 29780.5;
+float fps, cpuClock;
 uint_fast8_t quit = 0, ctrb = 0, ctrb2 = 0, ctr1 = 0, ctr2 = 0;
 uint_fast8_t openBus;
 uint16_t ppu_wait = 0, apu_wait = 0;
@@ -31,8 +33,12 @@ FILE *logfile;
 char *romName;
 
 int main(int argc, char *argv[]) {
+
+	fps = originalFps;
+	cpuClock = originalCpuClock;
+
 	if (argc < 2)
-		romName = "/home/jonas/eclipse-workspace/cprom/videomat.nes";
+		romName = "/home/jonas/eclipse-workspace/ss88006/mjohn.nes";
 	else
 		romName = argv[1];
 	load_rom(romName);

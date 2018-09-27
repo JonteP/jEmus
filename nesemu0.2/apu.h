@@ -2,7 +2,6 @@
 #define APU_H_
 
 #define CHANNELS 1
-#define SAMPLES_PER_SEC 48000
 #define BUFFER_SIZE (8192)
 #define CPU_CLOCK 1789773 /*1789773 (official?); 1786831*/
 
@@ -17,7 +16,8 @@ extern int_fast16_t pulse2Timer, pulse1Timer;
 extern uint_fast16_t noiseTable[0x10], rateTable[0x10], triTimer, noiseShift, noiseTimer, dmcRate, dmcAddress, dmcCurAdd, dmcLength, dmcBytesLeft, sampleCounter, dmcTemp;
 extern uint_fast8_t lengthTable[0x20];
 extern uint32_t frameIrqDelay, apucc, frameIrqTime;
-extern float sampleBuffer[BUFFER_SIZE];
+extern float sampleBuffer[BUFFER_SIZE], sampleRate, originalSampleRate;
+extern const int samplesPerSecond;
 void run_apu(uint_fast16_t), dmc_fill_buffer(void), quarter_frame(void), half_frame(void);
 
 #endif /* APU_H_ */

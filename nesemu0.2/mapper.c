@@ -619,6 +619,170 @@ void mapper_jf16(uint_fast16_t address, uint_fast8_t value)
 	chr_bank_switch();
 }
 
+/*/////////////////////////////////*/
+/*             ss88006             */
+/*/////////////////////////////////*/
+
+static uint_fast8_t ss88006Prg0, ss88006Prg1, ss88006Prg2, ss88006IrqControl;
+static uint_fast16_t ss88006IrqCounter, ss88006IrqReload;
+static inline void mapper_ss88006(uint_fast16_t, uint_fast8_t);
+
+void mapper_ss88006(uint_fast16_t address, uint_fast8_t value)
+{
+	switch (address & 0xf003)
+	{
+	case 0x8000:
+		ss88006Prg0 = ((ss88006Prg0 & 0xf0) | (value & 0x0f));
+		prgBank[0] = (ss88006Prg0 << 1);
+		prgBank[1] = prgBank[0] + 1;
+		prg_bank_switch();
+		break;
+	case 0x8001:
+		ss88006Prg0 = ((ss88006Prg0 & 0x0f) | ((value & 0x0f) << 4));
+		prgBank[0] = (ss88006Prg0 << 1);
+		prgBank[1] = prgBank[0] + 1;
+		prg_bank_switch();
+		break;
+	case 0x8002:
+		ss88006Prg1 = ((ss88006Prg1 & 0xf0) | (value & 0x0f));
+		prgBank[2] = (ss88006Prg1 << 1);
+		prgBank[3] = prgBank[2] + 1;
+		prg_bank_switch();
+		break;
+	case 0x8003:
+		ss88006Prg1 = ((ss88006Prg1 & 0x0f) | ((value & 0x0f) << 4));
+		prgBank[2] = (ss88006Prg1 << 1);
+		prgBank[3] = prgBank[2] + 1;
+		prg_bank_switch();
+		break;
+	case 0x9000:
+		ss88006Prg2 = ((ss88006Prg2 & 0xf0) | (value & 0x0f));
+		prgBank[4] = (ss88006Prg2 << 1);
+		prgBank[5] = prgBank[4] + 1;
+		prg_bank_switch();
+		break;
+	case 0x9001:
+		ss88006Prg2 = ((ss88006Prg2 & 0x0f) | ((value & 0x0f) << 4));
+		prgBank[4] = (ss88006Prg2 << 1);
+		prgBank[5] = prgBank[4] + 1;
+		prg_bank_switch();
+		break;
+	case 0x9002:
+		/* TODO: differ between read and write enable */
+		wramEnable = (value & 0x03);
+		break;
+	case 0xa000:
+		chrBank[0] = ((chrBank[0] & 0xf0) | (value & 0x0f));
+		chr_bank_switch();
+		break;
+	case 0xa001:
+		chrBank[0] = ((chrBank[0] & 0x0f) | ((value & 0x0f) << 4));
+		chr_bank_switch();
+		break;
+	case 0xa002:
+		chrBank[1] = ((chrBank[1] & 0xf0) | (value & 0x0f));
+		chr_bank_switch();
+		break;
+	case 0xa003:
+		chrBank[1] = ((chrBank[1] & 0x0f) | ((value & 0x0f) << 4));
+		chr_bank_switch();
+		break;
+	case 0xb000:
+		chrBank[2] = ((chrBank[2] & 0xf0) | (value & 0x0f));
+		chr_bank_switch();
+		break;
+	case 0xb001:
+		chrBank[2] = ((chrBank[2] & 0x0f) | ((value & 0x0f) << 4));
+		chr_bank_switch();
+		break;
+	case 0xb002:
+		chrBank[3] = ((chrBank[3] & 0xf0) | (value & 0x0f));
+		chr_bank_switch();
+		break;
+	case 0xb003:
+		chrBank[3] = ((chrBank[3] & 0x0f) | ((value & 0x0f) << 4));
+		chr_bank_switch();
+		break;
+	case 0xc000:
+		chrBank[4] = ((chrBank[4] & 0xf0) | (value & 0x0f));
+		chr_bank_switch();
+		break;
+	case 0xc001:
+		chrBank[4] = ((chrBank[4] & 0x0f) | ((value & 0x0f) << 4));
+		chr_bank_switch();
+		break;
+	case 0xc002:
+		chrBank[5] = ((chrBank[5] & 0xf0) | (value & 0x0f));
+		chr_bank_switch();
+		break;
+	case 0xc003:
+		chrBank[5] = ((chrBank[5] & 0x0f) | ((value & 0x0f) << 4));
+		chr_bank_switch();
+		break;
+	case 0xd000:
+		chrBank[6] = ((chrBank[6] & 0xf0) | (value & 0x0f));
+		chr_bank_switch();
+		break;
+	case 0xd001:
+		chrBank[6] = ((chrBank[6] & 0x0f) | ((value & 0x0f) << 4));
+		chr_bank_switch();
+		break;
+	case 0xd002:
+		chrBank[7] = ((chrBank[7] & 0xf0) | (value & 0x0f));
+		chr_bank_switch();
+		break;
+	case 0xd003:
+		chrBank[7] = ((chrBank[7] & 0x0f) | ((value & 0x0f) << 4));
+		chr_bank_switch();
+		break;
+	case 0xe000:
+		ss88006IrqReload = ((ss88006IrqReload & 0xfff0) | (value & 0x000f));
+		break;
+	case 0xe001:
+		ss88006IrqReload = ((ss88006IrqReload & 0xff0f) | ((value & 0x000f) << 4));
+		break;
+	case 0xe002:
+		ss88006IrqReload = ((ss88006IrqReload & 0xf0ff) | ((value & 0x000f) << 8));
+		break;
+	case 0xe003:
+		ss88006IrqReload = ((ss88006IrqReload & 0x0fff) | ((value & 0x000f) << 12));
+		break;
+	case 0xf000: /* IRQ reset */
+		ss88006IrqCounter = ss88006IrqReload;
+		mapperInt = 0;
+		break;
+	case 0xf001: /* IRQ control */
+		ss88006IrqControl = value;
+		mapperInt = 0;
+		break;
+	case 0xf002:
+		cart.mirroring = (value & 0x03);
+		nametable_mirroring(cart.mirroring);
+		break;
+	case 0xf003: /* Sound control */
+		/* TODO: ADPCM sound support */
+		break;
+	}
+}
+
+void ss88006_irq()
+{
+	if (ss88006IrqControl & 0x01)
+	{
+	uint_fast16_t mask = (((ss88006IrqControl & 0x8) ? 0 : 0xf000) | ((ss88006IrqControl & 0x4) ? 0 : 0x0f00) | ((ss88006IrqControl & 0x2) ? 0 : 0x00f0) | 0xf);
+	int tmpCounter = (ss88006IrqCounter & mask);
+
+	tmpCounter--;
+	if (tmpCounter < 0)
+	{
+		ss88006IrqCounter = ss88006IrqReload;
+		mapperInt = 1;
+	}
+	else
+		ss88006IrqCounter = ((ss88006IrqCounter & ~mask) | tmpCounter);
+	}
+}
+
 /*-----------------------------------KONAMI------------------------------------*/
 
 /*/////////////////////////////////*/
@@ -1371,5 +1535,7 @@ void init_mapper() {
 		reset_74x377();
 	} else if (!strcmp(cart.slot,"cprom")) {
 		write_mapper_register = &mapper_cprom;
+	} else if (!strcmp(cart.slot,"ss88006")) {
+		write_mapper_register = &mapper_ss88006;
 	}
 }

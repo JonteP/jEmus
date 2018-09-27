@@ -11,8 +11,10 @@
 #include "6502.h"
 
 SDL_AudioSpec AudioSettings = {0};
+SDL_DisplayMode current;
 uint_fast8_t nametableActive = 0, patternActive = 0, paletteActive = 0, isPaused = 0, fullscreen = 0, stateSave = 0, stateLoad = 0, vsync = 0;
 uint16_t pulseQueueCounter = 0;
+float frameTime;
 
 					/*       00      |      01      |      02      |      03      |        */
 					/*  R  | G  | B  | R  | G  | B  | R  | G  | B  | R  | G  | B  |        */
@@ -59,21 +61,24 @@ static inline void render_window (windowHandle, void *), idle_time(), update_tex
 
 void init_sdl() {
 	SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO);
-	SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY,"2");
+	SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY,"0");
 	for (int i = 0; i < 64; i++) {
 		colors[i].r = colblargg[i * 3];
 		colors[i].g = colblargg[i * 3 + 1];
 		colors[i].b = colblargg[i * 3 + 2];
 	}
 	handleMain = create_handle ("jNes", 100, 100, WWIDTH, WHEIGHT, SWIDTH, SHEIGHT);
-	AudioSettings.freq = SAMPLES_PER_SEC;
+	AudioSettings.freq = samplesPerSecond;
 	AudioSettings.format = AUDIO_F32;
 	AudioSettings.channels = CHANNELS;
 	AudioSettings.callback = NULL;
-	AudioSettings.samples = BUFFER_SIZE>>2;
+	AudioSettings.samples = BUFFER_SIZE>>3;
 	SDL_OpenAudio(&AudioSettings, 0);
 	SDL_PauseAudio(0);
 	SDL_ClearQueuedAudio(1);
+	originalSampleRate = cpuClock/samplesPerSecond;
+	sampleRate = originalSampleRate;
+	frameTime = ((1/fps) * 1000000000);
 }
 
 windowHandle create_handle (char * name, int wpx, int wpy, int ww, int wh, int sw, int sh) {
@@ -126,7 +131,7 @@ void init_time ()
 {
 	clock_getres(CLOCK_MONOTONIC, &xClock);
 	clock_gettime(CLOCK_MONOTONIC, &xClock);
-	xClock.tv_nsec += FRAMETIME;
+	xClock.tv_nsec += frameTime;
 	xClock.tv_sec += xClock.tv_nsec / 1000000000;
 	xClock.tv_nsec %= 1000000000;
 }
@@ -134,7 +139,7 @@ void init_time ()
 void idle_time ()
 {
 	clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &xClock, NULL);
-	xClock.tv_nsec += FRAMETIME;
+	xClock.tv_nsec += frameTime;
 	xClock.tv_sec += xClock.tv_nsec / 1000000000;
 	xClock.tv_nsec %= 1000000000;
 }
@@ -279,15 +284,22 @@ void io_handle()
 				vsync ^= 1;
 				if (vsync)
 				{
+					SDL_GetCurrentDisplayMode(0, &current);
 					SDL_DestroyRenderer(handleMain.rend);
 					handleMain.rend = SDL_CreateRenderer(handleMain.win, -1, SDL_RENDERER_ACCELERATED|SDL_RENDERER_PRESENTVSYNC);
 					handleMain.tex = SDL_CreateTexture(handleMain.rend, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, 256, 240);
+					fps = current.refresh_rate;
+					frameTime = ((1/fps) * 1000000000);
+					cpuClock = cyclesPerFrame * fps;
 				}
 				else
 				{
 					SDL_DestroyRenderer(handleMain.rend);
 					handleMain.rend = SDL_CreateRenderer(handleMain.win, -1, SDL_RENDERER_ACCELERATED);
 					handleMain.tex = SDL_CreateTexture(handleMain.rend, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, 256, 240);
+					fps = originalFps;
+					frameTime = ((1/fps) * 1000000000);
+					cpuClock = originalCpuClock;
 				}
 				break;
 			case SDL_SCANCODE_P:

@@ -7,7 +7,7 @@ typedef enum {
 	CHR_ROM
 } chrtype_t;
 void init_mapper(void), (*write_mapper_register)(uint_fast16_t, uint_fast8_t), vrc_irq(void),
-     mmc3_irq(void);
+     mmc3_irq(void), ss88006_irq();
 void prg_bank_switch(), chr_bank_switch();
 float vrc6_sound(void);
 float (*expansion_sound)(void);
