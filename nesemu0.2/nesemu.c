@@ -38,7 +38,7 @@ int main(int argc, char *argv[]) {
 	cpuClock = originalCpuClock;
 
 	if (argc < 2)
-		romName = "/home/jonas/eclipse-workspace/ss88006/mjohn.nes";
+		romName = "/home/jonas/eclipse-workspace/tc0190/flintstone.nes";
 	else
 		romName = argv[1];
 	load_rom(romName);
@@ -118,6 +118,7 @@ void load_state()
 	char *stateName = strdup(romName);
 	sprintf(stateName+strlen(stateName)-3,"sta");
 	FILE *stateFile = fopen(stateName, "r");
+	/* TODO: check for existing save */
 	int readErr = 0;
 	readErr |= fread(prgBank,sizeof(prgBank),1,stateFile);
 	readErr |= fread(cpuRam,sizeof(cpuRam),1,stateFile);

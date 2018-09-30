@@ -1071,6 +1071,8 @@ uint_fast8_t cpuread(uint16_t address) {
 		value = read_ppu_register(address);
 	else if (address >= 0x4000 && address < 0x4020)
 		value = read_cpu_register(address);
+	else if (address >= 0x4020 && address < 0x6000)
+		value = read_mapper_register(address);
 	else {
 		value = (address>>4); /* open bus */
 	}
@@ -1093,6 +1095,8 @@ void cpuwrite(uint16_t address, uint_fast8_t value) {
 		write_ppu_register(address, value);
 	else if (address >= 0x4000 && address < 0x4020)
 		write_cpu_register(address, value);
+	else if (address >= 0x4020 && address < 0x6000)
+		write_mapper_register(address, value);
 /*	else {
 		printf("Warning: CPU address: 0x%04x is not mapped!\n",address);
 	} */

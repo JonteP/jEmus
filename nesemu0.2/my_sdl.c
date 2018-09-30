@@ -82,6 +82,7 @@ void init_sdl() {
 }
 
 windowHandle create_handle (char * name, int wpx, int wpy, int ww, int wh, int sw, int sh) {
+	/* TODO: add clipping options here */
 	windowHandle handle;
 	handle.name = name;
 	handle.winXPosition = wpx;
@@ -160,7 +161,7 @@ void render_frame()
 		render_window (handlePattern, patternBuffer);
 	if (paletteActive)
 		render_window (handlePalette, paletteBuffer);
-	if (throttle)
+	if (throttle && !vsync)
 	{
 		idle_time();
 	}
@@ -202,9 +203,9 @@ void render_window (windowHandle handle, void * buffer)
 {
 	SDL_Rect SrcR;
 	SrcR.x = 0;
-	SrcR.y = 8;
-	SrcR.w = 256;
-	SrcR.h = 224;
+	SrcR.y = 0;
+	SrcR.w = handle.screenWidth;
+	SrcR.h = handle.screenHeight;
 	SDL_Rect TrgR;
 	TrgR.x = 240;
 	TrgR.y = 0;
@@ -309,14 +310,14 @@ void io_handle()
 			case SDL_SCANCODE_F5:
 				nametableActive ^= 1;
 				if (nametableActive)
-					handleNametable = create_handle ("Nametable", 1000, 100, WWIDTH, WHEIGHT>>1, SWIDTH<<1, SHEIGHT);
+					handleNametable = create_handle ("Nametable", 1000, 100, WWIDTH<<1, WHEIGHT<<1, SWIDTH<<1, SHEIGHT<<1);
 				else if (!nametableActive)
 					destroy_handle (&handleNametable);
 				break;
 			case SDL_SCANCODE_F6:
 				patternActive ^= 1;
 				if (patternActive)
-					handlePattern = create_handle ("Pattern table", 1000, 500, WWIDTH, WHEIGHT>>1, SWIDTH, SWIDTH>>1);
+					handlePattern = create_handle ("Pattern table", 1000, 500, WWIDTH<<1, WHEIGHT, SWIDTH, SWIDTH>>1);
 				else if (!patternActive)
 					destroy_handle (&handlePattern);
 				break;

@@ -261,10 +261,7 @@ void extract_xml_data(xmlNode * s_node) {
 
 		} else if (cur_node->type == XML_ELEMENT_NODE && !xmlStrcmp(cur_node->name, (xmlChar *)"dataarea")) {
 				nam = xmlGetProp(cur_node, (xmlChar *)"name");
-				if (cur_node->children->next)
-					val = xmlGetProp(cur_node->children->next, (xmlChar *)"size");
-				else
-					val = xmlGetProp(cur_node, (xmlChar *)"size");
+				val = xmlGetProp(cur_node, (xmlChar *)"size");
 				if (!xmlStrcmp(nam,(xmlChar *)"prg"))
 					cart.prgSize = strtol((char *)val,NULL,10);
 				else if (!xmlStrcmp(nam,(xmlChar *)"chr"))

@@ -13,7 +13,7 @@
 static inline void check_nmi(), horizontal_t_to_v(), vertical_t_to_v(), ppu_render(), reload_tile_shifter(), toggle_a12(uint_fast16_t), ppuwrite(uint_fast16_t, uint_fast8_t);
 static inline uint_fast8_t * ppuread(uint_fast16_t);
 
-uint_fast8_t *chrSlot[0x8], *nameSlot[0x4], oam[0x100], frameBuffer[SHEIGHT][SWIDTH], nameBuffer[SHEIGHT][SWIDTH<<1], patternBuffer[SWIDTH>>1][SWIDTH], paletteBuffer[SWIDTH>>4][SWIDTH>>1];
+uint_fast8_t *chrSlot[0x8], *nameSlot[0x4], oam[0x100], frameBuffer[SHEIGHT][SWIDTH], nameBuffer[SHEIGHT<<1][SWIDTH<<1], patternBuffer[SWIDTH>>1][SWIDTH], paletteBuffer[SWIDTH>>4][SWIDTH>>1];
 uint_fast8_t ppuOamAddress;
 uint_fast8_t throttle = 1;
 int16_t ppudot = 0, scanline = 0;
@@ -148,11 +148,12 @@ void run_ppu (uint_fast16_t ntimes) {
 /* RESET CLOCK COUNTER HERE... */
 	} else if (scanline == 240 && ppudot == 0) {
 		ppucc = 0;
-		render_frame();
 
 /* RENDERED LINES */
 	} else if (scanline < 240)
 	{
+		if (!scanline && !ppudot)
+			render_frame();
 		if (ppuMask & 0x18)
 		{
 		(*fetchGraphics[ppudot])();
@@ -441,21 +442,31 @@ void vertical_t_to_v()
 }
 
 void draw_nametable () {
-	uint_fast8_t	*tilesrcA, npalA, attsrcA, paletteIndexA;
-	uint_fast16_t tileOffsetA;
-	uint_fast8_t	*tilesrcB, npalB, attsrcB, paletteIndexB;
-	uint_fast16_t tileOffsetB;
+	uint_fast8_t	*tilesrcA, npalA, attsrcA, paletteIndexA, *tilesrcB, npalB, attsrcB, paletteIndexB, *tilesrcC, npalC, attsrcC, paletteIndexC, *tilesrcD, npalD, attsrcD, paletteIndexD;
+	uint_fast16_t tileOffsetA, tileOffsetB, tileOffsetC, tileOffsetD;
 	for (int tileRow = 0; tileRow < 30; tileRow++) {
 		for (int tileColumn = 0; tileColumn < 32; tileColumn++) {
-			tileOffsetA = 16 * ciram[tileRow * 32 + tileColumn] + ((ppuController & 0x10) <<8);
+			tileOffsetA = 16 * nameSlot[0][tileRow * 32 + tileColumn] + ((ppuController & 0x10) <<8);
 		    tilesrcA = &chrSlot[(tileOffsetA>>10)][tileOffsetA&0x3ff];
-		    attsrcA = ciram[0x3c0 + (tileRow >> 2) * 8 + (tileColumn >> 2)];
+		    attsrcA = nameSlot[0][0x3c0 + (tileRow >> 2) * 8 + (tileColumn >> 2)];
 		    npalA = ((attsrcA >> (((tileColumn >> 1) & 1) | (tileRow & 2) ) * 2) & 3);
-			tileOffsetB = 16 * ciram[0x400 + tileRow * 32 + tileColumn] + ((ppuController & 0x10) <<8);
+
+			tileOffsetB = 16 * nameSlot[1][tileRow * 32 + tileColumn] + ((ppuController & 0x10) <<8);
 		    tilesrcB = &chrSlot[(tileOffsetB>>10)][tileOffsetB&0x3ff];
-		    attsrcB = ciram[0x7c0 + (tileRow >> 2) * 8 + (tileColumn >> 2)];
+		    attsrcB = nameSlot[1][0x3c0 + (tileRow >> 2) * 8 + (tileColumn >> 2)];
 		    npalB = ((attsrcB >> (((tileColumn >> 1) & 1) | (tileRow & 2) ) * 2) & 3);
-			for (int pixelRow = 0; pixelRow < 8; pixelRow++) {
+
+			tileOffsetC = 16 * nameSlot[2][tileRow * 32 + tileColumn] + ((ppuController & 0x10) <<8);
+		    tilesrcC = &chrSlot[(tileOffsetC>>10)][tileOffsetC&0x3ff];
+		    attsrcC = nameSlot[2][0x3c0 + (tileRow >> 2) * 8 + (tileColumn >> 2)];
+		    npalC = ((attsrcC >> (((tileColumn >> 1) & 1) | (tileRow & 2) ) * 2) & 3);
+
+			tileOffsetD = 16 * nameSlot[3][tileRow * 32 + tileColumn] + ((ppuController & 0x10) <<8);
+		    tilesrcD = &chrSlot[(tileOffsetD>>10)][tileOffsetD&0x3ff];
+		    attsrcD = nameSlot[3][0x3c0 + (tileRow >> 2) * 8 + (tileColumn >> 2)];
+		    npalD = ((attsrcD >> (((tileColumn >> 1) & 1) | (tileRow & 2) ) * 2) & 3);
+
+		    for (int pixelRow = 0; pixelRow < 8; pixelRow++) {
 				for (int pixelColumn = 0; pixelColumn < 8; pixelColumn++) {
 					paletteIndexA = (((tilesrcA[pixelRow]     & (1<<(7-pixelColumn))) ? 1 : 0)
 										  + ( (tilesrcA[pixelRow + 8] & (1<<(7-pixelColumn))) ? 2 : 0));
@@ -465,9 +476,37 @@ void draw_nametable () {
 										  + ( (tilesrcB[pixelRow + 8] & (1<<(7-pixelColumn))) ? 2 : 0));
 					nameBuffer[(tileRow<<3) + pixelRow][SWIDTH + (tileColumn<<3) + pixelColumn] =
 									paletteIndexB ? *ppuread(0x3f00 + npalB * 4 + paletteIndexB) : *ppuread(0x3f00);
+					paletteIndexC = (((tilesrcC[pixelRow]     & (1<<(7-pixelColumn))) ? 1 : 0)
+										  + ( (tilesrcC[pixelRow + 8] & (1<<(7-pixelColumn))) ? 2 : 0));
+					nameBuffer[SHEIGHT + (tileRow<<3) + pixelRow][(tileColumn<<3) + pixelColumn] =
+									paletteIndexC ? *ppuread(0x3f00 + npalC * 4 + paletteIndexC) : *ppuread(0x3f00);
+					paletteIndexD = (((tilesrcD[pixelRow]     & (1<<(7-pixelColumn))) ? 1 : 0)
+										  + ( (tilesrcD[pixelRow + 8] & (1<<(7-pixelColumn))) ? 2 : 0));
+					nameBuffer[SHEIGHT + (tileRow<<3) + pixelRow][SWIDTH + (tileColumn<<3) + pixelColumn] =
+									paletteIndexD ? *ppuread(0x3f00 + npalD * 4 + paletteIndexD) : *ppuread(0x3f00);
 				}
 			}
 		}
+	}
+	int x = ((ppuV & 0x1f) - 2);
+	int y = ((ppuV >> 5) & 0x1f);
+	int nx = ((ppuV >> 10) & 0x01);
+	int ny = ((ppuV >> 11) & 0x01);
+	int xStart = (nx * SWIDTH + x * 8);
+	int yStart = (ny * SHEIGHT + y * 8);
+	int xEnd = ((nx * SWIDTH + x * 8 + SWIDTH) - 1);
+	int yEnd = ((ny * SHEIGHT + y * 8 + SHEIGHT) - 1);
+
+	for (int xy = 0; xy < 256; xy++)
+	{
+		int xOffset = (nx * SWIDTH + x * 8 + xy);
+		int yOffset = (ny * SHEIGHT + y * 8 + xy);
+		if (xy > 239)
+			yOffset = (ny * SHEIGHT + y * 8);
+		nameBuffer[yStart%(SHEIGHT<<1)][xOffset%(SWIDTH<<1)] = 0x30;
+		nameBuffer[yOffset%(SHEIGHT<<1)][xStart%(SWIDTH<<1)] = 0x30;
+		nameBuffer[yEnd%(SHEIGHT<<1)][xOffset%(SWIDTH<<1)] = 0x30;
+		nameBuffer[yOffset%(SHEIGHT<<1)][xEnd%(SWIDTH<<1)] = 0x30;
 	}
 }
 
@@ -687,9 +726,9 @@ void check_nmi()
 uint_fast16_t lastAddress = 0x0000;
 void toggle_a12(uint_fast16_t address)
 {
-	if ((address & 0x1000) && ((address ^ lastAddress) & 0x1000) && (!strcmp(cart.slot,"txrom") || !strcmp(cart.slot,"tqrom") || !strcmp(cart.slot,"txsrom")))
+	if ((address & 0x1000) && ((address ^ lastAddress) & 0x1000) && (!strcmp(cart.slot,"txrom") || !strcmp(cart.slot,"tqrom") || !strcmp(cart.slot,"txsrom") || !strcmp(cart.slot,"tc0190fmcp")))
 	{
-		mmc3_irq();
+		irq_ppu_clocked();
 	}
 	else if (!(address & 0x1000) && ((address ^ lastAddress) & 0x1000) && !strcmp(cart.slot,"txrom"))
 	{

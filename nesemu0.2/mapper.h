@@ -7,8 +7,9 @@ typedef enum {
 	CHR_ROM
 } chrtype_t;
 void init_mapper(void), (*write_mapper_register)(uint_fast16_t, uint_fast8_t), vrc_irq(void),
-     mmc3_irq(void), ss88006_irq();
+     mmc3_irq(void), ss88006_irq(), (*irq_cpu_clocked)(void), (*irq_ppu_clocked)(void);
 void prg_bank_switch(), chr_bank_switch();
+uint_fast8_t (*read_mapper_register)(uint_fast16_t), namco163_read(uint_fast16_t);
 float vrc6_sound(void);
 float (*expansion_sound)(void);
 extern uint_fast8_t mapperInt, expSound, wramBit, wramBitVal, prgBank[8], chrBank[8];

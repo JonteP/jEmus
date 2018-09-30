@@ -11,7 +11,7 @@ typedef struct gameInfos_ {
 } gameInfos;
 typedef struct gameFeatures_ {
 	char slot[20];
-	char pcb[20];
+	char pcb[30];
 	uint_fast8_t mirroring;
 	uint_fast8_t pSlots;
 	uint_fast8_t cSlots;

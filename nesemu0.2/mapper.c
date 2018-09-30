@@ -11,7 +11,8 @@
 uint_fast8_t mapperInt = 0, expSound = 0,
 			 prgBank[8], chrBank[8];
 chrtype_t chrSource[0x8];
-static inline void nametable_mirroring(uint_fast8_t);
+static inline void nametable_mirroring(uint_fast8_t), null_irq(), write_null(uint_fast16_t, uint_fast8_t);
+static inline uint_fast8_t read_null(uint_fast16_t);
 
 /*-----------------------------------NINTENDO------------------------------------*/
 
@@ -760,7 +761,11 @@ void mapper_ss88006(uint_fast16_t address, uint_fast8_t value)
 		nametable_mirroring(cart.mirroring);
 		break;
 	case 0xf003: /* Sound control */
-		/* TODO: ADPCM sound support */
+		/* TODO: ADPCM sound support:
+		 * http://forums.nesdev.com/viewtopic.php?t=762
+		 * http://forums.nesdev.com/viewtopic.php?p=32572#p32572
+		 */
+		printf("Writing %02x to unimplemented register 0xf003\n",value);
 		break;
 	}
 }
@@ -1258,6 +1263,148 @@ void vrc_irq() {
 /*-----------------------------------NAMCO------------------------------------*/
 
 /*/////////////////////////////////*/
+/*            NAMCO 163            */
+/*/////////////////////////////////*/
+
+static inline void mapper_namco163(uint_fast16_t, uint_fast8_t),namco163_irq(), namco163_chr_bank_switch();
+
+static uint_fast8_t namco163CramEnable0 = 0, namco163CramEnable1 = 0, namco163Chr0, namco163Chr1,
+namco163Chr2, namco163Chr3, namco163Chr4, namco163Chr5, namco163Chr6, namco163Chr7, namco163IrqEnable;
+static uint_fast16_t namco163IrqCounter = 0;
+
+uint_fast8_t namco163_read (uint_fast16_t address)
+{
+	uint_fast8_t value = 0;
+	switch (address & 0xf800)
+	{
+		case 0x5000:
+			value = (namco163IrqCounter & 0xff);
+			break;
+		case 0x5800:
+			value = ((namco163IrqCounter & 0x7f00) >> 8);
+			break;
+	}
+	return value;
+}
+void mapper_namco163(uint_fast16_t address, uint_fast8_t value)
+{
+	switch (address & 0xf800)
+	{
+	case 0x4800: /* Chip RAM Data Port */
+		printf("Writing %02x to unimplemented register 0x4800\n",value);
+		break;
+	case 0x5000: /* IRQ Counter (low) */
+		namco163IrqCounter = ((namco163IrqCounter & 0xff00) | value);
+		mapperInt = 0;
+		break;
+	case 0x5800: /* IRQ Counter (high + enable) */
+		namco163IrqEnable = (value & 0x80);
+		namco163IrqCounter = ((namco163IrqCounter & 0x00ff) | ((value & 0x7f) << 8));
+		mapperInt = 0;
+		break;
+	case 0x8000: /* CHR 0 select */
+		namco163Chr0 = value;
+		namco163_chr_bank_switch();
+		break;
+	case 0x8800: /* CHR 1 select */
+		namco163Chr1 = value;
+		namco163_chr_bank_switch();
+		break;
+	case 0x9000: /* CHR 2 select */
+		namco163Chr2 = value;
+		namco163_chr_bank_switch();
+		break;
+	case 0x9800: /* CHR 3 select */
+		namco163Chr3 = value;
+		namco163_chr_bank_switch();
+		break;
+	case 0xa000: /* CHR 4 select */
+		namco163Chr4 = value;
+		namco163_chr_bank_switch();
+		break;
+	case 0xa800: /* CHR 5 select */
+		namco163Chr5 = value;
+		namco163_chr_bank_switch();
+		break;
+	case 0xb000: /* CHR 6 select */
+		namco163Chr6 = value;
+		namco163_chr_bank_switch();
+		break;
+	case 0xb800: /* CHR 7 select */
+		namco163Chr7 = value;
+		namco163_chr_bank_switch();
+		break;
+	case 0xc000: /* NT 0 select */
+		if (value >= 0xe0)
+			nameSlot[0] = ((value%2) ? ciram + 0x400 : ciram);
+		else
+			nameSlot[0] = &chrRom[((value & ((cart.chrSize >> 10) - 1)) << 10)];
+		break;
+	case 0xc800: /* NT 1 select */
+		if (value >= 0xe0)
+			nameSlot[1] = ((value%2) ? ciram + 0x400 : ciram);
+		else
+			nameSlot[1] = &chrRom[((value & ((cart.chrSize >> 10) - 1)) << 10)];
+		break;
+	case 0xd000: /* NT 2 select */
+		if (value >= 0xe0)
+			nameSlot[2] = ((value%2) ? ciram + 0x400 : ciram);
+		else
+			nameSlot[2] = &chrRom[((value & ((cart.chrSize >> 10) - 1)) << 10)];
+		break;
+	case 0xd800: /* NT 3 select */
+		if (value >= 0xe0)
+			nameSlot[3] = ((value%2) ? ciram + 0x400 : ciram);
+		else
+			nameSlot[3] = &chrRom[((value & ((cart.chrSize >> 10) - 1)) << 10)];
+		break;
+	case 0xe000: /* PRG 0 select  + sound enable */
+		prgBank[0] = ((value & 0x3f) << 1);
+		prgBank[1] = prgBank[0] + 1;
+		prg_bank_switch();
+		break;
+	case 0xe800: /* PRG 1 select + CHR-RAM enable */
+		namco163CramEnable0 = (value & 0x40);
+		namco163CramEnable1 = (value & 0x80);
+		prgBank[2] = ((value & 0x3f) << 1);
+		prgBank[3] = prgBank[2] + 1;
+		prg_bank_switch();
+		break;
+	case 0xf000: /* PRG 2 select */
+		prgBank[4] = ((value & 0x3f) << 1);
+		prgBank[5] = prgBank[4] + 1;
+		prg_bank_switch();
+		break;
+	case 0xf800: /* RAM write protect + address port */
+		printf("Writing %02x to unimplemented register 0xf800\n",value);
+		break;
+	}
+}
+
+void namco163_irq()
+{
+	if (namco163IrqEnable)
+	{
+		if (namco163IrqCounter == 0x7fff)
+			mapperInt = 1;
+		else
+			namco163IrqCounter++;
+	}
+}
+
+void namco163_chr_bank_switch()
+{
+	chrSlot[0] = (namco163CramEnable0 || (namco163Chr0 < 0xe0)) ? &chrRom[((namco163Chr0 & ((cart.chrSize >> 10) - 1)) << 10)] : ((namco163Chr0%2) ? ciram + 0x400 : ciram);
+	chrSlot[1] = (namco163CramEnable0 || (namco163Chr1 < 0xe0)) ? &chrRom[((namco163Chr1 & ((cart.chrSize >> 10) - 1)) << 10)] : ((namco163Chr1%2) ? ciram + 0x400 : ciram);
+	chrSlot[2] = (namco163CramEnable0 || (namco163Chr2 < 0xe0)) ? &chrRom[((namco163Chr2 & ((cart.chrSize >> 10) - 1)) << 10)] : ((namco163Chr2%2) ? ciram + 0x400 : ciram);
+	chrSlot[3] = (namco163CramEnable0 || (namco163Chr3 < 0xe0)) ? &chrRom[((namco163Chr3 & ((cart.chrSize >> 10) - 1)) << 10)] : ((namco163Chr3%2) ? ciram + 0x400 : ciram);
+	chrSlot[4] = (namco163CramEnable1 || (namco163Chr4 < 0xe0)) ? &chrRom[((namco163Chr4 & ((cart.chrSize >> 10) - 1)) << 10)] : ((namco163Chr4%2) ? ciram + 0x400 : ciram);
+	chrSlot[5] = (namco163CramEnable1 || (namco163Chr5 < 0xe0)) ? &chrRom[((namco163Chr5 & ((cart.chrSize >> 10) - 1)) << 10)] : ((namco163Chr5%2) ? ciram + 0x400 : ciram);
+	chrSlot[6] = (namco163CramEnable1 || (namco163Chr6 < 0xe0)) ? &chrRom[((namco163Chr6 & ((cart.chrSize >> 10) - 1)) << 10)] : ((namco163Chr6%2) ? ciram + 0x400 : ciram);
+	chrSlot[7] = (namco163CramEnable1 || (namco163Chr7 < 0xe0)) ? &chrRom[((namco163Chr7 & ((cart.chrSize >> 10) - 1)) << 10)] : ((namco163Chr7%2) ? ciram + 0x400 : ciram);
+}
+
+/*/////////////////////////////////*/
 /*           NAMCOT 34xx           */
 /*/////////////////////////////////*/
 
@@ -1373,6 +1520,117 @@ void mapper_cprom(uint_fast16_t address, uint_fast8_t value)
 	chr_bank_switch();
 }
 
+/*-----------------------------------TAITO------------------------------------*/
+
+/*/////////////////////////////////*/
+/*              TC0190             */
+/*/////////////////////////////////*/
+
+/* TODO:
+ *
+ * IRQ related issues - should be slightly delayed ?
+ */
+
+static uint_fast8_t tc0190IrqEnable = 0, tc0190IrqLatch = 0, tc0190IrqReload = 0, tc0190IrqCounter = 0;
+static inline void mapper_tc0190(uint_fast16_t, uint_fast8_t);
+
+void mapper_tc0190(uint_fast16_t address, uint_fast8_t value)
+{
+	switch (address & 0xe003)
+	{
+	case 0x8000: /* PRG 0 + mirroring */
+		if (!strcmp(cart.slot,"tc0190fmc") || !strcmp(cart.slot,"tc0350fmr"))
+		{
+		cart.mirroring = 1 - ((value >> 6) & 1);
+		nametable_mirroring(cart.mirroring);
+		}
+		prgBank[0] = ((value & 0x3f) << 1);
+		prgBank[1] = prgBank[0] + 1;
+		prg_bank_switch();
+		break;
+	case 0x8001: /* PRG 1 */
+		prgBank[2] = ((value & 0x3f) << 1);
+		prgBank[3] = prgBank[2] + 1;
+		prg_bank_switch();
+		break;
+	case 0x8002: /* CHR 0 */
+		chrBank[0] = (value << 1);
+		chrBank[1] = chrBank[0] + 1;
+		chr_bank_switch();
+		break;
+	case 0x8003: /* CHR 1 */
+		chrBank[2] = (value << 1);
+		chrBank[3] = chrBank[2] + 1;
+		chr_bank_switch();
+		break;
+	case 0xa000: /* CHR 2 */
+		chrBank[4] = value;
+		chr_bank_switch();
+		break;
+	case 0xa001: /* CHR 3 */
+		chrBank[5] = value;
+		chr_bank_switch();
+		break;
+	case 0xa002: /* CHR 4 */
+		chrBank[6] = value;
+		chr_bank_switch();
+		break;
+	case 0xa003: /* CHR 5 */
+		chrBank[7] = value;
+		chr_bank_switch();
+		break;
+	case 0xc000: /* IRQ Reload */
+		printf("Writing to register c000: %02x\n",value);
+		tc0190IrqReload = 1;
+		tc0190IrqLatch = (value^0xff);
+		break;
+	case 0xc001: /* IRQ Clear */
+		printf("Writing to register c001: %02x\n",value);
+		tc0190IrqCounter = 0;
+		break;
+	case 0xc002: /* IRQ Enable */
+		printf("Writing to register c002: %02x\n",value);
+		tc0190IrqEnable = 1;
+		break;
+	case 0xc003: /* IRQ Acknowledge */
+		printf("Writing to register c003: %02x\n",value);
+		tc0190IrqEnable = 0;
+		mapperInt = 0;
+		break;
+	case 0xe000: /* PRG 0 + mirroring */
+		if (!strcmp(cart.slot,"tc0190fmcp"))
+		{
+		cart.mirroring = 1 - ((value >> 6) & 1);
+		nametable_mirroring(cart.mirroring);
+		}
+		break;
+	default:
+		printf("Writing to unmapped register: %04x\n",address & 0xe003);
+		break;
+	}
+}
+
+void tc0190_irq ()
+{
+	if (tc0190IrqReload || !tc0190IrqCounter)
+	{
+		tc0190IrqReload = 0;
+		tc0190IrqCounter = tc0190IrqLatch;
+		if (tc0190IrqEnable && !tc0190IrqCounter)
+		{
+			mapperInt = 1;
+		}
+	}
+	else if (tc0190IrqCounter > 0)
+	{
+		tc0190IrqCounter--;
+		if (tc0190IrqEnable && !tc0190IrqCounter)
+		{
+			mapperInt = 1;
+		}
+	}
+}
+
 /*----------------------------------------------------------------------------*/
 
 void reset_default()
@@ -1482,8 +1740,16 @@ void nametable_mirroring(uint_fast8_t mode)
 	}
 }
 
+void null_irq() {}
+void write_null(uint_fast16_t address, uint_fast8_t value) {}
+uint_fast8_t read_null(uint_fast16_t address) {return 0;}
+
 void init_mapper() {
 	reset_default();
+	irq_cpu_clocked = &null_irq;
+	irq_ppu_clocked = &null_irq;
+	read_mapper_register = &read_null;
+	write_mapper_register = &write_null;
 	if(!strcmp(cart.slot,"sxrom") ||
 				!strcmp(cart.slot,"sxrom_a") ||
 					!strcmp(cart.slot,"sorom") ||
@@ -1507,6 +1773,7 @@ void init_mapper() {
 	} else if (!strcmp(cart.slot,"txrom") || !strcmp(cart.slot,"tqrom")
 			|| !strcmp(cart.slot,"txsrom")) {
 		write_mapper_register = &mapper_mmc3;
+		irq_ppu_clocked = &mmc3_irq;
 		memcpy(&mmc3ChrSource, &chrSource, sizeof(chrSource));
 	} else if (!strcmp(cart.slot,"vrc1")) {
 		write_mapper_register = &mapper_vrc1;
@@ -1515,10 +1782,12 @@ void init_mapper() {
 		write_mapper_register = &mapper_vrc24;
 		if (!strcmp(cart.slot,"vrc2") && (!cart.wramSize && !cart.bwramSize))
 			wramBit = 1;
+		irq_cpu_clocked = &vrc_irq;
 	} else if (!strcmp(cart.slot,"vrc6")) {
 		write_mapper_register = &mapper_vrc6;
 	    expansion_sound = &vrc6_sound;
 	    expSound = 1;
+	    irq_cpu_clocked = &vrc_irq;
 	} else if (!strcmp(cart.slot,"g101")) {
 		write_mapper_register = &mapper_g101;
 	} else if (!strcmp(cart.slot,"lrog017")) {
@@ -1537,5 +1806,14 @@ void init_mapper() {
 		write_mapper_register = &mapper_cprom;
 	} else if (!strcmp(cart.slot,"ss88006")) {
 		write_mapper_register = &mapper_ss88006;
+		irq_cpu_clocked = &ss88006_irq;
+	} else if (!strcmp(cart.slot,"namcot_163")) {
+		write_mapper_register = &mapper_namco163;
+		read_mapper_register = &namco163_read;
+		irq_cpu_clocked = &namco163_irq;
+	} else if (!strcmp(cart.slot,"tc0190fmc") || !strcmp(cart.slot,"tc0190fmcp")
+			|| !strcmp(cart.slot,"tc0350fmr")) {
+		write_mapper_register = &mapper_tc0190;
+		irq_ppu_clocked = &tc0190_irq;
 	}
 }

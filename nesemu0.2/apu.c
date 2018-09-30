@@ -82,8 +82,7 @@ void run_apu(uint_fast16_t ntimes) { /* apu cycle times */
 			} else
 				frameWriteDelay--;
 		}
-		vrc_irq();
-		ss88006_irq();
+		irq_cpu_clocked();
 
 		if (dmcInt || frameInt) {
 			irqPulled = 1;
