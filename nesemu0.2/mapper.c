@@ -388,6 +388,46 @@ void mmc3_irq ()
 	}
 }
 
+/*-------------------------American Video Entertainment-------------------------*/
+
+/*/////////////////////////////////*/
+/*            NINA-001             */
+/*/////////////////////////////////*/
+
+static inline void mapper_nina1(uint_fast16_t, uint_fast8_t);
+
+void mapper_nina1(uint_fast16_t address, uint_fast8_t value)
+{
+	switch (address)
+	{
+	case 0x7ffd:
+		prgBank[0] = ((value & 0x01) << 3);
+		prgBank[1] = prgBank[0] + 1;
+		prgBank[2] = prgBank[0] + 2;
+		prgBank[3] = prgBank[0] + 3;
+		prgBank[4] = prgBank[0] + 4;
+		prgBank[5] = prgBank[0] + 5;
+		prgBank[6] = prgBank[0] + 6;
+		prgBank[7] = prgBank[0] + 7;
+		prg_bank_switch();
+		break;
+	case 0x7ffe:
+		chrBank[0] = ((value & 0x0f) << 2);
+		chrBank[1] = chrBank[0] + 1;
+		chrBank[2] = chrBank[0] + 2;
+		chrBank[3] = chrBank[0] + 3;
+		chr_bank_switch();
+		break;
+	case 0x7fff:
+		chrBank[4] = ((value & 0x0f) << 2);
+		chrBank[5] = chrBank[4] + 1;
+		chrBank[6] = chrBank[4] + 2;
+		chrBank[7] = chrBank[4] + 3;
+		chr_bank_switch();
+		break;
+	}
+}
+
 /*-----------------------------------BANDAI------------------------------------*/
 
 /*/////////////////////////////////*/
@@ -449,7 +489,25 @@ void reset_74x377()
 /*-----------------------------------IREM------------------------------------*/
 
 /*/////////////////////////////////*/
-/*            Irem G-101           */
+/*               BNROM             */
+/*/////////////////////////////////*/
+
+static inline void mapper_bnrom(uint_fast16_t, uint_fast8_t);
+void mapper_bnrom(uint_fast16_t address, uint_fast8_t value)
+{
+	prgBank[0] = ((value & 0x03) << 3);
+	prgBank[1] = prgBank[0] + 1;
+	prgBank[2] = prgBank[0] + 2;
+	prgBank[3] = prgBank[0] + 3;
+	prgBank[4] = prgBank[0] + 4;
+	prgBank[5] = prgBank[0] + 5;
+	prgBank[6] = prgBank[0] + 6;
+	prgBank[7] = prgBank[0] + 7;
+	prg_bank_switch();
+}
+
+/*/////////////////////////////////*/
+/*               G-101             */
 /*/////////////////////////////////*/
 
 static inline void mapper_g101(uint_fast16_t, uint_fast8_t);
@@ -1749,7 +1807,9 @@ void init_mapper() {
 	irq_cpu_clocked = &null_irq;
 	irq_ppu_clocked = &null_irq;
 	read_mapper_register = &read_null;
-	write_mapper_register = &write_null;
+	write_mapper_register4 = &write_null;
+	write_mapper_register6 = &write_null;
+	write_mapper_register8 = &write_null;
 	if(!strcmp(cart.slot,"sxrom") ||
 				!strcmp(cart.slot,"sxrom_a") ||
 					!strcmp(cart.slot,"sorom") ||
@@ -1761,59 +1821,64 @@ void init_mapper() {
 							!strcmp(cart.mmc1_type,"MMC1B3"))) {
 			wramEnable = 1;
 		}
-		write_mapper_register = &mapper_mmc1;
+		write_mapper_register8 = &mapper_mmc1;
 	} else if(!strcmp(cart.slot,"uxrom") ||
 				!strcmp(cart.slot,"un1rom") ||
 					!strcmp(cart.slot,"unrom_cc")) {
-		write_mapper_register = &mapper_uxrom;
+		write_mapper_register8 = &mapper_uxrom;
 	} else if (!strcmp(cart.slot,"cnrom")) {
-		write_mapper_register = &mapper_cnrom;
+		write_mapper_register8 = &mapper_cnrom;
 	} else if (!strcmp(cart.slot,"axrom")) {
-		write_mapper_register = &mapper_axrom;
+		write_mapper_register8 = &mapper_axrom;
 	} else if (!strcmp(cart.slot,"txrom") || !strcmp(cart.slot,"tqrom")
 			|| !strcmp(cart.slot,"txsrom")) {
-		write_mapper_register = &mapper_mmc3;
+		write_mapper_register8 = &mapper_mmc3;
 		irq_ppu_clocked = &mmc3_irq;
 		memcpy(&mmc3ChrSource, &chrSource, sizeof(chrSource));
 	} else if (!strcmp(cart.slot,"vrc1")) {
-		write_mapper_register = &mapper_vrc1;
+		write_mapper_register8 = &mapper_vrc1;
 	} else if (!strcmp(cart.slot,"vrc2") ||
 			!strcmp(cart.slot,"vrc4")) {
-		write_mapper_register = &mapper_vrc24;
+		write_mapper_register8 = &mapper_vrc24;
 		if (!strcmp(cart.slot,"vrc2") && (!cart.wramSize && !cart.bwramSize))
 			wramBit = 1;
 		irq_cpu_clocked = &vrc_irq;
 	} else if (!strcmp(cart.slot,"vrc6")) {
-		write_mapper_register = &mapper_vrc6;
+		write_mapper_register8 = &mapper_vrc6;
 	    expansion_sound = &vrc6_sound;
 	    expSound = 1;
 	    irq_cpu_clocked = &vrc_irq;
 	} else if (!strcmp(cart.slot,"g101")) {
-		write_mapper_register = &mapper_g101;
+		write_mapper_register8 = &mapper_g101;
 	} else if (!strcmp(cart.slot,"lrog017")) {
-		write_mapper_register = &mapper_lrog017;
+		write_mapper_register8 = &mapper_lrog017;
 		reset_lrog017();
 	} else if (!strcmp(cart.slot,"holydivr")) {
-			write_mapper_register = &mapper_holydivr;
+			write_mapper_register8 = &mapper_holydivr;
 	} else if (!strcmp(cart.slot,"jf16")) {
-			write_mapper_register = &mapper_jf16;
+			write_mapper_register8 = &mapper_jf16;
 	} else if (!strcmp(cart.slot,"namcot_3433") || !strcmp(cart.slot,"namcot_3425")  || !strcmp(cart.slot,"namcot_3446")) {
-		write_mapper_register = &mapper_namcot34xx;
+		write_mapper_register8 = &mapper_namcot34xx;
 	} else if (!strcmp(cart.slot,"discrete_74x377")) {
-		write_mapper_register = &mapper_74x377;
+		write_mapper_register8 = &mapper_74x377;
 		reset_74x377();
 	} else if (!strcmp(cart.slot,"cprom")) {
-		write_mapper_register = &mapper_cprom;
+		write_mapper_register8 = &mapper_cprom;
 	} else if (!strcmp(cart.slot,"ss88006")) {
-		write_mapper_register = &mapper_ss88006;
+		write_mapper_register8 = &mapper_ss88006;
 		irq_cpu_clocked = &ss88006_irq;
 	} else if (!strcmp(cart.slot,"namcot_163")) {
-		write_mapper_register = &mapper_namco163;
+		write_mapper_register4 = &mapper_namco163;
+		write_mapper_register8 = &mapper_namco163;
 		read_mapper_register = &namco163_read;
 		irq_cpu_clocked = &namco163_irq;
 	} else if (!strcmp(cart.slot,"tc0190fmc") || !strcmp(cart.slot,"tc0190fmcp")
 			|| !strcmp(cart.slot,"tc0350fmr")) {
-		write_mapper_register = &mapper_tc0190;
+		write_mapper_register8 = &mapper_tc0190;
 		irq_ppu_clocked = &tc0190_irq;
+	} else if (!strcmp(cart.slot,"bnrom")) {
+		write_mapper_register8 = &mapper_bnrom;
+	} else if (!strcmp(cart.slot,"nina001")) {
+		write_mapper_register6 = &mapper_nina1;
 	}
 }

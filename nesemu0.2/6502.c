@@ -1080,26 +1080,24 @@ uint_fast8_t cpuread(uint16_t address) {
 }
 
 void cpuwrite(uint16_t address, uint_fast8_t value) {
-	if (address >= 0x8000)
-		write_mapper_register(address, value);
-	else if (address >= 0x6000 && address < 0x8000) {
-		if (wramEnable)
-		{
-			wramSource[(address & 0x1fff)] = value;
-		}
-		else if (wramBit)
-			wramBitVal = (value & 0x01);
-	} else if (address < 0x2000)
+	if (address < 0x2000)
 		cpuRam[address & 0x7ff] = value;
 	else if (address >= 0x2000 && address < 0x4000)
 		write_ppu_register(address, value);
 	else if (address >= 0x4000 && address < 0x4020)
 		write_cpu_register(address, value);
 	else if (address >= 0x4020 && address < 0x6000)
-		write_mapper_register(address, value);
-/*	else {
-		printf("Warning: CPU address: 0x%04x is not mapped!\n",address);
-	} */
+		write_mapper_register4(address, value);
+	else if (address >= 0x6000 && address < 0x8000)
+	{
+		write_mapper_register6(address, value);
+		if (wramEnable)
+			wramSource[(address & 0x1fff)] = value;
+		else if (wramBit)
+			wramBitVal = (value & 0x01);
+	}
+	else if (address >= 0x8000)
+		write_mapper_register8(address, value);
 }
 
 void interrupt_handle(interrupt_t x) {

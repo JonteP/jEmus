@@ -38,7 +38,7 @@ int main(int argc, char *argv[]) {
 	cpuClock = originalCpuClock;
 
 	if (argc < 2)
-		romName = "/home/jonas/eclipse-workspace/tc0190/flintstone.nes";
+		romName = "/home/jonas/eclipse-workspace/nina001/imission2.nes";
 	else
 		romName = argv[1];
 	load_rom(romName);
