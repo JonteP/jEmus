@@ -40,6 +40,35 @@ void mapper_cnrom (uint_fast16_t address, uint_fast8_t value) {
 }
 
 /*/////////////////////////////////*/
+/*               GxROM             */
+/*/////////////////////////////////*/
+
+static inline void mapper_gxrom(uint_fast16_t, uint_fast8_t);
+
+void mapper_gxrom (uint_fast16_t address, uint_fast8_t value)
+{
+	prgBank[0] = (((value >> 4) & 0x03) << 3);
+	prgBank[1] = prgBank[0] + 1;
+	prgBank[2] = prgBank[0] + 2;
+	prgBank[3] = prgBank[0] + 3;
+	prgBank[4] = prgBank[0] + 4;
+	prgBank[5] = prgBank[0] + 5;
+	prgBank[6] = prgBank[0] + 6;
+	prgBank[7] = prgBank[0] + 7;
+	prg_bank_switch();
+
+	chrBank[0] = ((value & 0x03) << 3);
+	chrBank[1] = chrBank[0] + 1;
+	chrBank[2] = chrBank[0] + 2;
+	chrBank[3] = chrBank[0] + 3;
+	chrBank[4] = chrBank[0] + 4;
+	chrBank[5] = chrBank[0] + 5;
+	chrBank[6] = chrBank[0] + 6;
+	chrBank[7] = chrBank[0] + 7;
+	chr_bank_switch();
+}
+
+/*/////////////////////////////////*/
 /*               UxROM             */
 /*/////////////////////////////////*/
 
@@ -442,6 +471,49 @@ void mapper_nina1(uint_fast16_t address, uint_fast8_t value)
  * http://wiki.nesdev.com/w/index.php/Bandai_FCG_board
  * http://forums.nesdev.com/viewtopic.php?f=3&t=9606&p=104643&hilit=I%C2%B2C#p104643
  */
+
+/*----------------------------------Bit Corp.------------------------------------*/
+
+static inline void mapper_bitcorp(uint_fast16_t, uint_fast8_t), reset_bitcorp();
+
+void mapper_bitcorp (uint_fast16_t address, uint_fast8_t value)
+{
+	if ((address & 0x7fff) >= 0x7000)
+	{
+	prgBank[0] = ((value & 0x03) << 3);
+	prgBank[1] = prgBank[0] + 1;
+	prgBank[2] = prgBank[0] + 2;
+	prgBank[3] = prgBank[0] + 3;
+	prgBank[4] = prgBank[0] + 4;
+	prgBank[5] = prgBank[0] + 5;
+	prgBank[6] = prgBank[0] + 6;
+	prgBank[7] = prgBank[0] + 7;
+	prg_bank_switch();
+
+	chrBank[0] = (((value >> 2) & 0x03) << 3);
+	chrBank[1] = chrBank[0] + 1;
+	chrBank[2] = chrBank[0] + 2;
+	chrBank[3] = chrBank[0] + 3;
+	chrBank[4] = chrBank[0] + 4;
+	chrBank[5] = chrBank[0] + 5;
+	chrBank[6] = chrBank[0] + 6;
+	chrBank[7] = chrBank[0] + 7;
+	chr_bank_switch();
+	}
+}
+
+void reset_bitcorp()
+{
+	prgBank[0] = 0;
+	prgBank[1] = 1;
+	prgBank[2] = 2;
+	prgBank[3] = 3;
+	prgBank[4] = 4;
+	prgBank[5] = 5;
+	prgBank[6] = 6;
+	prgBank[7] = 7;
+	prg_bank_switch();
+}
 
 /*-----------------------------------COLOR DREAMS------------------------------------*/
 
@@ -1880,5 +1952,10 @@ void init_mapper() {
 		write_mapper_register8 = &mapper_bnrom;
 	} else if (!strcmp(cart.slot,"nina001")) {
 		write_mapper_register6 = &mapper_nina1;
+	} else if (!strcmp(cart.slot,"gxrom")) {
+		write_mapper_register8 = &mapper_gxrom;
+	} else if (!strcmp(cart.slot,"bitcorp_dis")) {
+		write_mapper_register6 = &mapper_bitcorp;
+		reset_bitcorp();
 	}
 }

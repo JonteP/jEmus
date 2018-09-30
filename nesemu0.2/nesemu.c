@@ -38,7 +38,7 @@ int main(int argc, char *argv[]) {
 	cpuClock = originalCpuClock;
 
 	if (argc < 2)
-		romName = "/home/jonas/eclipse-workspace/nina001/imission2.nes";
+		romName = "/home/jonas/eclipse-workspace/bitcorp/cbusters.nes";
 	else
 		romName = argv[1];
 	load_rom(romName);
