@@ -38,7 +38,7 @@ int main(int argc, char *argv[]) {
 	cpuClock = originalCpuClock;
 
 	if (argc < 2)
-		romName = "/home/jonas/eclipse-workspace/bitcorp/cbusters.nes";
+		romName = "/home/jonas/eclipse-workspace/h3001/spartanx2.nes";
 	else
 		romName = argv[1];
 	load_rom(romName);

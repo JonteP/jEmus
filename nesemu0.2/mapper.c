@@ -256,6 +256,8 @@ void mmc1_chr_bank_switch() {
 
 /* TODO:
  *
+ * Support for mapper 47
+ *
  *-Clean IRQ implementation
  * remaining IRQ issues:
  * -Ninja ryuukenden 2 - cut scenes
@@ -652,6 +654,107 @@ void mapper_g101(uint_fast16_t address, uint_fast8_t value)
 }
 
 /*/////////////////////////////////*/
+/*              H3001              */
+/*/////////////////////////////////*/
+
+static inline void mapper_h3001(uint_fast16_t, uint_fast8_t), reset_h3001(), h3001_irq();
+static uint_fast8_t h3001IrqEnable;
+static uint_fast16_t h3001IrqReload, h3001IrqCounter;
+void mapper_h3001(uint_fast16_t address, uint_fast8_t value)
+{
+ switch (address & 0xf007)
+ {
+ case 0x8000:
+	 prgBank[0] = (value << 1);
+	 prgBank[1] = prgBank[0] + 1;
+	 prg_bank_switch();
+	 break;
+ case 0xa000:
+	 prgBank[2] = (value << 1);
+	 prgBank[3] = prgBank[2] + 1;
+	 prg_bank_switch();
+	 break;
+ case 0xc000:
+	 prgBank[4] = (value << 1);
+	 prgBank[5] = prgBank[4] + 1;
+	 prg_bank_switch();
+	 break;
+ case 0xb000:
+	 chrBank[0] = value;
+	 chr_bank_switch();
+	 break;
+ case 0xb001:
+	 chrBank[1] = value;
+	 chr_bank_switch();
+	 break;
+ case 0xb002:
+	 chrBank[2] = value;
+	 chr_bank_switch();
+	 break;
+ case 0xb003:
+	 chrBank[3] = value;
+	 chr_bank_switch();
+	 break;
+ case 0xb004:
+	 chrBank[4] = value;
+	 chr_bank_switch();
+	 break;
+ case 0xb005:
+	 chrBank[5] = value;
+	 chr_bank_switch();
+	 break;
+ case 0xb006:
+	 chrBank[6] = value;
+	 chr_bank_switch();
+	 break;
+ case 0xb007:
+	 chrBank[7] = value;
+	 chr_bank_switch();
+	 break;
+ case 0x9001:
+	 cart.mirroring = 1 - (value >> 7);
+	 nametable_mirroring(cart.mirroring);
+	 break;
+ case 0x9003:
+	 h3001IrqEnable = (value & 0x80);
+	 mapperInt = 0;
+	 break;
+ case 0x9004:
+	 h3001IrqCounter = h3001IrqReload;
+	 mapperInt = 0;
+	 break;
+ case 0x9005:
+	 h3001IrqReload = ((h3001IrqReload & 0x00ff) | (value << 8));
+	 break;
+ case 0x9006:
+	 h3001IrqReload = ((h3001IrqReload & 0xff00) | value);
+	 break;
+ }
+}
+
+void h3001_irq()
+{
+ if (h3001IrqEnable)
+ {
+	 if (!h3001IrqCounter)
+		 mapperInt = 1;
+	 else
+		 h3001IrqCounter--;
+ }
+}
+
+void reset_h3001()
+{
+	prgBank[0] = 0;
+	prgBank[1] = 1;
+	prgBank[2] = 2;
+	prgBank[3] = 3;
+	prgBank[4] = 0x3c;
+	prgBank[5] = 0x3d;
+	prg_bank_switch();
+}
+
+/*/////////////////////////////////*/
 /*           Holy Diver            */
 /*/////////////////////////////////*/
 
@@ -680,7 +783,7 @@ void mapper_holydivr(uint_fast16_t address, uint_fast8_t value)
 /*             lrog017             */
 /*/////////////////////////////////*/
 
-static inline void mapper_lrog017(uint_fast16_t, uint_fast8_t);
+static inline void mapper_lrog017(uint_fast16_t, uint_fast8_t), reset_lrog017();
 
 void mapper_lrog017(uint_fast16_t address, uint_fast8_t value)
 {
@@ -1957,5 +2060,9 @@ void init_mapper() {
 	} else if (!strcmp(cart.slot,"bitcorp_dis")) {
 		write_mapper_register6 = &mapper_bitcorp;
 		reset_bitcorp();
+	} else if (!strcmp(cart.slot,"h3001")) {
+		write_mapper_register8 = &mapper_h3001;
+		reset_h3001();
+		irq_cpu_clocked = &h3001_irq;
 	}
 }
