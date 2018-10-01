@@ -1736,6 +1736,90 @@ void mapper_axrom(uint_fast16_t address, uint_fast8_t value) {
 	nametable_mirroring(cart.mirroring);
 }
 
+/*---------------------------------SUNSOFT-----------------------------------*/
+
+/*/////////////////////////////////*/
+/*            Sunsoft-3            */
+/*/////////////////////////////////*/
+
+static inline void mapper_sun3(uint_fast16_t, uint_fast8_t), sun3_irq();
+static uint_fast8_t sun3w, sun3IrqEnable;
+static uint_fast16_t sun3IrqCounter;
+void mapper_sun3(uint_fast16_t address, uint_fast8_t value)
+{
+	switch (address & 0xf800)
+	{
+	case 0x8800: /* CHR Bank 0 */
+		chrBank[0] = (value << 1);
+		chrBank[1] = chrBank[0] + 1;
+		chr_bank_switch();
+		break;
+	case 0x9800: /* CHR Bank 1 */
+		chrBank[2] = (value << 1);
+		chrBank[3] = chrBank[2] + 1;
+		chr_bank_switch();
+		break;
+	case 0xa800: /* CHR Bank 2 */
+		chrBank[4] = (value << 1);
+		chrBank[5] = chrBank[4] + 1;
+		chr_bank_switch();
+		break;
+	case 0xb800: /* CHR Bank 3 */
+		chrBank[6] = (value << 1);
+		chrBank[7] = chrBank[6] + 1;
+		chr_bank_switch();
+		break;
+	case 0xc800: /* IRQ Load   */
+		if (sun3w)
+			sun3IrqCounter = ((sun3IrqCounter & 0xff00) | value);
+		else
+			sun3IrqCounter = ((sun3IrqCounter & 0x00ff) | (value << 8));
+		sun3w ^= 1;
+		break;
+	case 0xd800: /* IRQ Enable */
+		sun3IrqEnable = (value & 0x10);
+		sun3w = 0;
+		mapperInt = 0;
+		break;
+	case 0xe800: /* Mirroring  */
+		switch (value & 0x03)
+		{
+		case 0:
+			cart.mirroring = 1;
+			break;
+		case 1:
+			cart.mirroring = 0;
+			break;
+		case 2:
+			cart.mirroring = 2;
+			break;
+		case 3:
+			cart.mirroring = 3;
+			break;
+		}
+		nametable_mirroring(cart.mirroring);
+		break;
+	case 0xf800: /* PRG Bank   */
+		prgBank[0] = (value << 2);
+		prgBank[1] = prgBank[0] + 1;
+		prgBank[2] = prgBank[0] + 2;
+		prgBank[3] = prgBank[0] + 3;
+		prg_bank_switch();
+		break;
+	}
+}
+
+void sun3_irq()
+{
+	if (sun3IrqEnable)
+	{
+	if ((sun3IrqCounter & 0xffff) == 0xffff)
+		mapperInt = 1;
+	else
+		sun3IrqCounter--;
+	}
+}
+
 /*-----------------------------------T*HQ------------------------------------*/
 
 /*/////////////////////////////////*/
@@ -2064,5 +2148,8 @@ void init_mapper() {
 		write_mapper_register8 = &mapper_h3001;
 		reset_h3001();
 		irq_cpu_clocked = &h3001_irq;
+	} else if (!strcmp(cart.slot,"sunsoft3")) {
+		write_mapper_register8 = &mapper_sun3;
+		irq_cpu_clocked = &sun3_irq;
 	}
 }
