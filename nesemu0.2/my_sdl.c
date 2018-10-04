@@ -57,9 +57,12 @@ uint_fast8_t colblargg[] = {  84,  84,  84,   0,  30, 116,   8,  16, 144,  48,  
 
 windowHandle handleMain, handleNametable, handlePattern, handlePalette;
 
-static inline void render_window (windowHandle, void *), idle_time(), update_texture(windowHandle, uint_fast8_t *);
+static inline void render_window (windowHandle *, void *), idle_time(), update_texture(windowHandle *, uint_fast8_t *);
 
 void init_sdl() {
+	SDL_version ver;
+	SDL_GetVersion(&ver);
+	printf("Running SDL version: %d.%d.%d\n",ver.major,ver.minor,ver.patch);
 	SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO);
 	SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY,"0");
 	for (int i = 0; i < 64; i++) {
@@ -68,6 +71,11 @@ void init_sdl() {
 		colors[i].b = colblargg[i * 3 + 2];
 	}
 	handleMain = create_handle ("jNes", 100, 100, WWIDTH, WHEIGHT, SWIDTH, SHEIGHT);
+	handleNametable = create_handle ("Nametable", 1000, 100, WWIDTH<<1, WHEIGHT<<1, SWIDTH<<1, SHEIGHT<<1);
+	handlePattern = create_handle ("Pattern", 1000, 100, WWIDTH<<1, WHEIGHT<<1, SWIDTH<<1, SHEIGHT<<1);
+	handlePalette = create_handle ("Palette", 1000, 100, WWIDTH<<1, WHEIGHT<<1, SWIDTH<<1, SHEIGHT<<1);
+	SDL_ShowWindow(handleMain.win);
+	handleMain.visible = 1;
 	AudioSettings.freq = samplesPerSecond;
 	AudioSettings.format = AUDIO_F32;
 	AudioSettings.channels = CHANNELS;
@@ -110,6 +118,8 @@ windowHandle create_handle (char * name, int wpx, int wpy, int ww, int wh, int s
 		exit(EXIT_FAILURE);
 	}
 	handle.windowID = SDL_GetWindowID(handle.win);
+	SDL_HideWindow(handle.win);
+	handle.visible = 0;
 	return handle;
 }
 
@@ -121,6 +131,9 @@ void destroy_handle (windowHandle * handle) {
 
 void close_sdl () {
 	destroy_handle (&handleMain);
+	destroy_handle (&handleNametable);
+	destroy_handle (&handlePattern);
+	destroy_handle (&handlePalette);
 	SDL_ClearQueuedAudio(1);
 	SDL_CloseAudio();
 	SDL_Quit();
@@ -147,65 +160,68 @@ void idle_time ()
 
 void render_frame()
 {
-	io_handle();
-	if (nametableActive)
+	if (handleNametable.visible)
+	{
 		draw_nametable();
-	if (patternActive)
+		render_window (&handleNametable, nameBuffer);
+	}
+	if (handlePattern.visible)
+	{
 		draw_pattern();
-	if (paletteActive)
+		render_window (&handlePattern, patternBuffer);
+	}
+	if (handlePalette.visible)
+	{
 		draw_palette();
-	render_window (handleMain, frameBuffer);
-	if (nametableActive)
-		render_window (handleNametable, nameBuffer);
-	if (patternActive)
-		render_window (handlePattern, patternBuffer);
-	if (paletteActive)
-		render_window (handlePalette, paletteBuffer);
+		render_window (&handlePalette, paletteBuffer);
+	}
+	render_window (&handleMain, frameBuffer);
 	if (throttle && !vsync)
 	{
 		idle_time();
 	}
+	io_handle();
 	while (isPaused)
 	{
 		render_frame();
 	}
 }
 
-void update_texture(windowHandle handle, uint_fast8_t * buffer)
+void update_texture(windowHandle *handle, uint_fast8_t * buffer)
 {
 	uint_fast8_t * color;
 	Uint32 *dst;
 	int row, col;
 	void *pixels;
 	int pitch;
-	int texError = SDL_LockTexture(handle.tex, NULL, &pixels, &pitch);
+	int texError = SDL_LockTexture(handle->tex, NULL, &pixels, &pitch);
 	if (texError)
 	{
 		printf("SDL_LockTexture failed: %s\n", SDL_GetError());
 		exit(EXIT_FAILURE);
 	}
 
-   	for (row = 0; row < handle.screenHeight; ++row)
+   	for (row = 0; row < handle->screenHeight; ++row)
    	{
    		dst = (Uint32*)((Uint8*)pixels + row * pitch);
-		for (col = 0; col < handle.screenWidth; ++col)
+		for (col = 0; col < handle->screenWidth; ++col)
 		{
-    		color = colblargg + ((*(buffer + row * handle.screenWidth + col)) * 3);
+    		color = colblargg + ((*(buffer + row * handle->screenWidth + col)) * 3);
     		*dst++ = (0xFF000000|(color[0]<<16)|(color[1]<<8)|color[2]);
 		}
     }
-    SDL_UnlockTexture(handle.tex);
+    SDL_UnlockTexture(handle->tex);
 }
 
 
 
-void render_window (windowHandle handle, void * buffer)
+void render_window (windowHandle * handle, void * buffer)
 {
 	SDL_Rect SrcR;
 	SrcR.x = 0;
 	SrcR.y = 0;
-	SrcR.w = handle.screenWidth;
-	SrcR.h = handle.screenHeight;
+	SrcR.w = handle->screenWidth;
+	SrcR.h = handle->screenHeight;
 	SDL_Rect TrgR;
 	TrgR.x = 240;
 	TrgR.y = 0;
@@ -213,11 +229,11 @@ void render_window (windowHandle handle, void * buffer)
 	TrgR.h = 1080;
 	update_texture(handle, buffer);
 	if (fullscreen)
-		SDL_RenderCopy(handle.rend, handle.tex, &SrcR, &TrgR);
+		SDL_RenderCopy(handle->rend, handle->tex, &SrcR, &TrgR);
 	else
-		SDL_RenderCopy(handle.rend, handle.tex, &SrcR, NULL);
-	SDL_RenderPresent(handle.rend);
-	SDL_RenderClear(handle.rend);
+		SDL_RenderCopy(handle->rend, handle->tex, &SrcR, NULL);
+	SDL_RenderPresent(handle->rend);
+	SDL_RenderClear(handle->rend);
 }
 
 void output_sound()
@@ -308,25 +324,29 @@ void io_handle()
 					isPaused ^= 1;
 				break;
 			case SDL_SCANCODE_F5:
-				nametableActive ^= 1;
-				if (nametableActive)
-					handleNametable = create_handle ("Nametable", 1000, 100, WWIDTH<<1, WHEIGHT<<1, SWIDTH<<1, SHEIGHT<<1);
-				else if (!nametableActive)
-					destroy_handle (&handleNametable);
+				if (!event.key.repeat)
+				{
+				handleNametable.visible ^= 1;
+				printf("%i\t%i\n", handleNametable.visible,frame);
+				if (handleNametable.visible)
+					SDL_ShowWindow(handleNametable.win);
+				else
+					SDL_HideWindow(handleNametable.win);
+				}
 				break;
 			case SDL_SCANCODE_F6:
-				patternActive ^= 1;
-				if (patternActive)
-					handlePattern = create_handle ("Pattern table", 1000, 500, WWIDTH<<1, WHEIGHT, SWIDTH, SWIDTH>>1);
-				else if (!patternActive)
-					destroy_handle (&handlePattern);
+				handlePattern.visible ^= 1;
+				if (handlePattern.visible)
+					SDL_ShowWindow(handlePattern.win);
+				else
+					SDL_HideWindow(handlePattern.win);
 				break;
 			case SDL_SCANCODE_F4:
-				paletteActive ^= 1;
-				if (paletteActive)
-					handlePalette = create_handle ("Palette", 1000, 1000, WWIDTH>>1, WHEIGHT>>4, SWIDTH>>1, SWIDTH>>4);
-				else if (!paletteActive)
-					destroy_handle (&handlePalette);
+				handlePalette.visible ^= 1;
+				if (handlePalette.visible)
+					SDL_ShowWindow(handlePalette.win);
+				else
+					SDL_HideWindow(handlePalette.win);
 				break;
 			case SDL_SCANCODE_UP:
 				bitset(&ctr1, 1, 4);

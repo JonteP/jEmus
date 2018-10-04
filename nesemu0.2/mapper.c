@@ -1023,16 +1023,12 @@ void ss88006_irq()
 
 /*-----------------------------------KONAMI------------------------------------*/
 
-/*/////////////////////////////////*/
-/*            Konami VRC           */
-/*/////////////////////////////////*/
-
 static inline void vrc_clock_irq();
 static uint_fast8_t vrcIrqControl = 0, vrcIrqLatch, vrcIrqCounter, vrcIrqCycles[3] = { 114, 114, 113 }, vrcIrqCc = 0;
 static int16_t vrcIrqPrescale;
 
 /*/////////////////////////////////*/
-/*              VRC 1              */
+/*           Konami VRC 1          */
 /*/////////////////////////////////*/
 
 uint_fast8_t vrc1Chr0, vrc1Chr1;
@@ -1095,7 +1091,8 @@ void mapper_vrc1(uint_fast16_t address, uint_fast8_t value)
 }
 
 /*/////////////////////////////////*/
-/*            VRC 2 / 4            */
+/*          Konami VRC 2           */
+/* 		    Konami VRC 4           */
 /*/////////////////////////////////*/
 
 static uint_fast8_t vrc24SwapMode = 0;
@@ -1739,7 +1736,7 @@ void mapper_axrom(uint_fast16_t address, uint_fast8_t value) {
 /*---------------------------------SUNSOFT-----------------------------------*/
 
 /*/////////////////////////////////*/
-/*            Sunsoft-3            */
+/*            Sunsoft 3            */
 /*/////////////////////////////////*/
 
 static inline void mapper_sun3(uint_fast16_t, uint_fast8_t), sun3_irq();
@@ -1817,6 +1814,265 @@ void sun3_irq()
 		mapperInt = 1;
 	else
 		sun3IrqCounter--;
+	}
+}
+
+/*/////////////////////////////////*/
+/*            Sunsoft 4            */
+/*/////////////////////////////////*/
+
+static inline void mapper_sun4(uint_fast16_t, uint_fast8_t), sun4_nametable_mirroring(uint_fast8_t);
+static uint_fast8_t sun4Name0, sun4Name1, sun4NameSelect;
+void mapper_sun4(uint_fast16_t address, uint_fast8_t value)
+{
+	switch (address & 0xf000)
+	{
+	case 0x6000:
+	case 0x7000: /* Licensing IC */
+		/* TODO: The baseball game checks this (protection?)
+		 * should be readable as well
+		 */
+		break;
+	case 0x8000: /* CHR Bank 0 */
+		chrBank[0] = (value << 1);
+		chrBank[1] = chrBank[0] + 1;
+		chr_bank_switch();
+		break;
+	case 0x9000: /* CHR Bank 1 */
+		chrBank[2] = (value << 1);
+		chrBank[3] = chrBank[2] + 1;
+		chr_bank_switch();
+		break;
+	case 0xa000: /* CHR Bank 2 */
+		chrBank[4] = (value << 1);
+		chrBank[5] = chrBank[4] + 1;
+		chr_bank_switch();
+		break;
+	case 0xb000: /* CHR Bank 3 */
+		chrBank[6] = (value << 1);
+		chrBank[7] = chrBank[6] + 1;
+		chr_bank_switch();
+		break;
+	case 0xc000: /* Nametable 0 */
+		sun4Name0 = (value | 0x80);
+		if (sun4NameSelect)
+			sun4_nametable_mirroring(cart.mirroring);
+		break;
+	case 0xd000: /* Nametable 1 */
+		sun4Name1 = (value | 0x80);
+		if (sun4NameSelect)
+			sun4_nametable_mirroring(cart.mirroring);
+		break;
+	case 0xe000: /* Nametable Control */
+		switch (value & 0x03)
+		{
+		case 0:
+			cart.mirroring = 1;
+			break;
+		case 1:
+			cart.mirroring = 0;
+			break;
+		case 2:
+			cart.mirroring = 2;
+			break;
+		case 3:
+			cart.mirroring = 3;
+			break;
+		}
+		sun4NameSelect = (value & 0x10);
+		if (!sun4NameSelect)
+			nametable_mirroring(cart.mirroring);
+		else
+			sun4_nametable_mirroring(cart.mirroring);
+		break;
+	case 0xf000: /* PRG Bank 0 */
+		wramEnable = (value & 0x10);
+		prgBank[0] = ((value & 0x0f) << 2);
+		prgBank[1] = prgBank[0] + 1;
+		prgBank[2] = prgBank[0] + 2;
+		prgBank[3] = prgBank[0] + 3;
+		prg_bank_switch();
+		break;
+	}
+}
+
+void sun4_nametable_mirroring(uint_fast8_t mode)
+{
+	uint_fast8_t *low, *high;
+	low = &chrRom[((sun4Name0 & ((cart.chrSize >> 10) - 1)) << 10)];
+	high = &chrRom[((sun4Name1 & ((cart.chrSize >> 10) - 1)) << 10)];
+	switch (mode)
+	{
+	case 0: /* horizontal */
+		nameSlot[0] = low;
+		nameSlot[1] = low;
+		nameSlot[2] = high;
+		nameSlot[3] = high;
+		break;
+	case 1: /* vertical */
+		nameSlot[0] = low;
+		nameSlot[1] = high;
+		nameSlot[2] = low;
+		nameSlot[3] = high;
+		break;
+	case 2: /* one-page low */
+		nameSlot[0] = low;
+		nameSlot[1] = low;
+		nameSlot[2] = low;
+		nameSlot[3] = low;
+		break;
+	case 3: /* one-page high */
+		nameSlot[0] = high;
+		nameSlot[1] = high;
+		nameSlot[2] = high;
+		nameSlot[3] = high;
+		break;
+	}
+}
+
+/*/////////////////////////////////*/
+/*           Sunsoft 5a            */
+/* 			 Sunsoft 5b			   */
+/* 			 Sunsoft FME-7         */
+/*/////////////////////////////////*/
+
+/* TODO:
+ *
+ * expansion sound for 5B
+ */
+
+static inline void mapper_sun5(uint_fast16_t, uint_fast8_t), sun5_irq();
+static uint_fast8_t sun5Command, sun5IrqControl;
+static uint_fast16_t sun5IrqCounter;
+uint_fast8_t extendedPrg = 0;
+void mapper_sun5(uint_fast16_t address, uint_fast8_t value)
+{
+switch (address & 0xe000)
+{
+case 0x8000: /* Command Register */
+	sun5Command = (value & 0x0f);
+	break;
+case 0xa000: /* Parameter Register */
+	switch (sun5Command)
+	{
+	case 0x0: /* CHR Bank 0 */
+		chrBank[0] = value;
+		chr_bank_switch();
+		break;
+	case 0x1: /* CHR Bank 1 */
+		chrBank[1] = value;
+		chr_bank_switch();
+		break;
+	case 0x2: /* CHR Bank 2 */
+		chrBank[2] = value;
+		chr_bank_switch();
+		break;
+	case 0x3: /* CHR Bank 3 */
+		chrBank[3] = value;
+		chr_bank_switch();
+		break;
+	case 0x4: /* CHR Bank 4 */
+		chrBank[4] = value;
+		chr_bank_switch();
+		break;
+	case 0x5: /* CHR Bank 5 */
+		chrBank[5] = value;
+		chr_bank_switch();
+		break;
+	case 0x6: /* CHR Bank 6 */
+		chrBank[6] = value;
+		chr_bank_switch();
+		break;
+	case 0x7: /* CHR Bank 7 */
+		chrBank[7] = value;
+		chr_bank_switch();
+		break;
+	case 0x8: /* PRG Bank 0 */
+		if (value & 0x80)
+		{
+			wramEnable = 1;
+			wramSource = cart.bwramSize ? bwram : wram;
+		}
+		else
+			wramEnable = 0;
+		if (value & 0x40)
+			extendedPrg = 0;
+		else
+		{
+			extendedPrg = 1;
+			wramSource = &prg[(((value & 0x3f) & ((cart.prgSize >> 13) - 1)) << 13)];
+		}
+		break;
+	case 0x9: /* PRG Bank 1 */
+		prgBank[0] = ((value & 0x3f) << 1);
+		prgBank[1] = prgBank[0] + 1;
+		prg_bank_switch();
+		break;
+	case 0xa: /* PRG Bank 2 */
+		prgBank[2] = ((value & 0x3f) << 1);
+		prgBank[3] = prgBank[2] + 1;
+		prg_bank_switch();
+		break;
+	case 0xb: /* PRG Bank 3 */
+		prgBank[4] = ((value & 0x3f) << 1);
+		prgBank[5] = prgBank[4] + 1;
+		prg_bank_switch();
+		break;
+	case 0xc: /* Nametable mirroring */
+		switch (value & 0x03)
+		{
+		case 0:
+			cart.mirroring = 1;
+			nametable_mirroring(cart.mirroring);
+			break;
+		case 1:
+			cart.mirroring = 0;
+			nametable_mirroring(cart.mirroring);
+			break;
+		case 2:
+			cart.mirroring = 2;
+			nametable_mirroring(cart.mirroring);
+			break;
+		case 3:
+			cart.mirroring = 3;
+			nametable_mirroring(cart.mirroring);
+			break;
+		}
+		break;
+	case 0xd: /* IRQ Control */
+		sun5IrqControl = value;
+		mapperInt = 0;
+		break;
+	case 0xe: /* IRQ Counter Low */
+		sun5IrqCounter = ((sun5IrqCounter & 0xff00) | value);
+		break;
+	case 0xf: /* IRQ Counter High */
+		sun5IrqCounter = ((sun5IrqCounter & 0x00ff) | (value << 8));
+		break;
+	}
+	break;
+	case 0xc000: /* Audio register select (5B) */
+		printf("Writing %02x to unimplemented register: audio register select 0xc000\n",value);
+		break;
+	case 0xe000: /* Audio register write (5B) */
+		printf("Writing %02x to unimplemented register: audio register write 0xe000\n",value);
+		break;
+	default:
+		printf("Unhandled write of %02x to %04x\n",value,address);
+		break;
+	break;
+}
+}
+
+void sun5_irq()
+{
+	if (sun5IrqControl & 0x80)
+	{
+		if (((sun5IrqCounter & 0xffff) == 0xffff) && (sun5IrqControl & 0x01))
+		{
+			mapperInt = 1;
+		}
+		else sun5IrqCounter--;
 	}
 }
 
@@ -2151,5 +2407,13 @@ void init_mapper() {
 	} else if (!strcmp(cart.slot,"sunsoft3")) {
 		write_mapper_register8 = &mapper_sun3;
 		irq_cpu_clocked = &sun3_irq;
+	} else if (!strcmp(cart.slot,"sunsoft4")) {
+		write_mapper_register6 = &mapper_sun4;
+		write_mapper_register8 = &mapper_sun4;
+	} else if (!strcmp(cart.slot,"sunsoft5a") ||
+			   !strcmp(cart.slot,"sunsoft5b") ||
+			   !strcmp(cart.slot,"sunsoft_fme7")) {
+		write_mapper_register8 = &mapper_sun5;
+		irq_cpu_clocked = &sun5_irq;
 	}
 }

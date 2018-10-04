@@ -15,7 +15,7 @@ void prg_bank_switch(), chr_bank_switch();
 uint_fast8_t (*read_mapper_register)(uint_fast16_t), namco163_read(uint_fast16_t);
 float vrc6_sound(void);
 float (*expansion_sound)(void);
-extern uint_fast8_t mapperInt, expSound, wramBit, wramBitVal, prgBank[8], chrBank[8];
+extern uint_fast8_t mapperInt, expSound, wramBit, wramBitVal, prgBank[8], chrBank[8], extendedPrg;
 extern chrtype_t chrSource[0x8];
 
 #endif /* MAPPER_H_ */

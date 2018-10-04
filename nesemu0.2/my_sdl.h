@@ -23,6 +23,7 @@ typedef struct windowHandle_ {
 	int screenWidth;
 	int screenHeight;
 	int windowID;
+	int visible;
 } windowHandle;
 extern windowHandle handleMain, handleNametable;
 extern uint_fast8_t nametableActive, patternActive, paletteActive, isPaused, stateSave, stateLoad;

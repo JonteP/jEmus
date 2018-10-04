@@ -1055,7 +1055,7 @@ uint_fast8_t cpuread(uint16_t address) {
 	if (address >= 0x8000)
 		value = prgSlot[(address>>12)&~8][address&0xfff];
 	else if (address >= 0x6000 && address < 0x8000) {
-		if (wramEnable)
+		if (wramEnable || extendedPrg)
 		{
 			value = wramSource[(address & 0x1fff)];
 		}
@@ -1091,7 +1091,7 @@ void cpuwrite(uint16_t address, uint_fast8_t value) {
 	else if (address >= 0x6000 && address < 0x8000)
 	{
 		write_mapper_register6(address, value);
-		if (wramEnable)
+		if (wramEnable && !extendedPrg)
 			wramSource[(address & 0x1fff)] = value;
 		else if (wramBit)
 			wramBitVal = (value & 0x01);
