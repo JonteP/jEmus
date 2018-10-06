@@ -38,7 +38,7 @@ int main(int argc, char *argv[]) {
 	cpuClock = originalCpuClock;
 
 	if (argc < 2)
-		romName = "/home/jonas/eclipse-workspace/sunsoft5/pyokotan.nes";
+		romName = "/home/jonas/eclipse-workspace/bf909x/qarcade.nes";
 	else
 		romName = argv[1];
 	load_rom(romName);

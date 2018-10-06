@@ -193,11 +193,13 @@ void seRR ()
 	if (nSprite1 == 64) {
 		oamOverflow1 = 1;
 		nSprite1 = 0;
+		ppuOamAddress = 0;
 	}
 	data = oam[(nSprite1 << 2) + nData]; /* read y coordinate */
 	if (!nData && !(data <= scanline && scanline <= (data + 7 + ( (ppuController >> 2) & 0x08)))) /* not within range */
 	{
 		nSprite1++;
+		ppuOamAddress += 4;
 	}
 	else
 	{
@@ -212,6 +214,7 @@ void seRR ()
 		{
 			nData = 0;
 			nSprite1++;
+			ppuOamAddress += 4;
 
 		}
 	}
@@ -574,7 +577,23 @@ uint_fast8_t read_ppu_register(uint_fast16_t addr) {
 		ppuW = 0;
 		break;
 	case 0x2004:
-		tmpval8 = oam[ppuOamAddress];
+		/* TODO: Correct behavior when accessed during rendering */
+		if ((ppuMask & 0x18) && !vblank_period)
+		{
+			if (ppudot < 65)
+				tmpval8 = 0xff;
+			else if (ppudot <257)
+				tmpval8 = secOam[(nSprite2 << 2) + nData2];
+			else if (ppudot < 321)
+			{
+				cSprite = ((ppudot >> 3) & 0x07);
+				tmpval8 = secOam + (cSprite << 2);
+			}
+			else
+				tmpval8 = oam[ppuOamAddress];
+		}
+		else
+			tmpval8 = oam[ppuOamAddress];
 		break;
 	case 0x2007:
 		if (ppuV < 0x3f00) {

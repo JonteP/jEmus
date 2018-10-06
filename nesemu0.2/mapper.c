@@ -517,6 +517,57 @@ void reset_bitcorp()
 	prg_bank_switch();
 }
 
+/*-----------------------------------CODEMASTERS------------------------------------*/
+
+/*/////////////////////////////////*/
+/*              BF9093			   */
+/* 				BF9096             */
+/* 				BF9097             */
+/*/////////////////////////////////*/
+
+static inline void mapper_bf909x(uint_fast16_t, uint_fast8_t);
+static uint_fast8_t bf909xOuter = 0;
+void mapper_bf909x(uint_fast16_t address, uint_fast8_t value)
+{
+	switch (address & 0xe000)
+	{
+	case 0x8000:
+		if (cart.mirroring == 5)
+		{
+			printf("%02x\n",value);
+			nameSlot[0] = (value & 0x10) ? (ciram + 0x400) : ciram;
+			nameSlot[1] = nameSlot[0];
+			nameSlot[2] = nameSlot[0];
+			nameSlot[3] = nameSlot[0];
+		}
+		else if (!strcmp(cart.slot,"bf9096"))
+			bf909xOuter = ((value & 0x18) << 1);
+		break;
+	case 0xa000:
+		if (!strcmp(cart.slot,"bf9096"))
+			bf909xOuter = ((value & 0x18) << 1);
+		break;
+	case 0xc000:
+	case 0xe000:
+		if (!strcmp(cart.slot,"bf9096"))
+		{
+			prgBank[0] = ((value & 0x03) << 2) + bf909xOuter;
+			prgBank[1] = prgBank[0] + 1;
+			prgBank[2] = prgBank[0] + 2;
+			prgBank[3] = prgBank[0] + 3;
+		}
+		else
+		{
+			prgBank[0] = ((value & 0x0f) << 2);
+			prgBank[1] = prgBank[0] + 1;
+			prgBank[2] = prgBank[0] + 2;
+			prgBank[3] = prgBank[0] + 3;
+		}
+		prg_bank_switch();
+		break;
+	}
+}
+
 /*-----------------------------------COLOR DREAMS------------------------------------*/
 
 /*/////////////////////////////////*/
@@ -2293,6 +2344,7 @@ void nametable_mirroring(uint_fast8_t mode)
 		nameSlot[3] = ciram + 0x400;
 		break;
 	case 2: /* one-page low */
+	case 5:
 		nameSlot[0] = ciram;
 		nameSlot[1] = ciram;
 		nameSlot[2] = ciram;
@@ -2415,5 +2467,7 @@ void init_mapper() {
 			   !strcmp(cart.slot,"sunsoft_fme7")) {
 		write_mapper_register8 = &mapper_sun5;
 		irq_cpu_clocked = &sun5_irq;
+	} else if (!strcmp(cart.slot,"bf9093") || !strcmp(cart.slot,"bf9096")) {
+		write_mapper_register8 = &mapper_bf909x;
 	}
 }
