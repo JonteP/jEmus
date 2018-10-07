@@ -1331,6 +1331,79 @@ void mapper_vrc24(uint_fast16_t address, uint_fast8_t value) {
 }
 
 /*/////////////////////////////////*/
+/*              VRC 3              */
+/*/////////////////////////////////*/
+
+static inline void mapper_vrc3(uint_fast16_t, uint_fast8_t), vrc3_irq(void);
+static uint_fast8_t vrc3IrqControl;
+static uint_fast16_t vrc3IrqCounter, vrc3IrqLatch;
+void mapper_vrc3(uint_fast16_t address, uint_fast8_t value)
+{
+	switch (address & 0xf000)
+	{
+	case 0xf000: /* PRG Select */
+		prgBank[0] = ((value & 0x07) << 2);
+		prgBank[1] = prgBank[0] + 1;
+		prgBank[2] = prgBank[0] + 2;
+		prgBank[3] = prgBank[0] + 3;
+		prg_bank_switch();
+		break;
+	case 0x8000: /* IRQ Latch 0 */
+		vrc3IrqLatch = ((vrc3IrqLatch & 0xfff0) | (value & 0x0f));
+		break;
+	case 0x9000: /* IRQ Latch 1 */
+		vrc3IrqLatch = ((vrc3IrqLatch & 0xff0f) | ((value & 0x0f) << 4));
+		break;
+	case 0xa000: /* IRQ Latch 2 */
+		vrc3IrqLatch = ((vrc3IrqLatch & 0xf0ff) | ((value & 0x0f) << 8));
+		break;
+	case 0xb000: /* IRQ Latch 3 */
+		vrc3IrqLatch = ((vrc3IrqLatch & 0x0fff) | ((value & 0x0f) << 12));
+		break;
+	case 0xc000: /* IRQ Control */
+		vrc3IrqControl = (value & 0x07);
+		if (vrc3IrqControl & 0x02) {
+			vrc3IrqCounter = vrc3IrqLatch;
+		}
+		mapperInt = 0;
+		break;
+	case 0xd000: /* IRQ Acknowledge */
+		mapperInt = 0;
+		vrc3IrqControl = ((vrc3IrqControl & 0x04) | ((vrc3IrqControl & 0x01) << 1) | (vrc3IrqControl & 0x01));
+		break;
+	default:
+		printf("Unhandled write of %02x to %04x\n",value,address);
+		break;
+	}
+}
+
+void vrc3_irq() {
+	if ((vrc3IrqControl & 0x02))
+	{
+		if (!(vrc3IrqControl & 0x04)) /* 16-bit mode */
+		{
+			if (!(vrc3IrqCounter & 0xffff))
+			{
+				mapperInt = 1;
+				vrc3IrqCounter = vrc3IrqLatch;
+			}
+			else
+				vrc3IrqCounter++;
+		}
+		else if (vrc3IrqControl & 0x04) /* 8-bit mode */
+		{
+			if (!(vrc3IrqCounter & 0xff))
+			{
+				mapperInt = 1;
+				vrc3IrqCounter = ((vrc3IrqCounter & 0xff00) | (vrc3IrqLatch & 0x00ff));
+			}
+			else
+				vrc3IrqCounter = ((vrc3IrqCounter & 0xff00) | ((vrc3IrqCounter + 1) & 0x00ff));
+		}
+	}
+}
+
+/*/////////////////////////////////*/
 /*              VRC 6              */
 /*/////////////////////////////////*/
 
@@ -2518,5 +2591,8 @@ void init_mapper() {
 		irq_cpu_clocked = &sun5_irq;
 	} else if (!strcmp(cart.slot,"bf9093") || !strcmp(cart.slot,"bf9096")) {
 		write_mapper_register8 = &mapper_bf909x;
+	} else if (!strcmp(cart.slot,"vrc3")) {
+		write_mapper_register8 = &mapper_vrc3;
+		irq_cpu_clocked = &vrc3_irq;
 	}
 }

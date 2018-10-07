@@ -38,7 +38,7 @@ int main(int argc, char *argv[]) {
 	cpuClock = originalCpuClock;
 
 	if (argc < 2)
-		romName = "/home/jonas/games/nes/mappers/jf17/pinquest.nes";
+		romName = "/home/jonas/games/nes/mappers/vrc3/salamander.nes";
 	else
 		romName = argv[1];
 	load_rom(romName);
