@@ -525,6 +525,10 @@ void reset_bitcorp()
 /* 				BF9097             */
 /*/////////////////////////////////*/
 
+/* TODO:
+ * bf9096 - correct banking.... (quattro games)
+ */
+
 static inline void mapper_bf909x(uint_fast16_t, uint_fast8_t);
 static uint_fast8_t bf909xOuter = 0;
 void mapper_bf909x(uint_fast16_t address, uint_fast8_t value)
@@ -540,17 +544,24 @@ void mapper_bf909x(uint_fast16_t address, uint_fast8_t value)
 			nameSlot[2] = nameSlot[0];
 			nameSlot[3] = nameSlot[0];
 		}
-		else if (!strcmp(cart.slot,"bf9096"))
+		if (!strcmp(cart.slot,"bf9096"))
+		{
+			printf("Outer bank: %02x\n",value&0x18);
 			bf909xOuter = ((value & 0x18) << 1);
+		}
 		break;
 	case 0xa000:
 		if (!strcmp(cart.slot,"bf9096"))
+		{
+			printf("Outer bank: %02x\n",value&0x18);
 			bf909xOuter = ((value & 0x18) << 1);
+		}
 		break;
 	case 0xc000:
 	case 0xe000:
 		if (!strcmp(cart.slot,"bf9096"))
 		{
+			printf("Inner bank: %02x\n",value&0x03);
 			prgBank[0] = ((value & 0x03) << 2) + bf909xOuter;
 			prgBank[1] = prgBank[0] + 1;
 			prgBank[2] = prgBank[0] + 2;
@@ -902,6 +913,42 @@ void mapper_jf16(uint_fast16_t address, uint_fast8_t value)
 	chrBank[6] = chrBank[0] + 6;
 	chrBank[7] = chrBank[0] + 7;
 	chr_bank_switch();
+}
+
+/*/////////////////////////////////*/
+/*               JF-17             */
+/*/////////////////////////////////*/
+
+/* TODO:
+ * expansion sound for jf17pcm
+ */
+
+static inline void mapper_jf17(uint_fast16_t, uint_fast8_t);
+uint_fast8_t jf17PrgSelect, jf17ChrSelect;
+void mapper_jf17(uint_fast16_t address, uint_fast8_t value)
+{
+ if ((value & 0x80) && !jf17PrgSelect)
+ {
+	 prgBank[0] = ((value & 0x07) << 2);
+	 prgBank[1] = prgBank[0] + 1;
+	 prgBank[2] = prgBank[0] + 2;
+	 prgBank[3] = prgBank[0] + 3;
+	 prg_bank_switch();
+ }
+ if ((value & 0x40) && !jf17ChrSelect)
+ {
+	 chrBank[0] = ((value & 0x0f) << 3);
+	 chrBank[1] = chrBank[0] + 1;
+	 chrBank[2] = chrBank[0] + 2;
+	 chrBank[3] = chrBank[0] + 3;
+	 chrBank[4] = chrBank[0] + 4;
+	 chrBank[5] = chrBank[0] + 5;
+	 chrBank[6] = chrBank[0] + 6;
+	 chrBank[7] = chrBank[0] + 7;
+	 chr_bank_switch();
+ }
+ jf17PrgSelect = (value & 0x80);
+ jf17ChrSelect = (value & 0x40);
 }
 
 /*/////////////////////////////////*/
@@ -2424,6 +2471,8 @@ void init_mapper() {
 			write_mapper_register8 = &mapper_holydivr;
 	} else if (!strcmp(cart.slot,"jf16")) {
 			write_mapper_register8 = &mapper_jf16;
+	} else if (!strcmp(cart.slot,"jf17") || !strcmp(cart.slot,"jf17pcm")) {
+		write_mapper_register8 = &mapper_jf17;
 	} else if (!strcmp(cart.slot,"namcot_3433") || !strcmp(cart.slot,"namcot_3425")  || !strcmp(cart.slot,"namcot_3446")) {
 		write_mapper_register8 = &mapper_namcot34xx;
 	} else if (!strcmp(cart.slot,"discrete_74x377")) {

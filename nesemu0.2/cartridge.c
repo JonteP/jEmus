@@ -76,7 +76,7 @@ void load_rom(char *rom)
 	{
 		sprintf((char *)sphash+i*2, "%02x", phash[i]);
 	}
-	nesXml = xmlReadFile("/home/jonas/eclipse-workspace/nes.xml", NULL, 0);
+	nesXml = xmlReadFile("/home/jonas/git/nesemu0.2/Debug/nes.xml", NULL, 0);
 	root = xmlDocGetRootElement(nesXml);
 	parse_xml_file(root);
 	xmlFreeDoc(nesXml);
@@ -97,7 +97,8 @@ void load_rom(char *rom)
 	}
 	fclose(romFile);
 
-
+	if (psize < cart.prgSize)
+		cart.prgSize = psize;
 	cart.pSlots = ((cart.prgSize) / 0x1000);
 	cart.cSlots = ((cart.chrSize) / 0x400);
 

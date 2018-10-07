@@ -63,7 +63,12 @@ void init_sdl() {
 	SDL_version ver;
 	SDL_GetVersion(&ver);
 	printf("Running SDL version: %d.%d.%d\n",ver.major,ver.minor,ver.patch);
-	SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO);
+	if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) != 0)
+	{
+		printf("SDL_Init failed: %s\n", SDL_GetError());
+		exit(EXIT_FAILURE);
+	}
+
 	SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY,"0");
 	for (int i = 0; i < 64; i++) {
 		colors[i].r = colblargg[i * 3];
