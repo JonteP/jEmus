@@ -459,6 +459,38 @@ void mapper_nina1(uint_fast16_t address, uint_fast8_t value)
 	}
 }
 
+/*/////////////////////////////////*/
+/*            NINA-003             */
+/*            NINA-006             */
+/*/////////////////////////////////*/
+
+static inline void mapper_nina36(uint_fast16_t, uint_fast8_t);
+
+void mapper_nina36(uint_fast16_t address, uint_fast8_t value)
+{
+	if (address & 0x4100)
+	{
+		prgBank[0] = (value & 0x08);
+		prgBank[1] = prgBank[0] + 1;
+		prgBank[2] = prgBank[0] + 2;
+		prgBank[3] = prgBank[0] + 3;
+		prgBank[4] = prgBank[0] + 4;
+		prgBank[5] = prgBank[0] + 5;
+		prgBank[6] = prgBank[0] + 6;
+		prgBank[7] = prgBank[0] + 7;
+		prg_bank_switch();
+		chrBank[0] = ((value & 0x07) << 3);
+		chrBank[1] = chrBank[0] + 1;
+		chrBank[2] = chrBank[0] + 2;
+		chrBank[3] = chrBank[0] + 3;
+		chrBank[4] = chrBank[0] + 4;
+		chrBank[5] = chrBank[0] + 5;
+		chrBank[6] = chrBank[0] + 6;
+		chrBank[7] = chrBank[0] + 7;
+		chr_bank_switch();
+	}
+}
+
 /*-----------------------------------BANDAI------------------------------------*/
 
 /*/////////////////////////////////*/
@@ -2594,5 +2626,7 @@ void init_mapper() {
 	} else if (!strcmp(cart.slot,"vrc3")) {
 		write_mapper_register8 = &mapper_vrc3;
 		irq_cpu_clocked = &vrc3_irq;
+	} else if (!strcmp(cart.slot,"nina006")) {
+		write_mapper_register4 = &mapper_nina36;
 	}
 }
