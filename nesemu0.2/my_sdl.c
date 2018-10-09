@@ -254,6 +254,8 @@ void output_sound()
 void io_handle()
 {
 	while (SDL_PollEvent(&event)) {
+		if (event.window.windowID == handleMain.windowID)
+		{
 		switch (event.type) {
 		/* Pass the event data onto PrintKeyInfo() */
 		case SDL_KEYDOWN:
@@ -334,7 +336,10 @@ void io_handle()
 				handleNametable.visible ^= 1;
 				printf("%i\t%i\n", handleNametable.visible,frame);
 				if (handleNametable.visible)
+				{
 					SDL_ShowWindow(handleNametable.win);
+					SDL_RaiseWindow(handleMain.win);
+				}
 				else
 					SDL_HideWindow(handleNametable.win);
 				}
@@ -342,14 +347,21 @@ void io_handle()
 			case SDL_SCANCODE_F6:
 				handlePattern.visible ^= 1;
 				if (handlePattern.visible)
+				{
 					SDL_ShowWindow(handlePattern.win);
+					SDL_RaiseWindow(handleMain.win);
+				}
 				else
 					SDL_HideWindow(handlePattern.win);
 				break;
 			case SDL_SCANCODE_F4:
 				handlePalette.visible ^= 1;
 				if (handlePalette.visible)
+				{
 					SDL_ShowWindow(handlePalette.win);
+					SDL_RaiseWindow(handleMain.win);
+				}
+
 				else
 					SDL_HideWindow(handlePalette.win);
 				break;
@@ -464,6 +476,7 @@ void io_handle()
 			break;
 		default:
 			break;
+		}
 		}
 	}
 }

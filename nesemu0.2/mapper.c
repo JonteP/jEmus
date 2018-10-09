@@ -2407,6 +2407,52 @@ void tc0190_irq ()
 	}
 }
 
+/*/////////////////////////////////*/
+/*              X1-005             */
+/*/////////////////////////////////*/
+
+static inline void mapper_x1005(uint_fast16_t, uint_fast8_t);
+
+void mapper_x1005(uint_fast16_t address, uint_fast8_t value)
+{
+	switch (address & 0x7eff)
+	{
+	case 0x7ef0: /* CHR Bank 0-1 */
+		break;
+	case 0x7ef1: /* CHR Bank 2-3 */
+		break;
+	case 0x7ef2: /* CHR Bank 4 */
+		break;
+	case 0x7ef3: /* CHR Bank 5 */
+		break;
+	case 0x7ef4: /* CHR Bank 6 */
+		break;
+	case 0x7ef5: /* CHR Bank 7 */
+		break;
+	case 0x7ef6: /* Mirroring */
+	case 0x7ef7:
+		cart.mirroring = (value & 0x01);
+		nametable_mirroring(cart.mirroring);
+		break;
+	case 0x7ef8:
+		break;
+	case 0x7ef9:
+		break;
+	case 0x7efa:
+		break;
+	case 0x7efb:
+		break;
+	case 0x7efc:
+		break;
+	case 0x7efd:
+		break;
+	case 0x7efe:
+		break;
+	case 0x7eff:
+		break;
+	}
+}
+
 /*----------------------------------------------------------------------------*/
 
 void reset_default()
@@ -2628,5 +2674,7 @@ void init_mapper() {
 		irq_cpu_clocked = &vrc3_irq;
 	} else if (!strcmp(cart.slot,"nina006")) {
 		write_mapper_register4 = &mapper_nina36;
+	} else if (!strcmp(cart.slot,"x1_005")) {
+		write_mapper_register6 = &mapper_x1005;
 	}
 }
