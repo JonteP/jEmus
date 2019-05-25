@@ -75,10 +75,10 @@ void init_sdl() {
 		colors[i].g = colblargg[i * 3 + 1];
 		colors[i].b = colblargg[i * 3 + 2];
 	}
-	handleMain = create_handle ("jNes", 100, 100, WWIDTH, WHEIGHT, SWIDTH, SHEIGHT);
-	handleNametable = create_handle ("Nametable", 1000, 100, WWIDTH<<1, WHEIGHT<<1, SWIDTH<<1, SHEIGHT<<1);
-	handlePattern = create_handle ("Pattern", 1000, 100, WWIDTH<<1, WHEIGHT<<1, SWIDTH<<1, SHEIGHT<<1);
-	handlePalette = create_handle ("Palette", 1000, 100, WWIDTH<<1, WHEIGHT<<1, SWIDTH<<1, SHEIGHT<<1);
+	handleMain = create_handle ("jNes", 100, 100, WWIDTH<<1, WHEIGHT<<1, SWIDTH, SHEIGHT, 8, 8);
+	handleNametable = create_handle ("Nametable", 1000, 100, WWIDTH<<1, WHEIGHT<<1, SWIDTH<<1, SHEIGHT<<1,0,0);
+	handlePattern = create_handle ("Pattern", 1000, 100, WWIDTH<<1, WHEIGHT<<1, SWIDTH<<1, SHEIGHT<<1,0,0);
+	handlePalette = create_handle ("Palette", 1000, 100, WWIDTH<<1, WHEIGHT<<1, SWIDTH<<1, SHEIGHT<<1,0,0);
 	SDL_ShowWindow(handleMain.win);
 	handleMain.visible = 1;
 	AudioSettings.freq = samplesPerSecond;
@@ -94,7 +94,7 @@ void init_sdl() {
 	frameTime = ((1/fps) * 1000000000);
 }
 
-windowHandle create_handle (char * name, int wpx, int wpy, int ww, int wh, int sw, int sh) {
+windowHandle create_handle (char * name, int wpx, int wpy, int ww, int wh, int sw, int sh, int xx, int yy) {
 	/* TODO: add clipping options here */
 	windowHandle handle;
 	handle.name = name;
@@ -104,6 +104,8 @@ windowHandle create_handle (char * name, int wpx, int wpy, int ww, int wh, int s
 	handle.winHeight = wh;
 	handle.screenWidth = sw;
 	handle.screenHeight = sh;
+	handle.xClip = xx;
+	handle.yClip = yy;
 	handle.win = SDL_CreateWindow(handle.name, handle.winXPosition, handle.winYPosition, handle.winWidth, handle.winHeight, SDL_WINDOW_RESIZABLE);
 	if (handle.win == NULL)
 	{
@@ -223,10 +225,10 @@ void update_texture(windowHandle *handle, uint_fast8_t * buffer)
 void render_window (windowHandle * handle, void * buffer)
 {
 	SDL_Rect SrcR;
-	SrcR.x = 0;
-	SrcR.y = 0;
-	SrcR.w = handle->screenWidth;
-	SrcR.h = handle->screenHeight;
+	SrcR.x = handle->xClip;
+	SrcR.y = handle->yClip;
+	SrcR.w = handle->screenWidth - (handle->xClip << 1);
+	SrcR.h = handle->screenHeight - (handle->yClip << 1);
 	SDL_Rect TrgR;
 	TrgR.x = 240;
 	TrgR.y = 0;
@@ -331,10 +333,7 @@ void io_handle()
 					isPaused ^= 1;
 				break;
 			case SDL_SCANCODE_F5:
-				if (!event.key.repeat)
-				{
 				handleNametable.visible ^= 1;
-				printf("%i\t%i\n", handleNametable.visible,frame);
 				if (handleNametable.visible)
 				{
 					SDL_ShowWindow(handleNametable.win);
@@ -342,7 +341,6 @@ void io_handle()
 				}
 				else
 					SDL_HideWindow(handleNametable.win);
-				}
 				break;
 			case SDL_SCANCODE_F6:
 				handlePattern.visible ^= 1;

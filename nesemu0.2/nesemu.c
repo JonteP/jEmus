@@ -38,7 +38,7 @@ int main(int argc, char *argv[]) {
 	cpuClock = originalCpuClock;
 
 	if (argc < 2)
-		romName = "/home/jonas/games/nes/mappers/nina006/mermaid.nes";
+		romName = "/home/jonas/games/nes/mappers/mmc3/smb3.nes";
 	else
 		romName = argv[1];
 	load_rom(romName);

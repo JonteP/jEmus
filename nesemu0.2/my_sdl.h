@@ -24,6 +24,8 @@ typedef struct windowHandle_ {
 	int screenHeight;
 	int windowID;
 	int visible;
+	int xClip;
+	int yClip;
 } windowHandle;
 extern windowHandle handleMain, handleNametable;
 extern uint_fast8_t nametableActive, patternActive, paletteActive, isPaused, stateSave, stateLoad;
@@ -36,6 +38,6 @@ SDL_Event event;
 SDL_Color colors[64];
 
 void render_frame(), init_sdl(void), close_sdl(void), init_sounds(void), output_sound(void), destroy_handle (windowHandle *), io_handle(void);
-windowHandle create_handle (char *, int, int, int, int, int, int);
+windowHandle create_handle (char *, int, int, int, int, int, int, int, int);
 
 #endif /* MY_SDL_H_ */
