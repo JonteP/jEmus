@@ -101,14 +101,14 @@ void opdecode() {
 	if (nmiPending)
 	{
 		apu_wait += 7;
-		ppu_wait += 7 * 3;
+		vdp_wait += 7 * 3;
 		cpucc += 7;
 		interrupt_handle(NMI);
 		nmiPending = 0;
 		intDelay = 0;
 	} else if (irqPending && !intDelay) {
 		apu_wait += 7;
-		ppu_wait += 7 * 3;
+		vdp_wait += 7 * 3;
 		cpucc += 7;
 		interrupt_handle(IRQ);
 		irqPending = 0;
@@ -120,7 +120,7 @@ void opdecode() {
 /*	fprintf(logfile,"%04X %02X\t\t A:%02X X=%02X Y:%02X P:%02X SP:%02X CYC:%i\n",cpuPC-1,op,cpuA,cpuX,cpuY,cpuP,cpuS,ppudot); */
 		addcycle = 0;
 		apu_wait += ctable[op];
-		ppu_wait += ctable[op] * 3;
+		vdp_wait += ctable[op] * 3;
 		cpucc += ctable[op];
 		(*addtable[op])();
 		(*optable[op])();
@@ -383,7 +383,7 @@ void branch() {
 	if (((cpuP >> reflag[(op >> 6) & 3]) & 1) == ((op >> 5) & 1)) {
 		if (((cpuPC + 1) & 0xff00)	!= ((cpuPC + ((int8_t) cpuread(cpuPC) + 1)) & 0xff00)) {
 			apu_wait += 1;
-			ppu_wait += 3;
+			vdp_wait += 3;
 			cpucc += 1;
 			/* correct? */
 			synchronize(1);
@@ -398,7 +398,7 @@ void branch() {
 		/* fetch next opcode if branch taken, fix PCH */		/* cycle 4 (optional) */
 		/* fetch opcode if page boundary */						/* cycle 5 (optional) */
 		apu_wait += 1;
-		ppu_wait += 3;
+		vdp_wait += 3;
 		cpucc += 1;
 		if (pageCross) /* special case, non-page crossing + branch taking ignores int. */
 		{
@@ -994,14 +994,14 @@ void write_cpu_register(uint16_t address, uint_fast8_t value) {
 		source = ((value << 8) & 0xff00);
 		if (cpucc%2) {
 			apu_wait += 2;
-			ppu_wait += 6;
+			vdp_wait += 6;
 			cpucc += 2;
 		} else {
 			apu_wait += 1;
-			ppu_wait += 3;
+			vdp_wait += 3;
 			cpucc += 1;
 		}
-		run_ppu(ppu_wait);
+		run_ppu(vdp_wait);
 		run_apu(apu_wait);
 		for (int i = 0; i < 256; i++) {
 			if (ppuOamAddress > 255)
@@ -1009,9 +1009,9 @@ void write_cpu_register(uint16_t address, uint_fast8_t value) {
 			oam[ppuOamAddress] = cpuread(source++);
 			ppuOamAddress++;
 			apu_wait += 2;
-			ppu_wait += 6;
+			vdp_wait += 6;
 			cpucc += 2;
-			run_ppu(ppu_wait);
+			run_ppu(vdp_wait);
 			run_apu(apu_wait);
 		}
 		break;
@@ -1158,9 +1158,9 @@ void interrupt_polling() {
 
 void synchronize(uint_fast8_t x) {
 	apu_wait += addcycle;
-	ppu_wait += addcycle * 3;
+	vdp_wait += addcycle * 3;
 	cpucc += addcycle;
 	addcycle = 0;
-	run_ppu(ppu_wait-(x*3));
+	run_ppu(vdp_wait-(x*3));
 	run_apu(apu_wait-(x));
 }

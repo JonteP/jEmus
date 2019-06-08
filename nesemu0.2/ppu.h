@@ -20,7 +20,7 @@ extern uint_fast8_t ciram[0x800], palette[0x20];
 extern uint_fast8_t *chrSlot[0x8], *nameSlot[0x4], oam[0x100],
 			   frameBuffer[SHEIGHT][SWIDTH], nameBuffer[SHEIGHT<<1][SWIDTH<<1], patternBuffer[SWIDTH>>1][SWIDTH], paletteBuffer[SWIDTH>>4][SWIDTH>>1];
 extern uint_fast8_t throttle, ppuOamAddress;
-extern int16_t ppudot, scanline;
+extern int16_t ppudot, vCounter;
 extern uint32_t nmiFlipFlop, frame;
 
 #endif

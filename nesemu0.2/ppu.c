@@ -16,7 +16,7 @@ static inline uint_fast8_t * ppuread(uint_fast16_t);
 uint_fast8_t *chrSlot[0x8], *nameSlot[0x4], oam[0x100], frameBuffer[SHEIGHT][SWIDTH], nameBuffer[SHEIGHT<<1][SWIDTH<<1], patternBuffer[SWIDTH>>1][SWIDTH], paletteBuffer[SWIDTH>>4][SWIDTH>>1];
 uint_fast8_t ppuOamAddress;
 uint_fast8_t throttle = 1;
-int16_t ppudot = 0, scanline = 0;
+int16_t ppudot = 0, vCounter = 0;
 uint_fast8_t ciram[0x800], palette[0x20];
 static uint_fast8_t vblank_period = 0, nmiSuppressed = 0, secOam[0x20];
 
@@ -96,22 +96,22 @@ void run_ppu (uint_fast16_t ntimes) {
 
 		if (ppudot == 341)
 		{
-		scanline++;
+		vCounter++;
 		ppudot = 0;
 		}
-		if (scanline == 262)
+		if (vCounter == 262)
 		{
-		scanline = 0;
+		vCounter = 0;
 		frame++;
 		}
 
 /* VBLANK ONSET */
-	if (scanline == 241 && ppudot == 1) {
+	if (vCounter == 241 && ppudot == 1) {
 		ppuStatusNmi = 1; /* set vblank */
 		vblank_period = 1;
 
 /* PRERENDER SCANLINE */
-	} else if (scanline == 261) {
+	} else if (vCounter == 261) {
 		if (ppuMask & 0x18)
 		{
 			(*fetchGraphics[ppudot])();
@@ -146,13 +146,13 @@ void run_ppu (uint_fast16_t ntimes) {
 		}
 
 /* RESET CLOCK COUNTER HERE... */
-	} else if (scanline == 240 && ppudot == 0) {
+	} else if (vCounter == 240 && ppudot == 0) {
 		ppucc = 0;
 
 /* RENDERED LINES */
-	} else if (scanline < 240)
+	} else if (vCounter < 240)
 	{
-		if (!scanline && !ppudot)
+		if (!vCounter && !ppudot)
 			render_frame();
 		if (ppuMask & 0x18)
 		{
@@ -164,7 +164,7 @@ void run_ppu (uint_fast16_t ntimes) {
 			horizontal_t_to_v();
 	}
 	ntimes--;
-	ppu_wait--;
+	vdp_wait--;
 	}
 }
 static uint_fast8_t bgData, ntData, attData, tileLow, tileHigh, spriteLow, spriteHigh;
@@ -196,7 +196,7 @@ void seRR ()
 		ppuOamAddress = 0;
 	}
 	data = oam[(nSprite1 << 2) + nData]; /* read y coordinate */
-	if (!nData && !(data <= scanline && scanline <= (data + 7 + ( (ppuController >> 2) & 0x08)))) /* not within range */
+	if (!nData && !(data <= vCounter && vCounter <= (data + 7 + ( (ppuController >> 2) & 0x08)))) /* not within range */
 	{
 		nSprite1++;
 		ppuOamAddress += 4;
@@ -279,7 +279,7 @@ void sfLT ()
 {
 	cSprite = ((ppudot >> 3) & 0x07);
 	sprite = secOam + (cSprite << 2);
-	yOffset = scanline - (sprite[0]);
+	yOffset = vCounter - (sprite[0]);
 	flipY = ((sprite[2] >> 7) & 1);
 	spriteRow = (yOffset & 7) + flipY * (7 - ((yOffset & 7) << 1));
 	if (ppuController & 0x20) /* 8x16 sprites */
@@ -384,25 +384,25 @@ void ppu_render()
 		uint_fast8_t bgColor = (!(ppuMask & 0x18) && (ppuV & 0x3f00) == 0x3f00) ? *ppuread(ppuV & 0x3fff) : *ppuread(0x3f00);
 		uint_fast8_t isSprite = (spriteBuffer[cDot]!=0xff && (ppuMask & 0x10) && ((cDot > 7) || (ppuMask & 0x04)));
 		uint_fast8_t isBg = ((pValue & 0x03) && (ppuMask & 0x08) && ((cDot > 7) || (ppuMask & 0x02)));
-		if (scanline < 240)
+		if (vCounter < 240)
 		{
 			if (isSprite && isBg)
 			{
 				if (!ppuStatusSpriteZero && zeroBuffer[cDot] && cDot<255)
 				{
 					ppuStatusSpriteZero = 1;
-					frameBuffer[scanline][cDot] = 0x10;
+					frameBuffer[vCounter][cDot] = 0x10;
 				}
-				frameBuffer[scanline][cDot] = priorityBuffer[cDot] ?  *ppuread(0x3f00 + pValue) : spriteBuffer[cDot];
+				frameBuffer[vCounter][cDot] = priorityBuffer[cDot] ?  *ppuread(0x3f00 + pValue) : spriteBuffer[cDot];
 			}
 			else if (isSprite && !isBg)
 			{
-				frameBuffer[scanline][cDot] = spriteBuffer[cDot];
+				frameBuffer[vCounter][cDot] = spriteBuffer[cDot];
 			}
 			else if (isBg && !isSprite)
-				frameBuffer[scanline][cDot] = *ppuread(0x3f00 + pValue);
+				frameBuffer[vCounter][cDot] = *ppuread(0x3f00 + pValue);
 			else
-				frameBuffer[scanline][cDot] = bgColor;
+				frameBuffer[vCounter][cDot] = bgColor;
 			}
 			tileShifterHigh = (tileShifterHigh << 1);
 			tileShifterLow = (tileShifterLow << 1);

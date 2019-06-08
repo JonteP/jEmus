@@ -28,7 +28,7 @@ const float originalFps = 60.098823055, originalCpuClock = 1789773, cyclesPerFra
 float fps, cpuClock;
 uint_fast8_t quit = 0, ctrb = 0, ctrb2 = 0, ctr1 = 0, ctr2 = 0;
 uint_fast8_t openBus;
-uint16_t ppu_wait = 0, apu_wait = 0;
+uint16_t vdp_wait = 0, apu_wait = 0;
 FILE *logfile;
 char *romName;
 
@@ -38,7 +38,7 @@ int main(int argc, char *argv[]) {
 	cpuClock = originalCpuClock;
 
 	if (argc < 2)
-		romName = "/home/jonas/games/nes/mappers/mmc3/smb3.nes";
+		romName = "/home/jonas/games/nes/mappers/mmc3/rockman3.nes";
 	else
 		romName = argv[1];
 	load_rom(romName);
@@ -98,7 +98,7 @@ void save_state()
 	fwrite(ciram,sizeof(ciram),1,stateFile);
 	fwrite(palette,sizeof(palette),1,stateFile);
 	fwrite(&ppudot,sizeof(ppudot),1,stateFile);
-	fwrite(&scanline,sizeof(scanline),1,stateFile);
+	fwrite(&vCounter,sizeof(vCounter),1,stateFile);
 	fwrite(&ppuW,sizeof(ppuW),1,stateFile);
 	fwrite(&ppuX,sizeof(ppuX),1,stateFile);
 	fwrite(&ppuT,sizeof(ppuT),1,stateFile);
@@ -135,7 +135,7 @@ void load_state()
 	readErr |= fread(ciram,sizeof(ciram),1,stateFile);
 	readErr |= fread(palette,sizeof(palette),1,stateFile);
 	readErr |= fread(&ppudot,sizeof(ppudot),1,stateFile);
-	readErr |= fread(&scanline,sizeof(scanline),1,stateFile);
+	readErr |= fread(&vCounter,sizeof(vCounter),1,stateFile);
 	readErr |= fread(&ppuW,sizeof(ppuW),1,stateFile);
 	readErr |= fread(&ppuX,sizeof(ppuX),1,stateFile);
 	readErr |= fread(&ppuT,sizeof(ppuT),1,stateFile);

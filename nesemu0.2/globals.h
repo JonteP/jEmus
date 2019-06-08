@@ -7,7 +7,7 @@
 
 extern uint_fast8_t  ctrb, ctrb2, ctr1, ctr2, nmiPulled, openBus;
 extern uint_fast8_t  quit;
-extern uint16_t ppu_wait, apu_wait;
+extern uint16_t vdp_wait, apu_wait;
 extern int32_t ppucc;
 extern const float originalFps, originalCpuClock, cyclesPerFrame;
 extern float fps, cpuClock;
