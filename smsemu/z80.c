@@ -935,7 +935,7 @@ void write_cpu_register(uint8_t reg, uint_fast8_t value) {
 	/*	printf("Writing to SN76489 PSG: %02x\n",reg);*/
 		break;
 	case 0x80:
-		printf("Writing to VDP data port: %02x\n",reg);
+		/*printf("Writing to VDP data port: %02x\n",reg);*/
 		write_vdp_data(value);
 		controlFlag = 0;
 		break;
