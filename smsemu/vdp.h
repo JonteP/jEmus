@@ -10,7 +10,15 @@
 #include <stdio.h>
 #include <stdint.h>
 
-extern uint8_t controlFlag, statusFlags;
+#define WWIDTH 320 /*1280 */
+#define WHEIGHT 240 /*1024 */
+#define SWIDTH 256
+#define SHEIGHT 224
+#define WPOSX 100
+#define WPOSY 100
+#define FRAMETIME 16688919 /*exact?*/
+
+extern uint8_t controlFlag, statusFlags, screenBuffer[SHEIGHT][SWIDTH];
 extern uint16_t vCounter, hCounter;
 extern uint32_t vdp_wait;
 

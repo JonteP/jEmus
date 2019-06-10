@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <stdlib.h> /*exit */
 #include "z80.h"
+#include "my_sdl.h"
 
 uint8_t controlFlag = 0, statusFlags = 0, readBuffer = 0, bgColor, bgXScroll, bgYScroll, lineCounter;
 /* REGISTERS */
@@ -10,8 +11,8 @@ uint8_t mode1, mode2, screenHeight = 192, codeReg;
 uint16_t controlWord, vdpdot = 0, vCounter = 0, hCounter = 0, addReg, nameAdd;
 uint32_t vdp_wait = 0, vdpcc = 0, frame = 0;
 /* Mapped memory */
-uint8_t vRam[0x3fff], cRam[0x1f], screenBuffer[224][256];
-static inline void render_frame(void);
+uint8_t vRam[0x4000], cRam[0x1f], screenBuffer[SHEIGHT][SWIDTH];
+static inline void fill_buffer(void);
 
 void write_vdp_control(uint8_t value){
 controlWord = controlFlag ? ((controlWord & 0x00ff) | (value << 8)) : ((controlWord & 0xff00) | value);
@@ -63,16 +64,17 @@ if (controlFlag){
 	}
 	codeReg = (controlWord >> 14);
 	addReg = (controlWord & 0x3fff);
-	if(!codeReg)
-		printf("Code 0 not implemented\n");
+	if(!codeReg) {
+		uint8_t trash = read_vdp_data();
+		addReg++;
+	}
 }
 controlFlag ^= 1;
 }
 
 void write_vdp_data(uint8_t value){
-	if(codeReg == 1){
-		vRam[addReg] = value;
-		printf("Write to VDP address: %04x, value: %02x\n",addReg, value);
+	if(codeReg <= 2){
+		vRam[addReg & 0x3fff] = value;
 	}
 	else if(codeReg == 3){
 		cRam[addReg & 0x1f] = value;
@@ -100,7 +102,6 @@ while (cycles) {
 	else if (!(mode2 & 0x20) && irqPulled)
 	{
 			irqPulled = 0;
-			printf("IRQ untriggered\n");
 	}
 	vdpcc++;
 	vdpdot++;
@@ -114,9 +115,10 @@ while (cycles) {
 		statusFlags &= ~0x80;
 		irqPulled = 0;
 		frame++;
-		printf("Frame: %i\n",frame);
-		if(frame==252)
+		if(frame==252){
+			fill_buffer();
 			render_frame();
+		}
 	}
 	else if (vCounter == screenHeight && !vdpdot){
 		statusFlags |= 0x80;
@@ -126,22 +128,23 @@ while (cycles) {
 }
 }
 
-void render_frame(){
-	uint8_t row = 32;
-	uint8_t col = 64;
+void fill_buffer(){
+	uint8_t row = 28;
+	uint8_t col = 64, pix;
+	uint16_t nameWord, pidx;
 	for (uint8_t i = 0; i < row; i++) {
 		for (uint8_t j = 0; j < col; j=j+2){
-			uint16_t nameWord = (vRam[nameAdd + i*64 + j] << 8);
-			nameWord |= vRam[nameAdd + i*64 + j+1];
-			printf("drawing from: %04x, attribute: %04x\n",nameAdd + i*64 + j,nameWord);
-			uint16_t pidx = (nameWord & 0x1ff);
+			nameWord = (vRam[nameAdd + i*64 + j]);
+			nameWord |= (vRam[nameAdd + i*64 + j+1] << 8);
+			/*printf("drawing from: %04x, attribute: %04x\n",nameAdd + i*64 + j,nameWord);*/
+			pidx = ((nameWord & 0x1ff) << 5);
 			for (uint8_t r = 0; r < 8; r++){
 				for (uint8_t c = 0; c < 8; c++){
-					uint8_t pix  = (vRam[pidx + 4*r] & (1 << (7-c))) ? 8:0;
-							pix += (vRam[pidx + 4*r + 1] & (1 << (7-c))) ? 4:0;
-							pix += (vRam[pidx + 4*r + 2] & (1 << (7-c))) ? 2:0;
-							pix += (vRam[pidx + 4*r + 3] & (1 << (7-c))) ? 1:0;
-							screenBuffer[r*i][c*(j>>1)]=pix;
+					pix  = (vRam[pidx + 4*r] & (1 << (7-c))) ? 1:0;
+					pix |= (vRam[pidx + 4*r + 1] & (1 << (7-c))) ? 2:0;
+					pix |= (vRam[pidx + 4*r + 2] & (1 << (7-c))) ? 4:0;
+					pix |= (vRam[pidx + 4*r + 3] & (1 << (7-c))) ? 8:0;
+					screenBuffer[r+i*8][c+(j>>1)*8]=cRam[pix+((nameWord & 0x800)?0x10:0)];
 				}
 			}
 		}
