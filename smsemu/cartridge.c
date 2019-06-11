@@ -20,3 +20,8 @@ void load_rom(char *r)
 	bank[1] = rom + (0x4000 * fcr[1]);
 	bank[2] = rom + (0x4000 * fcr[2]);
 }
+
+void close_rom()
+{
+	free(rom);
+}

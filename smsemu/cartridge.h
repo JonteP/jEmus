@@ -9,8 +9,8 @@
 #define CARTRIDGE_H_
 #include <stdint.h>
 
-extern uint8_t *prg, fcr[3], *bank[3];
+extern uint8_t *rom, *prg, fcr[3], *bank[3];
 
-void load_rom();
+void load_rom(), close_rom();
 
 #endif /* CARTRIDGE_H_ */

@@ -13,7 +13,7 @@
 #define WWIDTH 320 /*1280 */
 #define WHEIGHT 240 /*1024 */
 #define SWIDTH 256
-#define SHEIGHT 224
+#define SHEIGHT 240
 #define WPOSX 100
 #define WPOSY 100
 #define FRAMETIME 16688919 /*exact?*/

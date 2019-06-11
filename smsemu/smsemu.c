@@ -8,11 +8,12 @@ char *romName;
 int main() {
 	init_sdl();
 	init_time();
-	romName = "/home/jonas/games/roms/sms/everdrive/Japan/Comical Machine Gun Joe (Japan).sms";
+	romName = "/home/jonas/games/sms_test/zexsms/zexdoc.sms";
 	load_rom(romName);
 	power_reset();
-	while (1) {
+	while (quit == 0) {
 		opdecode();
 	}
 	close_sdl();
+	close_rom();
 }
