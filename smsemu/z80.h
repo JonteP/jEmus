@@ -7,9 +7,12 @@
 
 #ifndef Z80_H_
 #define Z80_H_
+#include <stdio.h>
 #include <stdint.h>
 
 void opdecode(void), power_reset(void);
+
+extern FILE *logfile;
 uint_fast8_t irqPulled;
 
 #endif /* Z80_H_ */
