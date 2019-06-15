@@ -11,6 +11,10 @@ int rsize;
 void load_rom(char *r)
 {
 	romFile = fopen(r, "r");
+	if(romFile == NULL){
+		printf("Could not open ROM file\n");
+		exit(1);
+	}
 	fseek(romFile, 0L, SEEK_END);
 	rsize = ftell(romFile);
 	rewind(romFile);

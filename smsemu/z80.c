@@ -26,11 +26,11 @@ static uint_fast8_t ctable[] = { 4,10, 7, 6, 4, 4, 7, 4, 4,11, 7, 6, 4, 4, 7, 4,
 							};
 
 FILE *logfile;
-static inline void write_cpu_register(uint8_t, uint_fast8_t), cpuwrite(uint16_t, uint_fast8_t), interrupt_polling();
+static inline void write_cpu_register(uint8_t, uint_fast8_t), cpuwrite(uint16_t, uint_fast8_t), interrupt_polling(), addcycles(uint8_t);
 static inline uint8_t read_cpu_register(uint8_t), parcalc(uint8_t);
 static inline uint8_t * cpuread(uint16_t);
-static inline void adc(), adci(), acixi(), aciyi(), adcrp(), add(), add16(), addi(), addix(), addiy(), adixi(), adiyi(), and(), andi(), anixi(), aniyi(), bit(), bitix(), bitiy(), call(), callc(), cb(), ccf(), cp(), cpi(), cpixi(), cpiyi(), cpl(), daa(), dd(), ddcb(), dec(), dec16(), decix(), deciy(), deixi(), deiyi(), di(), djnz(), ed(), ei(), ex(), exaf(), exix(), exiy(), exx(), fd(), fdcb(), halt(), im(), in(), inc(), inc16(), incix(), inciy(), inixi(), iniyi(), jp(), jpc(), jphl(), jpix(), jpiy(), jr(), jrc(), ld(), ldar(), ld16(), ldim(), ldia(), ldix(), ldiy(), ldiix(), ldiiy(), ldixi(), ldiyi(), ldixh(), ldiyh(), ldixl(), ldiyl(), ldyin(), ldxin(), ldixn(), ldiyn(), ldbca(), lddea(), ldabc(), ldade(), ldidd(), ldihl(), ldai(), ldhli(), ldi(), ldir(), ldrp(), liniy(), ldd(), lddr(), neg(), noop(), nop(),
-				   or(), ori(), orixi(), oriyi(), otir(), out(), outc(), outd(), outi(), pop(), popix(), popiy(), push(), pusix(), pusiy(), res(), resix(), resiy(), ret(), retc(), rl(), rla(), rlca(), rr(), rra(), rrc(), rld(), rrd(), rrca(), rst(), sbc(), sbc16(), sbci(), scf(), set(), setix(), setiy(), sla(), srl(), sub(), subi(), sbixi(), sbiyi(), xor(), xori();
+static inline void adc(), adci(), acixi(), aciyi(), adcrp(), add(), add16(), addi(), addix(), addiy(), adixi(), adiyi(), and(), andi(), anixi(), aniyi(), bit(), bitix(), bitiy(), call(), callc(), cb(), ccf(), cp(), cpd(), cpdr(), cpn(), cpixi(), cpiyi(), cpl(), cpi(), cpir(), daa(), dd(), ddcb(), dec(), dec16(), decix(), deciy(), dcixh(), dciyh(), dcixl(), dciyl(), deixi(), deiyi(), di(), djnz(), ed(), ei(), ex(), exaf(), exix(), exiy(), exx(), fd(), fdcb(), halt(), im(), in(), inc(), inc16(), incix(), inciy(), inixi(), iniyi(), inixh(), iniyh(), inixl(), iniyl(), jp(), jpc(), jphl(), jpix(), jpiy(), jr(), jrc(), ld(), ldar(), ld16(), ldim(), ldia(), ldix(), ldiy(), ldiix(), ldiiy(), ldixi(), ldiyi(), ldixh(), ldiyh(), ldixl(), ldiyl(), ldyin(), ldxin(), ldixn(), ldiyn(), ldbca(), lddea(), ldabc(), ldade(), ldidd(), ldihl(), ldai(), ldhli(), ldi(), ldir(), ldrp(), linix(), liniy(), ldd(), lddr(), neg(), noop(), nop(),
+				   or(), ori(), orixi(), oriyi(), otir(), out(), outc(), outd(), outi(), pop(), popix(), popiy(), push(), pusix(), pusiy(), res(), resix(), resiy(), ret(), retc(), rl(), rlix(), rliy(), rla(), rlca(), rlc(), rlcix(), rlciy(), rr(), rrix(), rriy(), rra(), rrc(), rrcix(), rrciy(), rld(), rrd(), rrca(), rst(), sbc(), sbc16(), sbci(), scf(), set(), setix(), setiy(), sla(), slaix(), slaiy(), sllix(), slliy(), sraix(), sraiy(), sra(), srl(), srlix(), srliy(), sub(), subi(), sbixi(), sbiyi(), xor(), xori();
 
 uint_fast8_t mode, opcode, addmode, addcycle, tmpval8, s = 0, dummy, pcl, pch, dummywrite = 0, op, irqPulled = 0, nmiPulled = 0, irqPending = 0, nmiPending = 0, intDelay = 0, displace, halted = 0;
 uint16_t addr, tmpval16;
@@ -50,7 +50,7 @@ uint16_t cpuIX, cpuIY, cpuPC = 0, cpuSP; /* special purpose (16-bit) */
 uint8_t iff1, iff2, iMode = 0;
 
 /* Vector pointers */
-static const uint16_t nmi = 0xfffa, irq = 0x38;
+static const uint16_t nmi = 0x60, irq = 0x38;
 
 uint32_t cpucc = 0;
 
@@ -73,48 +73,40 @@ static void (*optable[0x100])() = {  nop, ld16,ldbca,inc16,  inc,  dec, ldim, rl
 									retc,  pop,  jpc,   jp,callc, push, addi,  rst, retc,  ret,  jpc,   cb,callc, call, adci,  rst, /* c */
 									retc,  pop,  jpc,  out,callc, push, subi,  rst, retc,  exx,  jpc,   in,callc,   dd, sbci,  rst, /* d */
 									retc,  pop,  jpc,   ex,callc, push, andi,  rst, retc, jphl,  jpc,   ex,callc,   ed, xori,  rst, /* e */
-									retc,  pop,  jpc,   di,callc, push,  ori,  rst, retc,   ld,  jpc,   ei,callc,   fd,  cpi,  rst, /* f */
+									retc,  pop,  jpc,   di,callc, push,  ori,  rst, retc,   ld,  jpc,   ei,callc,   fd,  cpn,  rst, /* f */
 };
 
-
-	/* static void (*cpuSlot[0x8])(uint_fast16_t, uint_fast8_t) { write_cpu_ram, write_ppu_register, write_cpu_register,  }; */
-
-
-		if(irqPulled && iff1){
-			halted = 0;
-			/* TODO: this is assuming Mode 1 */
-			vdp_wait += 13 * 3;
-			cpucc += 13;
-			irqPulled = 0;
-			iff1 = 0;
-			cpuwrite(--cpuSP, ((cpuPC & 0xff00) >> 8));
-			cpuwrite(--cpuSP, ( cpuPC & 0x00ff));
-			cpuPC = irq;
-		}
-		else if (!halted){
-			op = *cpuread(cpuPC++);
-			/* TODO: update memory refresh register */
+	if(irqPulled && iff1){
+		halted = 0;
+		/* TODO: this is assuming Mode 1 */
+		addcycles(13);
+		irqPulled = 0;
+		iff1 = 0;
+		cpuwrite(--cpuSP, ((cpuPC & 0xff00) >> 8));
+		cpuwrite(--cpuSP, ( cpuPC & 0x00ff));
+		cpuPC = irq;
+	}
+	else if (!halted){
+		op = *cpuread(cpuPC++);
+		/* TODO: update memory refresh register */
 	/*		printf("Opcode is: %02X at address: %04X\n",op,cpuPC-1); */
 	/*	fprintf(logfile,"%04x,%04x,%04x,%04x,%04x,%04x,%04x,%04x\n",cpuPC-1,*cpuAFreg,*cpuBCreg,*cpuDEreg,*cpuHLreg,cpuIX,cpuIY,cpuSP);*/
-			vdp_wait += ctable[op] * 3;
-			cpucc += ctable[op];
-			(*optable[op])();
-		}
-		else{
-			op = 0;
-			vdp_wait += ctable[op] * 3;
-			cpucc += ctable[op];
-			(*optable[op])();
-		}
-
-		run_vdp(vdp_wait);
+		addcycles(ctable[op]);
+		(*optable[op])();
+	}
+	else{
+		op = 0;
+		addcycles(ctable[op]);
+		(*optable[op])();
+	}
+	run_vdp(vdp_wait);
 }
 
 /* EXTENDED OPCODE TABLES */
 void cb(){	 	 	 	 	 	 /*  0  |  1  |  2  |  3  |  4  |  5  |  6  |  7  |  8  |  9  |  a  |  b  |  c  |  d  |  e  |  f  |      */
-static void (*cbtable[0x100])() = { noop, noop, noop, noop, noop, noop, noop, noop,  rrc,  rrc,  rrc,  rrc,  rrc,  rrc,  rrc,  rrc, /* 0 */
+static void (*cbtable[0x100])() = {  rlc,  rlc,  rlc,  rlc,  rlc,  rlc,  rlc,  rlc,  rrc,  rrc,  rrc,  rrc,  rrc,  rrc,  rrc,  rrc, /* 0 */
 									  rl,   rl,   rl,   rl,   rl,   rl,   rl,   rl,   rr,   rr,   rr,   rr,   rr,   rr,   rr,   rr, /* 1 */
-									 sla,  sla,  sla,  sla,  sla,  sla,  sla,  sla, noop, noop, noop, noop, noop, noop, noop, noop, /* 2 */
+									 sla,  sla,  sla,  sla,  sla,  sla,  sla,  sla,  sra,  sra,  sra,  sra,  sra,  sra,  sra,  sra, /* 2 */
 									noop, noop, noop, noop, noop, noop, noop, noop,  srl,  srl,  srl,  srl,  srl,  srl,  srl,  srl, /* 3 */
 									 bit,  bit,  bit,  bit,  bit,  bit,  bit,  bit,  bit,  bit,  bit,  bit,  bit,  bit,  bit,  bit, /* 4 */
 									 bit,  bit, bit, bit, bit, bit, bit, bit, bit, bit, bit, bit, bit, bit, bit, bit, /* 5 */
@@ -148,14 +140,13 @@ static uint_fast8_t ccbtable[] =  { 8, 8, 8, 8, 8, 8,15, 8, 8, 8, 8, 8, 8, 8,15,
 								    8, 8, 8, 8, 8, 8,15, 8, 8, 8, 8, 8, 8, 8,15, 8,/* f */
 };
 op = *cpuread(cpuPC++);
-vdp_wait += ccbtable[op] * 3;
-cpucc += ccbtable[op];
+addcycles(ccbtable[op]);
 (*cbtable[op])();
 }
 void dd(){ 	 	 	 	 	 	 /*  0  |  1  |  2  |  3  |  4  |  5  |  6  |  7  |  8  |  9  |  a  |  b  |  c  |  d  |  e  |  f  |      */
 static void (*ddtable[0x100])() = { noop, noop, noop, noop, noop, noop, noop, noop, noop,addix, noop, noop, noop, noop, noop, noop, /* 0 */
 								    noop, noop, noop, noop, noop, noop, noop, noop, noop,addix, noop, noop, noop, noop, noop, noop, /* 1 */
-									noop, ldix, noop,incix, noop, noop,ldixh, noop, noop,addix,ldxin,decix, noop, noop,ldixl, noop, /* 2 */
+									noop, ldix,linix,incix,inixh,dcixh,ldixh, noop, noop,addix,ldxin,decix,inixl,dcixl,ldixl, noop, /* 2 */
 									noop, noop, noop, noop,inixi,deixi,ldixn, noop, noop,addix, noop, noop, noop, noop, noop, noop, /* 3 */
 									noop, noop, noop, noop, noop, noop,ldixi, noop, noop, noop, noop, noop, noop, noop,ldixi, noop, /* 4 */
 									noop, noop, noop, noop, noop, noop,ldixi, noop, noop, noop, noop, noop, noop, noop,ldixi, noop, /* 5 */
@@ -189,8 +180,7 @@ static uint_fast8_t cddtable[] =   {99,99,99,99,99,99,99,99,99,15,99,99,99,99,99
 									99,99,99,99,99,99,99,99,99,10,99,99,99, 0,99,99,/* f */
 									};
 op = *cpuread(cpuPC++);
-vdp_wait += cddtable[op] * 3;
-cpucc += cddtable[op];
+addcycles(cddtable[op]);
 (*ddtable[op])();
 }
 void ed(){ 	 	 	 	 	 	 /*  0  |  1  |  2  |  3  |  4  |  5  |  6  |  7  |  8  |  9  |  a  |  b  |  c  |  d  |  e  |  f  |      */
@@ -204,8 +194,8 @@ static void (*edtable[0x100])() = { noop, noop, noop, noop, noop, noop, noop, no
 									noop, outc,sbc16,ldidd,  neg, noop,   im, noop, noop, outc,adcrp, ldrp,  neg, noop, noop, noop, /* 7 */
 									noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, /* 8 */
 									noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, /* 9 */
-									 ldi, noop, noop, outi, noop, noop, noop, noop,  ldd, noop, noop, outd, noop, noop, noop, noop, /* a */
-									ldir, noop, noop, otir, noop, noop, noop, noop, lddr, noop, noop, noop, noop, noop, noop, noop, /* b */
+									 ldi,  cpi, noop, outi, noop, noop, noop, noop,  ldd,  cpd, noop, outd, noop, noop, noop, noop, /* a */
+									ldir, cpir, noop, otir, noop, noop, noop, noop, lddr, cpdr, noop, noop, noop, noop, noop, noop, /* b */
 									noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, /* c */
 									noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, /* d */
 									noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, /* e */
@@ -229,16 +219,14 @@ static uint_fast8_t cedtable[] =   {99,99,99,99,99,99,99,99,99,99,99,99,99,99,99
 									99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,/* e */
 									99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,/* f */
 									};
-/* extra cycles: CPDR, CPIR, INDR, INIR, OTDR, OTIR */
 	op = *cpuread(cpuPC++);
-	vdp_wait += cedtable[op] * 3;
-	cpucc += cedtable[op];
+	addcycles(cedtable[op]);
 	(*edtable[op])();
 }
 void fd(){	 	     	 	 	 /*  0  |  1  |  2  |  3  |  4  |  5  |  6  |  7  |  8  |  9  |  a  |  b  |  c  |  d  |  e  |  f  |      */
 static void (*fdtable[0x100])() = { noop, noop, noop, noop, noop, noop, noop, noop, noop,addiy, noop, noop, noop, noop, noop, noop, /* 0 */
 	 	 							noop, noop, noop, noop, noop, noop, noop, noop, noop,addiy, noop, noop, noop, noop, noop, noop, /* 1 */
-									noop, ldiy,liniy,inciy, noop, noop,ldiyh, noop, noop,addiy,ldyin,deciy, noop, noop,ldiyl, noop, /* 2 */
+									noop, ldiy,liniy,inciy,iniyh,dciyh,ldiyh, noop, noop,addiy,ldyin,deciy,iniyl,dciyl,ldiyl, noop, /* 2 */
 									noop, noop, noop, noop,iniyi,deiyi,ldiyn, noop, noop,addiy, noop, noop, noop, noop, noop, noop, /* 3 */
 									noop, noop, noop, noop, noop, noop,ldiyi, noop, noop, noop, noop, noop, noop, noop,ldiyi, noop, /* 4 */
 									noop, noop, noop, noop, noop, noop,ldiyi, noop, noop, noop, noop, noop, noop, noop,ldiyi, noop, /* 5 */
@@ -272,16 +260,15 @@ static uint_fast8_t cfdtable[] =   {99,99,99,99,99,99,99,99,99,15,99,99,99,99,99
 									99,99,99,99,99,99,99,99,99,10,99,99,99,99,99,99,/* f */
 									};
 	op = *cpuread(cpuPC++);
-	vdp_wait += cfdtable[op] * 3;
-	cpucc += cfdtable[op];
+	addcycles(cfdtable[op]);
 	(*fdtable[op])();
 }
 
 void ddcb(){ 	 	 	 	 	 	 /*  0  |  1  |  2  |  3  |  4  |  5  |  6  |  7  |  8  |  9  |  a  |  b  |  c  |  d  |  e  |  f  |      */
-  static void (*ddcbtable[0x100])() = { noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, /* 0 */
-									    noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, /* 1 */
-										noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, /* 2 */
-										noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, /* 3 */
+  static void (*ddcbtable[0x100])() = { noop, noop, noop, noop, noop, noop,rlcix, noop, noop, noop, noop, noop, noop, noop,rrcix, noop, /* 0 */
+									    noop, noop, noop, noop, noop, noop, rlix, noop, noop, noop, noop, noop, noop, noop, rrix, noop, /* 1 */
+										noop, noop, noop, noop, noop, noop,slaix, noop, noop, noop, noop, noop, noop, noop,sraix, noop, /* 2 */
+										noop, noop, noop, noop, noop, noop,sllix, noop, noop, noop, noop, noop, noop, noop,srlix, noop, /* 3 */
 										noop, noop, noop, noop, noop, noop,bitix, noop, noop, noop, noop, noop, noop, noop,bitix, noop, /* 4 */
 										noop, noop, noop, noop, noop, noop,bitix, noop, noop, noop, noop, noop, noop, noop,bitix, noop, /* 5 */
 										noop, noop, noop, noop, noop, noop,bitix, noop, noop, noop, noop, noop, noop, noop,bitix, noop, /* 6 */
@@ -315,15 +302,14 @@ void ddcb(){ 	 	 	 	 	 	 /*  0  |  1  |  2  |  3  |  4  |  5  |  6  |  7  |  8  
 										};
 	displace = *cpuread(cpuPC++);
 	op = *cpuread(cpuPC++);
-	vdp_wait += cddcbtable[op] * 3;
-	cpucc += cddcbtable[op];
+	addcycles(cddcbtable[op]);
 	(*ddcbtable[op])();
 }
 void fdcb(){ 	 	 	 	 	 	 /*  0  |  1  |  2  |  3  |  4  |  5  |  6  |  7  |  8  |  9  |  a  |  b  |  c  |  d  |  e  |  f  |      */
-  static void (*fdcbtable[0x100])() = { noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, /* 0 */
-									    noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, /* 1 */
-										noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, /* 2 */
-										noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, /* 3 */
+  static void (*fdcbtable[0x100])() = { noop, noop, noop, noop, noop, noop,rlciy, noop, noop, noop, noop, noop, noop, noop,rrciy, noop, /* 0 */
+									    noop, noop, noop, noop, noop, noop, rliy, noop, noop, noop, noop, noop, noop, noop, rriy, noop, /* 1 */
+										noop, noop, noop, noop, noop, noop,slaiy, noop, noop, noop, noop, noop, noop, noop,sraiy, noop, /* 2 */
+										noop, noop, noop, noop, noop, noop,slliy, noop, noop, noop, noop, noop, noop, noop,srliy, noop, /* 3 */
 										noop, noop, noop, noop, noop, noop,bitiy, noop, noop, noop, noop, noop, noop, noop,bitiy, noop, /* 4 */
 										noop, noop, noop, noop, noop, noop,bitiy, noop, noop, noop, noop, noop, noop, noop,bitiy, noop, /* 5 */
 										noop, noop, noop, noop, noop, noop,bitiy, noop, noop, noop, noop, noop, noop, noop,bitiy, noop, /* 6 */
@@ -357,128 +343,13 @@ void fdcb(){ 	 	 	 	 	 	 /*  0  |  1  |  2  |  3  |  4  |  5  |  6  |  7  |  8  
 										};
 	displace = *cpuread(cpuPC++);
 	op = *cpuread(cpuPC++);
-	vdp_wait += cfdcbtable[op] * 3;
-	cpucc += cfdcbtable[op];
+	addcycles(cfdcbtable[op]);
 	(*fdcbtable[op])();
 }
 
+/*#########*/
 /* OPCODES */
-
-
-
-
-
-void bit(){
-	uint8_t *r[8] = {cpuBreg, cpuCreg, cpuDreg, cpuEreg, cpuHreg, cpuLreg, cpuread(*cpuHLreg), cpuAreg};
-	uint8_t val = *r[op & 7] & (1 << ((op >> 3) & 7));
-	*cpuFreg = (!val) ? (*cpuFreg | 0x40) : (*cpuFreg & ~0x40); /* Z flag */
-	*cpuFreg |= 0x10; /* H flag */
-	*cpuFreg &= ~0x02; /* N flag */
-}
-
-void bitix(){
-	uint8_t val = *cpuread(cpuIX + displace);
-	val = val & (1 << ((op >> 3) & 7));
-	*cpuFreg = (!val) ? (*cpuFreg | 0x40) : (*cpuFreg & ~0x40); /* Z flag */
-	*cpuFreg |= 0x10; /* H flag */
-	*cpuFreg &= ~0x02; /* N flag */
-}
-
-void bitiy(){
-	uint8_t val = *cpuread(cpuIY + displace);
-	val = val & (1 << ((op >> 3) & 7));
-	*cpuFreg = (!val) ? (*cpuFreg | 0x40) : (*cpuFreg & ~0x40); /* Z flag */
-	*cpuFreg |= 0x10; /* H flag */
-	*cpuFreg &= ~0x02; /* N flag */
-}
-
-
-void call(){
-	uint16_t address = {0};
-	address = ((address & 0xff00) | (*cpuread(cpuPC++)));
-	address = ((address & 0x00ff) | ((*cpuread(cpuPC++)) << 8));
-	cpuwrite(--cpuSP, ((cpuPC & 0xFF00) >> 8));
-	cpuwrite(--cpuSP, (cpuPC & 0x00FF));
-	cpuPC = address;
-}
-
-void callc(){
-	uint8_t cc[8] = {!(*cpuFreg & 0x40), (*cpuFreg & 0x40), !(*cpuFreg & 0x01), (*cpuFreg & 0x01), !(*cpuFreg & 0x04), (*cpuFreg & 0x04), !(*cpuFreg & 0x80), (*cpuFreg & 0x80)};
-	uint16_t address = {0};
-	address = ((address & 0xff00) | (*cpuread(cpuPC++)));
-	address = ((address & 0x00ff) | ((*cpuread(cpuPC++)) << 8));
-	if(cc[(op>>3) & 7]) {
-		cpuwrite(--cpuSP, ((cpuPC & 0xFF00) >> 8));
-		cpuwrite(--cpuSP, (cpuPC & 0x00FF));
-		cpuPC = address;
-		/* TODO: add extra cycles */
-	}
-}
-
-
-void djnz(){
-	(*cpuBreg)--;
-	if(*cpuBreg) {
-		cpuPC += ((int8_t)*cpuread(cpuPC) + 1);
-		/* TODO: add extra cycles */
-	}
-	else
-		cpuPC++;
-}
-
-void halt(){
-	halted = 1;
-}
-
-
-void in(){
-	uint8_t reg;
-	reg = *cpuread(cpuPC++);
-	*cpuAreg = read_cpu_register(reg);
-}
-
-void jp(){
-	uint16_t address;
-	address = *cpuread(cpuPC++);
-	address |= ((*cpuread(cpuPC++)) << 8);
-	cpuPC = address;
-}
-
-void jpc(){
-	uint8_t cc[8] = {!(*cpuFreg & 0x40), (*cpuFreg & 0x40), !(*cpuFreg & 0x01), (*cpuFreg & 0x01), !(*cpuFreg & 0x04), (*cpuFreg & 0x04), !(*cpuFreg & 0x80), (*cpuFreg & 0x80)};
-	uint16_t address;
-	address = *cpuread(cpuPC++);
-	address |= ((*cpuread(cpuPC++)) << 8);
-	if(cc[(op>>3) & 7]) {
-		cpuPC = address;
-	}
-}
-
-void jphl(){
-	cpuPC = *cpuHLreg;
-}
-
-void jpix(){
-	cpuPC = cpuIX;
-}
-
-void jpiy(){
-	cpuPC = cpuIY;
-}
-
-void jr(){
-	cpuPC += ((int8_t)*cpuread(cpuPC) + 1);
-}
-
-void jrc(){
-	uint8_t cc[4] = {!(*cpuFreg & 0x40), (*cpuFreg & 0x40), !(*cpuFreg & 0x01), (*cpuFreg & 0x01)};
-	if(cc[((op>>3) & 7) - 4]) {
-		/* TODO: add extra cycles */
-		jr();
-	}
-	else
-		cpuPC++;
-}
+/*#########*/
 
 /* 8-BIT LOAD GROUP */
 
@@ -542,6 +413,7 @@ void ldar()	{ /* LD A,R */
 	*cpuAreg = cpuR;
 }
 
+
 /* 16-BIT LOAD GROUP */
 
 void ld16()	{ /* LD dd,nn */
@@ -597,6 +469,12 @@ void ldidd(){ /* LD (nn),dd */
 	address |= ((*cpuread(cpuPC++)) << 8);
 	cpuwrite(address++, (*rp[(op >> 4) & 0x03] & 0xff));
 	cpuwrite(address, (*rp[(op >> 4) & 0x03] >> 8));
+}
+void linix(){ /* LD (nn),IX */
+	uint16_t address = *cpuread(cpuPC++);
+	address |= (*cpuread(cpuPC++) << 8);
+	cpuwrite(address++, cpuIX & 0xff);
+	cpuwrite(address, (cpuIX & 0xff00) >> 8);
 }
 void liniy(){ /* LD (nn),IY */
 	uint16_t address = *cpuread(cpuPC++);
@@ -683,8 +561,7 @@ void ldir()	{ /* LDIR */
 	cpuwrite((*cpuDEreg)++, *cpuread((*cpuHLreg)++));
 	if (*cpuBCreg){
 		cpuPC -= 2;
-		vdp_wait += ctable[op] * 3;
-		cpucc += ctable[op];
+		addcycles(5);
 	}
 	*cpuFreg &= ~0x10; /* H flag */
 	*cpuFreg = (*cpuBCreg) ? (*cpuFreg | 0x04) : (*cpuFreg & ~0x04); /* P/V flag */
@@ -702,12 +579,59 @@ void lddr()	{ /* LDDR */
 	cpuwrite((*cpuDEreg)--, *cpuread((*cpuHLreg)--));
 	if (*cpuBCreg){
 		cpuPC -= 2;
-		vdp_wait += ctable[op] * 3;
-		cpucc += ctable[op];
+		addcycles(5);
 	}
 	*cpuFreg &= ~0x10; /* H flag */
 	*cpuFreg = (*cpuBCreg) ? (*cpuFreg | 0x04) : (*cpuFreg & ~0x04); /* P/V flag */
 	*cpuFreg &= ~0x02; /* N flag */
+}
+void cpi()	{ /* CPI */
+	uint8_t val = *cpuread((*cpuHLreg)++);
+	(*cpuBCreg)--;
+	uint16_t res = *cpuAreg - val;
+	*cpuFreg = (res & 0x80) ? (*cpuFreg | 0x80) : (*cpuFreg & ~0x80); /* S flag */
+	*cpuFreg = (!res) ? (*cpuFreg | 0x40) : (*cpuFreg & ~0x40); /* Z flag */
+	*cpuFreg = ((*cpuAreg & 0xf) < (val & 0xf)) ? (*cpuFreg | 0x10) : (*cpuFreg & ~0x10); /* H flag */
+	*cpuFreg = (*cpuBCreg) ? (*cpuFreg | 0x04) : (*cpuFreg & ~0x04); /* P/V flag */
+	*cpuFreg |= 0x02; /* N flag */
+}
+void cpir()	{ /* CPIR */
+	uint8_t val = *cpuread((*cpuHLreg)++);
+	(*cpuBCreg)--;
+	uint16_t res = *cpuAreg - val;
+	if (*cpuBCreg && res){
+		cpuPC -= 2;
+		addcycles(5);
+	}
+	*cpuFreg = (res & 0x80) ? (*cpuFreg | 0x80) : (*cpuFreg & ~0x80); /* S flag */
+	*cpuFreg = (!res) ? (*cpuFreg | 0x40) : (*cpuFreg & ~0x40); /* Z flag */
+	*cpuFreg = ((*cpuAreg & 0xf) < (val & 0xf)) ? (*cpuFreg | 0x10) : (*cpuFreg & ~0x10); /* H flag */
+	*cpuFreg = (*cpuBCreg) ? (*cpuFreg | 0x04) : (*cpuFreg & ~0x04); /* P/V flag */
+	*cpuFreg |= 0x02; /* N flag */
+}
+void cpd()	{ /* CPD */
+	uint8_t val = *cpuread((*cpuHLreg)--);
+	(*cpuBCreg)--;
+	uint16_t res = *cpuAreg - val;
+	*cpuFreg = (res & 0x80) ? (*cpuFreg | 0x80) : (*cpuFreg & ~0x80); /* S flag */
+	*cpuFreg = (!res) ? (*cpuFreg | 0x40) : (*cpuFreg & ~0x40); /* Z flag */
+	*cpuFreg = ((*cpuAreg & 0xf) < (val & 0xf)) ? (*cpuFreg | 0x10) : (*cpuFreg & ~0x10); /* H flag */
+	*cpuFreg = (*cpuBCreg) ? (*cpuFreg | 0x04) : (*cpuFreg & ~0x04); /* P/V flag */
+	*cpuFreg |= 0x02; /* N flag */
+}
+void cpdr()	{ /* CPDR */
+	uint8_t val = *cpuread((*cpuHLreg)--);
+	(*cpuBCreg)--;
+	uint16_t res = *cpuAreg - val;
+	if (*cpuBCreg && res){
+		cpuPC -= 2;
+		addcycles(5);
+	}
+	*cpuFreg = (res & 0x80) ? (*cpuFreg | 0x80) : (*cpuFreg & ~0x80); /* S flag */
+	*cpuFreg = (!res) ? (*cpuFreg | 0x40) : (*cpuFreg & ~0x40); /* Z flag */
+	*cpuFreg = ((*cpuAreg & 0xf) < (val & 0xf)) ? (*cpuFreg | 0x10) : (*cpuFreg & ~0x10); /* H flag */
+	*cpuFreg = (*cpuBCreg) ? (*cpuFreg | 0x04) : (*cpuFreg & ~0x04); /* P/V flag */
+	*cpuFreg |= 0x02; /* N flag */
 }
 
 
@@ -856,6 +780,10 @@ void sbc()	{ /* SBC A,r */
 	*cpuFreg = (res > 0xff) ? (*cpuFreg | 0x01) : (*cpuFreg & ~0x01); /* C flag */
 	*cpuAreg = res;
 }
+void sbci()	{ /* SBC A,n */
+	printf("%s: %02x\n",opmess,op);
+	exit(1);
+}
 void and()	{ /* AND r */
 	uint8_t *r[8] = {cpuBreg, cpuCreg, cpuDreg, cpuEreg, cpuHreg, cpuLreg, cpuread(*cpuHLreg), cpuAreg};
 	*cpuAreg &= *r[op & 7];
@@ -867,13 +795,13 @@ void and()	{ /* AND r */
 	*cpuFreg = (*cpuFreg & ~0x01); /* C flag */
 }
 void andi()	{ /* AND n */
-*cpuAreg &= *cpuread(cpuPC++);
-*cpuFreg = (*cpuAreg & 0x80) ? (*cpuFreg | 0x80) : (*cpuFreg & ~0x80); /* S flag */
-*cpuFreg = (!*cpuAreg) ? (*cpuFreg | 0x40) : (*cpuFreg & ~0x40); /* Z flag */
-*cpuFreg = (*cpuFreg | 0x10); /* H flag */
-*cpuFreg = (!(parcalc(*cpuAreg) % 2)) ? (*cpuFreg | 0x04) : (*cpuFreg & ~0x04); /* P/V flag */
-*cpuFreg = (*cpuFreg & ~0x02); /* N flag */
-*cpuFreg = (*cpuFreg & ~0x01); /* C flag */
+	*cpuAreg &= *cpuread(cpuPC++);
+	*cpuFreg = (*cpuAreg & 0x80) ? (*cpuFreg | 0x80) : (*cpuFreg & ~0x80); /* S flag */
+	*cpuFreg = (!*cpuAreg) ? (*cpuFreg | 0x40) : (*cpuFreg & ~0x40); /* Z flag */
+	*cpuFreg = (*cpuFreg | 0x10); /* H flag */
+	*cpuFreg = (!(parcalc(*cpuAreg) % 2)) ? (*cpuFreg | 0x04) : (*cpuFreg & ~0x04); /* P/V flag */
+	*cpuFreg = (*cpuFreg & ~0x02); /* N flag */
+	*cpuFreg = (*cpuFreg & ~0x01); /* C flag */
 }
 void anixi(){ /* AND (IX+d) */
 	uint8_t val = *cpuread(cpuPC++);
@@ -964,7 +892,7 @@ void cp()	{ /* CP r */
 	*cpuFreg = (*cpuFreg | 0x02); /* N flag */
 	*cpuFreg = (res > 0xff) ? (*cpuFreg | 0x01) : (*cpuFreg & ~0x01); /* C flag */
 }
-void cpi()	{ /* CP n */
+void cpn()	{ /* CP n */
 	uint8_t val = *cpuread(cpuPC++);
 	uint16_t res = *cpuAreg - val;
 	*cpuFreg = (res & 0x80) ? (*cpuFreg | 0x80) : (*cpuFreg & ~0x80); /* S flag */
@@ -1006,11 +934,23 @@ void inc()	{ /* INC r */
 }
 void inixi(){ /* INC (IX+d) */
 	uint8_t val = *cpuread(cpuPC++);
-	cpuwrite(cpuIX + val, (*cpuread(cpuIX + val)) + 1);
+	uint8_t tmp = *cpuread((cpuIX + val) & 0xffff);
+	cpuwrite((cpuIX + val) & 0xffff, tmp + 1);
+	*cpuFreg = ((tmp + 1) & 0x80) ? (*cpuFreg | 0x80) : (*cpuFreg & ~0x80); /* S flag */
+	*cpuFreg = (!(tmp + 1)) ? (*cpuFreg | 0x40) : (*cpuFreg & ~0x40); /* Z flag */
+	*cpuFreg = ((uint8_t)(tmp & 0x0f) == 0x0f) ? (*cpuFreg | 0x10) : (*cpuFreg & ~0x10); /* H flag */
+	*cpuFreg = (tmp == 0x7f) ? (*cpuFreg | 0x04) : (*cpuFreg & ~0x04); /* P/V flag */
+	*cpuFreg &= ~0x02; /* N flag */
 }
 void iniyi(){ /* INC (IY+d) */
 	uint8_t val = *cpuread(cpuPC++);
-	cpuwrite(cpuIY + val, (*cpuread(cpuIY + val)) + 1);
+	uint8_t tmp = *cpuread((cpuIY + val) & 0xffff);
+	cpuwrite((cpuIY + val) & 0xffff, tmp + 1);
+	*cpuFreg = ((tmp + 1) & 0x80) ? (*cpuFreg | 0x80) : (*cpuFreg & ~0x80); /* S flag */
+	*cpuFreg = (!(tmp + 1)) ? (*cpuFreg | 0x40) : (*cpuFreg & ~0x40); /* Z flag */
+	*cpuFreg = ((uint8_t)(tmp & 0x0f) == 0x0f) ? (*cpuFreg | 0x10) : (*cpuFreg & ~0x10); /* H flag */
+	*cpuFreg = (tmp == 0x7f) ? (*cpuFreg | 0x04) : (*cpuFreg & ~0x04); /* P/V flag */
+	*cpuFreg &= ~0x02; /* N flag */
 }
 void dec()	{ /* DEC r */
 	uint8_t *r[8] = {cpuBreg, cpuCreg, cpuDreg, cpuEreg, cpuHreg, cpuLreg, cpuread(*cpuHLreg), cpuAreg}, tmp;
@@ -1018,9 +958,9 @@ void dec()	{ /* DEC r */
 	(*r[(op>>3) & 7])--;
 	*cpuFreg = (*r[(op>>3) & 7] & 0x80) ? (*cpuFreg | 0x80) : (*cpuFreg & ~0x80); /* S flag */
 	*cpuFreg = (!*r[(op>>3) & 7]) ? (*cpuFreg | 0x40) : (*cpuFreg & ~0x40); /* Z flag */
-	*cpuFreg = ((tmp & 0x1f) == 0x10) ? (*cpuFreg | 0x10) : (*cpuFreg & ~0x10); /* H flag */
+	*cpuFreg = (!(tmp & 0x0f)) ? (*cpuFreg | 0x10) : (*cpuFreg & ~0x10); /* H flag */
 	*cpuFreg = (tmp == 0x80) ? (*cpuFreg | 0x04) : (*cpuFreg & ~0x04); /* P/V flag */
-	*cpuFreg = (*cpuFreg & ~0x02); /* N flag */
+	*cpuFreg |= 0x02; /* N flag */
 }
 void deixi(){ /* DEC (IX+d) */
 	uint8_t val = *cpuread(cpuPC++);
@@ -1072,7 +1012,7 @@ void daa()	{ /* DAA */
 	}
 	*cpuFreg = (*cpuAreg & 0x80) ? (*cpuFreg | 0x80) : (*cpuFreg & ~0x80); /* S flag */
 	*cpuFreg = (!*cpuAreg) ? (*cpuFreg | 0x40) : (*cpuFreg & ~0x40); /* Z flag */
-	*cpuFreg = (!(parcalc(*cpuAreg) % 2)) ? (*cpuFreg | 0x04) : (*cpuFreg & ~0x04); /* P/V flag */
+	*cpuFreg = (parcalc(*cpuAreg)) ? (*cpuFreg | 0x04) : (*cpuFreg & ~0x04); /* P/V flag */
 	/* TODO: correct C and H flags */
 }
 void cpl()	{ /* CPL */
@@ -1093,7 +1033,13 @@ void neg()	{ /* NEG */
 void ccf()	{ /* CCF */
 	*cpuFreg ^= 0x01;
 }
+void scf()	{ /* SCF */
+*cpuFreg |= 0x01;
+}
 void nop()	{ /* NOP */
+}
+void halt()	{ /* HALT */
+	halted = 1;
 }
 void di() 	{ /* DI */
 	iff1 = iff2 = 0;
@@ -1128,6 +1074,18 @@ void adcrp(){ /* ADC HL,ss */
 	*cpuFreg = (!(res & 0xffff)) ? (*cpuFreg | 0x40) : (*cpuFreg & ~0x40); /* Z flag */
 	*cpuFreg = (res > 0xfff) ? (*cpuFreg | 0x10) : (*cpuFreg & ~0x10); /* H flag */
 	*cpuFreg &= ~0x02; /* N flag */
+	*cpuFreg = (res > 0xffff) ? (*cpuFreg | 0x01) : (*cpuFreg & ~0x01); /* C flag */
+	*cpuHLreg = res;
+}
+void sbc16(){ /* SBC HL,ss */
+	uint16_t *rp[4] = {cpuBCreg, cpuDEreg, cpuHLreg, &cpuSP};
+	uint16_t val = *rp[(op >> 4) & 0x03] + (*cpuFreg & 0x01);
+	uint32_t res = *cpuHLreg - val;
+	*cpuFreg = (res & 0x8000) ? (*cpuFreg | 0x80) : (*cpuFreg & ~0x80); /* S flag */
+	*cpuFreg = (!(res & 0xffff)) ? (*cpuFreg | 0x40) : (*cpuFreg & ~0x40); /* Z flag */
+	*cpuFreg = ((uint16_t)((*cpuHLreg & 0xfff) - (val & 0xfff)) > 0xfff) ? (*cpuFreg | 0x10) : (*cpuFreg & ~0x10); /* H flag */
+	*cpuFreg = ((*cpuHLreg ^ res) & ((*rp[(op >> 4) & 0x03] + (*cpuFreg & 0x01)) ^ res) & 0x8000) ? (*cpuFreg | 0x04) : (*cpuFreg & ~0x04); /* P/V flag */
+	*cpuFreg = (*cpuFreg | 0x02); /* N flag */
 	*cpuFreg = (res > 0xffff) ? (*cpuFreg | 0x01) : (*cpuFreg & ~0x01); /* C flag */
 	*cpuHLreg = res;
 }
@@ -1169,6 +1127,518 @@ void deciy(){ /* DEC IY */
 }
 
 
+/* ROTATE AND SHIFT GROUP */
+
+void rlca()	{ /* RLCA */
+	uint8_t tmp = *cpuAreg;
+	*cpuAreg = ((*cpuAreg << 1) | (tmp >> 7));
+	*cpuFreg = (*cpuFreg & ~0x10); /* H flag */
+	*cpuFreg = (*cpuFreg & ~0x02); /* N flag */
+	*cpuFreg = (tmp & 0x80) ? (*cpuFreg | 0x01) : (*cpuFreg & ~0x01); /* C flag */
+}
+void rla()	{ /* RLA */
+	uint8_t tmp = *cpuAreg;
+	*cpuAreg = ((*cpuAreg << 1) | (*cpuFreg & 0x01));
+	*cpuFreg = (*cpuFreg & ~0x10); /* H flag */
+	*cpuFreg = (*cpuFreg & ~0x02); /* N flag */
+	*cpuFreg = (tmp & 0x80) ? (*cpuFreg | 0x01) : (*cpuFreg & ~0x01); /* C flag */
+}
+void rrca()	{ /* RRCA */
+	uint8_t tmp = *cpuAreg;
+	*cpuAreg = (*cpuAreg >> 1);
+	*cpuAreg |= (tmp << 7);
+	*cpuFreg = (*cpuFreg & ~0x10); /* H flag */
+	*cpuFreg = (*cpuFreg & ~0x02); /* N flag */
+	*cpuFreg = (tmp & 0x01) ? (*cpuFreg | 0x01) : (*cpuFreg & ~0x01); /* C flag */
+}
+void rra()	{ /* RRA */
+	uint8_t tmp = *cpuAreg;
+	*cpuAreg = ((*cpuAreg >> 1) | (*cpuFreg << 7));
+	*cpuFreg = (*cpuFreg & ~0x10); /* H flag */
+	*cpuFreg = (*cpuFreg & ~0x02); /* N flag */
+	*cpuFreg = (tmp & 0x01) ? (*cpuFreg | 0x01) : (*cpuFreg & ~0x01); /* C flag */
+}
+void rlc()	{ /* RLC r */
+	uint8_t *r[8] = {cpuBreg, cpuCreg, cpuDreg, cpuEreg, cpuHreg, cpuLreg, cpuread(*cpuHLreg), cpuAreg};
+	uint8_t tmp = *r[op & 7];
+	*r[op & 7] = ((*r[op & 7] << 1) | (tmp & 0x01));
+	*cpuFreg = (*r[op & 7] & 0x80) ? (*cpuFreg | 0x80) : (*cpuFreg & ~0x80); /* S flag */
+	*cpuFreg = (!*r[op & 7]) ? (*cpuFreg | 0x40) : (*cpuFreg & ~0x40); /* Z flag */
+	*cpuFreg = (*cpuFreg & ~0x10); /* H flag */
+	*cpuFreg = parcalc(*r[op & 7]) ? (*cpuFreg | 0x04) : (*cpuFreg & ~0x04); /* P/V flag */
+	*cpuFreg = (*cpuFreg & ~0x02); /* N flag */
+	*cpuFreg = (tmp & 0x80) ? (*cpuFreg | 0x01) : (*cpuFreg & ~0x01); /* C flag */
+}
+void rlcix(){ /* RLC (IX+d) */
+	uint8_t val = *cpuread(cpuIX + displace);
+	uint8_t tmp = val;
+	val = ((val << 1) | (tmp >> 7));
+	cpuwrite(cpuIX + displace, val);
+	*cpuFreg = (val & 0x80) ? (*cpuFreg | 0x80) : (*cpuFreg & ~0x80); /* S flag */
+	*cpuFreg = (!val) ? (*cpuFreg | 0x40) : (*cpuFreg & ~0x40); /* Z flag */
+	*cpuFreg = (*cpuFreg & ~0x10); /* H flag */
+	*cpuFreg = parcalc(val) ? (*cpuFreg | 0x04) : (*cpuFreg & ~0x04); /* P/V flag */
+	*cpuFreg = (*cpuFreg & ~0x02); /* N flag */
+	*cpuFreg = (tmp & 0x80) ? (*cpuFreg | 0x01) : (*cpuFreg & ~0x01); /* C flag */
+}
+void rlciy(){ /* RLC (IY+d) */
+	uint8_t val = *cpuread(cpuIY + displace);
+	uint8_t tmp = val;
+	val = ((val << 1) | (tmp >> 7));
+	cpuwrite(cpuIY + displace, val);
+	*cpuFreg = (val & 0x80) ? (*cpuFreg | 0x80) : (*cpuFreg & ~0x80); /* S flag */
+	*cpuFreg = (!val) ? (*cpuFreg | 0x40) : (*cpuFreg & ~0x40); /* Z flag */
+	*cpuFreg = (*cpuFreg & ~0x10); /* H flag */
+	*cpuFreg = parcalc(val) ? (*cpuFreg | 0x04) : (*cpuFreg & ~0x04); /* P/V flag */
+	*cpuFreg = (*cpuFreg & ~0x02); /* N flag */
+	*cpuFreg = (tmp & 0x80) ? (*cpuFreg | 0x01) : (*cpuFreg & ~0x01); /* C flag */
+}
+void rl()	{ /* RL r */
+	uint8_t *r[8] = {cpuBreg, cpuCreg, cpuDreg, cpuEreg, cpuHreg, cpuLreg, cpuread(*cpuHLreg), cpuAreg};
+	uint8_t tmp = *r[op & 7];
+	*r[op & 7] = ((*r[op & 7] << 1) | (*cpuFreg & 0x01));
+	*cpuFreg = (*r[op & 7] & 0x80) ? (*cpuFreg | 0x80) : (*cpuFreg & ~0x80); /* S flag */
+	*cpuFreg = (!*r[op & 7]) ? (*cpuFreg | 0x40) : (*cpuFreg & ~0x40); /* Z flag */
+	*cpuFreg = (*cpuFreg & ~0x10); /* H flag */
+	*cpuFreg = (parcalc(*r[op & 7])) ? (*cpuFreg | 0x04) : (*cpuFreg & ~0x04); /* P/V flag */
+	*cpuFreg = (*cpuFreg & ~0x02); /* N flag */
+	*cpuFreg = (tmp & 0x80) ? (*cpuFreg | 0x01) : (*cpuFreg & ~0x01); /* C flag */
+}
+void rlix()	{ /* RL (IX+d) */
+	uint8_t val = *cpuread(cpuIX + displace);
+	uint8_t tmp = val;
+	val = ((val << 1) | (*cpuFreg & 0x01));
+	cpuwrite(cpuIX + displace, val);
+	*cpuFreg = (val & 0x80) ? (*cpuFreg | 0x80) : (*cpuFreg & ~0x80); /* S flag */
+	*cpuFreg = (!val) ? (*cpuFreg | 0x40) : (*cpuFreg & ~0x40); /* Z flag */
+	*cpuFreg = (*cpuFreg & ~0x10); /* H flag */
+	*cpuFreg = parcalc(val) ? (*cpuFreg | 0x04) : (*cpuFreg & ~0x04); /* P/V flag */
+	*cpuFreg = (*cpuFreg & ~0x02); /* N flag */
+	*cpuFreg = (tmp & 0x80) ? (*cpuFreg | 0x01) : (*cpuFreg & ~0x01); /* C flag */
+}
+void rliy()	{ /* RL (IY+d) */
+	uint8_t val = *cpuread(cpuIY + displace);
+	uint8_t tmp = val;
+	val = ((val << 1) | (*cpuFreg & 0x01));
+	cpuwrite(cpuIY + displace, val);
+	*cpuFreg = (val & 0x80) ? (*cpuFreg | 0x80) : (*cpuFreg & ~0x80); /* S flag */
+	*cpuFreg = (!val) ? (*cpuFreg | 0x40) : (*cpuFreg & ~0x40); /* Z flag */
+	*cpuFreg = (*cpuFreg & ~0x10); /* H flag */
+	*cpuFreg = parcalc(val) ? (*cpuFreg | 0x04) : (*cpuFreg & ~0x04); /* P/V flag */
+	*cpuFreg = (*cpuFreg & ~0x02); /* N flag */
+	*cpuFreg = (tmp & 0x80) ? (*cpuFreg | 0x01) : (*cpuFreg & ~0x01); /* C flag */
+}
+void rrc()	{ /* RRC r */
+	uint8_t *r[8] = {cpuBreg, cpuCreg, cpuDreg, cpuEreg, cpuHreg, cpuLreg, cpuread(*cpuHLreg), cpuAreg};
+	uint8_t tmp = *r[op & 7];
+	*r[op & 7] = ((*r[op & 7] >> 1) | (tmp << 7));
+	*cpuFreg = (*r[op & 7] & 0x80) ? (*cpuFreg | 0x80) : (*cpuFreg & ~0x80); /* S flag */
+	*cpuFreg = (!*r[op & 7]) ? (*cpuFreg | 0x40) : (*cpuFreg & ~0x40); /* Z flag */
+	*cpuFreg = (*cpuFreg & ~0x10); /* H flag */
+	*cpuFreg = (parcalc(*r[op & 7])) ? (*cpuFreg | 0x04) : (*cpuFreg & ~0x04); /* P/V flag */
+	*cpuFreg = (*cpuFreg & ~0x02); /* N flag */
+	*cpuFreg = (tmp & 0x01) ? (*cpuFreg | 0x01) : (*cpuFreg & ~0x01); /* C flag */
+}
+void rrcix(){ /* RRC (IX+d) */
+	uint8_t val = *cpuread(cpuIX + displace);
+	uint8_t tmp = val;
+	val = ((val >> 1) | (tmp << 7));
+	cpuwrite(cpuIX + displace, val);
+	*cpuFreg = (val & 0x80) ? (*cpuFreg | 0x80) : (*cpuFreg & ~0x80); /* S flag */
+	*cpuFreg = (!val) ? (*cpuFreg | 0x40) : (*cpuFreg & ~0x40); /* Z flag */
+	*cpuFreg = (*cpuFreg & ~0x10); /* H flag */
+	*cpuFreg = parcalc(val) ? (*cpuFreg | 0x04) : (*cpuFreg & ~0x04); /* P/V flag */
+	*cpuFreg = (*cpuFreg & ~0x02); /* N flag */
+	*cpuFreg = (tmp & 0x01) ? (*cpuFreg | 0x01) : (*cpuFreg & ~0x01); /* C flag */
+}
+void rrciy(){ /* RRC (IY+d) */
+	uint8_t val = *cpuread(cpuIY + displace);
+	uint8_t tmp = val;
+	val = ((val >> 1) | (tmp << 7));
+	cpuwrite(cpuIY + displace, val);
+	*cpuFreg = (val & 0x80) ? (*cpuFreg | 0x80) : (*cpuFreg & ~0x80); /* S flag */
+	*cpuFreg = (!val) ? (*cpuFreg | 0x40) : (*cpuFreg & ~0x40); /* Z flag */
+	*cpuFreg = (*cpuFreg & ~0x10); /* H flag */
+	*cpuFreg = parcalc(val) ? (*cpuFreg | 0x04) : (*cpuFreg & ~0x04); /* P/V flag */
+	*cpuFreg = (*cpuFreg & ~0x02); /* N flag */
+	*cpuFreg = (tmp & 0x01) ? (*cpuFreg | 0x01) : (*cpuFreg & ~0x01); /* C flag */
+}
+void rr()	{ /* RR r */
+	uint8_t *r[8] = {cpuBreg, cpuCreg, cpuDreg, cpuEreg, cpuHreg, cpuLreg, cpuread(*cpuHLreg), cpuAreg};
+	uint8_t tmp = *r[op & 7];
+	*r[op & 7] = ((*r[op & 7] >> 1) | (*cpuFreg << 7));
+	*cpuFreg = (*r[op & 7] & 0x80) ? (*cpuFreg | 0x80) : (*cpuFreg & ~0x80); /* S flag */
+	*cpuFreg = (!*r[op & 7]) ? (*cpuFreg | 0x40) : (*cpuFreg & ~0x40); /* Z flag */
+	*cpuFreg = (*cpuFreg & ~0x10); /* H flag */
+	*cpuFreg = (parcalc(*r[op & 7])) ? (*cpuFreg | 0x04) : (*cpuFreg & ~0x04); /* P/V flag */
+	*cpuFreg = (*cpuFreg & ~0x02); /* N flag */
+	*cpuFreg = (tmp & 0x01) ? (*cpuFreg | 0x01) : (*cpuFreg & ~0x01); /* C flag */
+}
+void rrix()	{ /* RR (IX+d) */
+	uint8_t val = *cpuread(cpuIX + displace);
+	uint8_t tmp = val;
+	val = ((val >> 1) | (*cpuFreg << 7));
+	cpuwrite(cpuIX + displace, val);
+	*cpuFreg = (val & 0x80) ? (*cpuFreg | 0x80) : (*cpuFreg & ~0x80); /* S flag */
+	*cpuFreg = (!val) ? (*cpuFreg | 0x40) : (*cpuFreg & ~0x40); /* Z flag */
+	*cpuFreg = (*cpuFreg & ~0x10); /* H flag */
+	*cpuFreg = parcalc(val) ? (*cpuFreg | 0x04) : (*cpuFreg & ~0x04); /* P/V flag */
+	*cpuFreg = (*cpuFreg & ~0x02); /* N flag */
+	*cpuFreg = (tmp & 0x01) ? (*cpuFreg | 0x01) : (*cpuFreg & ~0x01); /* C flag */
+}
+void rriy()	{ /* RR (IY+d) */
+	uint8_t val = *cpuread(cpuIY + displace);
+	uint8_t tmp = val;
+	val = ((val >> 1) | (*cpuFreg << 7));
+	cpuwrite(cpuIY + displace, val);
+	*cpuFreg = (val & 0x80) ? (*cpuFreg | 0x80) : (*cpuFreg & ~0x80); /* S flag */
+	*cpuFreg = (!val) ? (*cpuFreg | 0x40) : (*cpuFreg & ~0x40); /* Z flag */
+	*cpuFreg = (*cpuFreg & ~0x10); /* H flag */
+	*cpuFreg = parcalc(val) ? (*cpuFreg | 0x04) : (*cpuFreg & ~0x04); /* P/V flag */
+	*cpuFreg = (*cpuFreg & ~0x02); /* N flag */
+	*cpuFreg = (tmp & 0x01) ? (*cpuFreg | 0x01) : (*cpuFreg & ~0x01); /* C flag */
+}
+void sla()	{ /* SLA r */
+	uint8_t *r[8] = {cpuBreg, cpuCreg, cpuDreg, cpuEreg, cpuHreg, cpuLreg, cpuread(*cpuHLreg), cpuAreg};
+	uint8_t tmp = *r[op & 7];
+	*r[op & 7] = (*r[op & 7] << 1);
+	*cpuFreg = (*r[op & 7] & 0x80) ? (*cpuFreg | 0x80) : (*cpuFreg & ~0x80); /* S flag */
+	*cpuFreg = (!*r[op & 7]) ? (*cpuFreg | 0x40) : (*cpuFreg & ~0x40); /* Z flag */
+	*cpuFreg &= ~0x10; /* H flag */
+	*cpuFreg = (parcalc(*r[op & 7])) ? (*cpuFreg | 0x04) : (*cpuFreg & ~0x04); /* P/V flag */
+	*cpuFreg &= ~0x02; /* N flag */
+	*cpuFreg = (tmp & 0x80) ? (*cpuFreg | 0x01) : (*cpuFreg & ~0x01); /* C flag */
+}
+void slaix(){ /* SLA (IX+d) */
+	uint8_t val = *cpuread(cpuIX + displace);
+	uint8_t tmp = val;
+	val = (val << 1);
+	cpuwrite(cpuIX + displace, val);
+	*cpuFreg = (val & 0x80) ? (*cpuFreg | 0x80) : (*cpuFreg & ~0x80); /* S flag */
+	*cpuFreg = (!val) ? (*cpuFreg | 0x40) : (*cpuFreg & ~0x40); /* Z flag */
+	*cpuFreg = (*cpuFreg & ~0x10); /* H flag */
+	*cpuFreg = parcalc(val) ? (*cpuFreg | 0x04) : (*cpuFreg & ~0x04); /* P/V flag */
+	*cpuFreg = (*cpuFreg & ~0x02); /* N flag */
+	*cpuFreg = (tmp & 0x80) ? (*cpuFreg | 0x01) : (*cpuFreg & ~0x01); /* C flag */
+}
+void slaiy(){ /* SLA (IY+d) */
+	uint8_t val = *cpuread(cpuIY + displace);
+	uint8_t tmp = val;
+	val = (val << 1);
+	cpuwrite(cpuIY + displace, val);
+	*cpuFreg = (val & 0x80) ? (*cpuFreg | 0x80) : (*cpuFreg & ~0x80); /* S flag */
+	*cpuFreg = (!val) ? (*cpuFreg | 0x40) : (*cpuFreg & ~0x40); /* Z flag */
+	*cpuFreg = (*cpuFreg & ~0x10); /* H flag */
+	*cpuFreg = parcalc(val) ? (*cpuFreg | 0x04) : (*cpuFreg & ~0x04); /* P/V flag */
+	*cpuFreg = (*cpuFreg & ~0x02); /* N flag */
+	*cpuFreg = (tmp & 0x80) ? (*cpuFreg | 0x01) : (*cpuFreg & ~0x01); /* C flag */
+}
+void sra()	{ /* SRA r */
+	uint8_t *r[8] = {cpuBreg, cpuCreg, cpuDreg, cpuEreg, cpuHreg, cpuLreg, cpuread(*cpuHLreg), cpuAreg};
+	uint8_t tmp = *r[op & 7];
+	*r[op & 7] = ((*r[op & 7] >> 1) | (tmp & 0x80));
+	*cpuFreg = (*r[op & 7] & 0x80) ? (*cpuFreg | 0x80) : (*cpuFreg & ~0x80); /* S flag */
+	*cpuFreg = (!*r[op & 7]) ? (*cpuFreg | 0x40) : (*cpuFreg & ~0x40); /* Z flag */
+	*cpuFreg &= ~0x10; /* H flag */
+	*cpuFreg = (parcalc(*r[op & 7])) ? (*cpuFreg | 0x04) : (*cpuFreg & ~0x04); /* P/V flag */
+	*cpuFreg &= ~0x02; /* N flag */
+	*cpuFreg = (tmp & 0x01) ? (*cpuFreg | 0x01) : (*cpuFreg & ~0x01); /* C flag */
+}
+void sraix(){ /* SRA (IX+d) */
+	uint8_t val = *cpuread(cpuIX + displace);
+	uint8_t tmp = val;
+	val = ((val >> 1) | (tmp & 0x80));
+	cpuwrite(cpuIX + displace, val);
+	*cpuFreg = (val & 0x80) ? (*cpuFreg | 0x80) : (*cpuFreg & ~0x80); /* S flag */
+	*cpuFreg = (!val) ? (*cpuFreg | 0x40) : (*cpuFreg & ~0x40); /* Z flag */
+	*cpuFreg = (*cpuFreg & ~0x10); /* H flag */
+	*cpuFreg = parcalc(val) ? (*cpuFreg | 0x04) : (*cpuFreg & ~0x04); /* P/V flag */
+	*cpuFreg = (*cpuFreg & ~0x02); /* N flag */
+	*cpuFreg = (tmp & 0x01) ? (*cpuFreg | 0x01) : (*cpuFreg & ~0x01); /* C flag */
+}
+void sraiy(){ /* SRA (IY+d) */
+	uint8_t val = *cpuread(cpuIY + displace);
+	uint8_t tmp = val;
+	val = ((val >> 1) | (tmp & 0x80));
+	cpuwrite(cpuIY + displace, val);
+	*cpuFreg = (val & 0x80) ? (*cpuFreg | 0x80) : (*cpuFreg & ~0x80); /* S flag */
+	*cpuFreg = (!val) ? (*cpuFreg | 0x40) : (*cpuFreg & ~0x40); /* Z flag */
+	*cpuFreg = (*cpuFreg & ~0x10); /* H flag */
+	*cpuFreg = parcalc(val) ? (*cpuFreg | 0x04) : (*cpuFreg & ~0x04); /* P/V flag */
+	*cpuFreg = (*cpuFreg & ~0x02); /* N flag */
+	*cpuFreg = (tmp & 0x01) ? (*cpuFreg | 0x01) : (*cpuFreg & ~0x01); /* C flag */
+}
+void sllix(){ /* SLL (IX+d) */
+	uint8_t val = *cpuread(cpuIX + displace);
+	uint8_t tmp = val;
+	val = ((val << 1) | 0x01);
+	cpuwrite(cpuIX + displace, val);
+	*cpuFreg = (val & 0x80) ? (*cpuFreg | 0x80) : (*cpuFreg & ~0x80); /* S flag */
+	*cpuFreg = (!val) ? (*cpuFreg | 0x40) : (*cpuFreg & ~0x40); /* Z flag */
+	*cpuFreg = (*cpuFreg & ~0x10); /* H flag */
+	*cpuFreg = parcalc(val) ? (*cpuFreg | 0x04) : (*cpuFreg & ~0x04); /* P/V flag */
+	*cpuFreg = (*cpuFreg & ~0x02); /* N flag */
+	*cpuFreg = (tmp & 0x80) ? (*cpuFreg | 0x01) : (*cpuFreg & ~0x01); /* C flag */
+}
+void slliy(){ /* SLL (IY+d) */
+	uint8_t val = *cpuread(cpuIY + displace);
+	uint8_t tmp = val;
+	val = ((val << 1) | 0x01);
+	cpuwrite(cpuIY + displace, val);
+	*cpuFreg = (val & 0x80) ? (*cpuFreg | 0x80) : (*cpuFreg & ~0x80); /* S flag */
+	*cpuFreg = (!val) ? (*cpuFreg | 0x40) : (*cpuFreg & ~0x40); /* Z flag */
+	*cpuFreg = (*cpuFreg & ~0x10); /* H flag */
+	*cpuFreg = parcalc(val) ? (*cpuFreg | 0x04) : (*cpuFreg & ~0x04); /* P/V flag */
+	*cpuFreg = (*cpuFreg & ~0x02); /* N flag */
+	*cpuFreg = (tmp & 0x80) ? (*cpuFreg | 0x01) : (*cpuFreg & ~0x01); /* C flag */
+}
+void srl()	{ /* SRL r */
+	uint8_t *r[8] = {cpuBreg, cpuCreg, cpuDreg, cpuEreg, cpuHreg, cpuLreg, cpuread(*cpuHLreg), cpuAreg};
+	*cpuFreg = (*r[op & 7] & 0x01) ? (*cpuFreg | 0x01) : (*cpuFreg & ~0x01); /* C flag */
+	*r[op & 7] = (*r[op & 7] >> 1);
+	*cpuFreg &= ~0x80; /* S flag */
+	*cpuFreg = (!*r[op & 7]) ? (*cpuFreg | 0x40) : (*cpuFreg & ~0x40); /* Z flag */
+	*cpuFreg &= ~0x10; /* H flag */
+	*cpuFreg = (parcalc(*r[op & 7])) ? (*cpuFreg | 0x04) : (*cpuFreg & ~0x04); /* P/V flag */
+	*cpuFreg &= ~0x02; /* N flag */
+}
+void srlix(){ /* SRL (IX+d) */
+	uint8_t val = *cpuread(cpuIX + displace);
+	uint8_t tmp = val;
+	val = (val >> 1);
+	cpuwrite(cpuIX + displace, val);
+	*cpuFreg = (val & 0x80) ? (*cpuFreg | 0x80) : (*cpuFreg & ~0x80); /* S flag */
+	*cpuFreg = (!val) ? (*cpuFreg | 0x40) : (*cpuFreg & ~0x40); /* Z flag */
+	*cpuFreg = (*cpuFreg & ~0x10); /* H flag */
+	*cpuFreg = parcalc(val) ? (*cpuFreg | 0x04) : (*cpuFreg & ~0x04); /* P/V flag */
+	*cpuFreg = (*cpuFreg & ~0x02); /* N flag */
+	*cpuFreg = (tmp & 0x01) ? (*cpuFreg | 0x01) : (*cpuFreg & ~0x01); /* C flag */
+}
+void srliy(){ /* SRL (IY+d) */
+	uint8_t val = *cpuread(cpuIY + displace);
+	uint8_t tmp = val;
+	val = (val >> 1);
+	cpuwrite(cpuIY + displace, val);
+	*cpuFreg = (val & 0x80) ? (*cpuFreg | 0x80) : (*cpuFreg & ~0x80); /* S flag */
+	*cpuFreg = (!val) ? (*cpuFreg | 0x40) : (*cpuFreg & ~0x40); /* Z flag */
+	*cpuFreg = (*cpuFreg & ~0x10); /* H flag */
+	*cpuFreg = parcalc(val) ? (*cpuFreg | 0x04) : (*cpuFreg & ~0x04); /* P/V flag */
+	*cpuFreg = (*cpuFreg & ~0x02); /* N flag */
+	*cpuFreg = (tmp & 0x01) ? (*cpuFreg | 0x01) : (*cpuFreg & ~0x01); /* C flag */
+}
+void rld()	{ /* RLD */
+	uint8_t tmp = *cpuAreg;
+	uint8_t val = *cpuread(*cpuHLreg);
+	*cpuAreg = ((*cpuAreg & 0xf0) | ((val & 0xf0) >> 4));
+	val = (val << 4);
+	val |= (tmp & 0x0f);
+	cpuwrite(*cpuHLreg, val);
+	*cpuFreg = (*cpuAreg & 0x80) ? (*cpuFreg | 0x80) : (*cpuFreg & ~0x80); /* S flag */
+	*cpuFreg = (!*cpuAreg) ? (*cpuFreg | 0x40) : (*cpuFreg & ~0x40); /* Z flag */
+	*cpuFreg = (*cpuFreg & ~0x10); /* H flag */
+	*cpuFreg = (parcalc(*cpuAreg)) ? (*cpuFreg | 0x04) : (*cpuFreg & ~0x04); /* P/V flag */
+	*cpuFreg = (*cpuFreg & ~0x02); /* N flag */
+}
+void rrd()	{ /* RRD */
+	uint8_t tmp = *cpuAreg;
+	uint8_t val = *cpuread(*cpuHLreg);
+	*cpuAreg = ((*cpuAreg & 0xf0) | (val & 0x0f));
+	val = (val >> 4);
+	val |= (tmp << 4);
+	cpuwrite(*cpuHLreg, val);
+	*cpuFreg = (*cpuAreg & 0x80) ? (*cpuFreg | 0x80) : (*cpuFreg & ~0x80); /* S flag */
+	*cpuFreg = (!*cpuAreg) ? (*cpuFreg | 0x40) : (*cpuFreg & ~0x40); /* Z flag */
+	*cpuFreg = (*cpuFreg & ~0x10); /* H flag */
+	*cpuFreg = (parcalc(*cpuAreg)) ? (*cpuFreg | 0x04) : (*cpuFreg & ~0x04); /* P/V flag */
+	*cpuFreg = (*cpuFreg & ~0x02); /* N flag */
+}
+
+
+/* BIT SET, RESET, TEST GROUP */
+
+void bit()	{ /* BIT b,r */
+	uint8_t *r[8] = {cpuBreg, cpuCreg, cpuDreg, cpuEreg, cpuHreg, cpuLreg, cpuread(*cpuHLreg), cpuAreg};
+	uint8_t val = *r[op & 7] & (1 << ((op >> 3) & 7));
+	*cpuFreg = (val && ((op >> 3) & 7) == 7) ? (*cpuFreg | 0x80) : (*cpuFreg & ~0x80); /* S flag */
+	*cpuFreg = (!val) ? (*cpuFreg | 0x40) : (*cpuFreg & ~0x40); /* Z flag */
+	*cpuFreg |= 0x10; /* H flag */
+	*cpuFreg = (!val) ? (*cpuFreg | 0x04) : (*cpuFreg & ~0x04); /* P/V flag */
+	*cpuFreg &= ~0x02; /* N flag */
+}
+void bitix(){ /* BIT b,(IX+d) */
+	uint8_t val = *cpuread(cpuIX + displace);
+	val = val & (1 << ((op >> 3) & 7));
+	*cpuFreg = (val && ((op >> 3) & 7) == 7) ? (*cpuFreg | 0x80) : (*cpuFreg & ~0x80); /* S flag */
+	*cpuFreg = (!val) ? (*cpuFreg | 0x40) : (*cpuFreg & ~0x40); /* Z flag */
+	*cpuFreg |= 0x10; /* H flag */
+	*cpuFreg = (!val) ? (*cpuFreg | 0x04) : (*cpuFreg & ~0x04); /* P/V flag */
+	*cpuFreg &= ~0x02; /* N flag */
+}
+void bitiy(){ /* BIT b,(IY+d) */
+	uint8_t val = *cpuread(cpuIY + displace);
+	val = val & (1 << ((op >> 3) & 7));
+	*cpuFreg = (val && ((op >> 3) & 7) == 7) ? (*cpuFreg | 0x80) : (*cpuFreg & ~0x80); /* S flag */
+	*cpuFreg = (!val) ? (*cpuFreg | 0x40) : (*cpuFreg & ~0x40); /* Z flag */
+	*cpuFreg |= 0x10; /* H flag */
+	*cpuFreg = (!val) ? (*cpuFreg | 0x04) : (*cpuFreg & ~0x04); /* P/V flag */
+	*cpuFreg &= ~0x02; /* N flag */
+}
+void set()	{ /* SET b,r */
+	uint8_t *r[8] = {cpuBreg, cpuCreg, cpuDreg, cpuEreg, cpuHreg, cpuLreg, cpuread(*cpuHLreg), cpuAreg};
+	*r[op & 7] |= (1 << ((op >> 3) & 7));
+}
+void setix(){ /* SET b,(IX+d) */
+	*cpuread(cpuIX + displace) |= (1 << ((op >> 3) & 7));
+}
+void setiy(){ /* SET b,(IY+d) */
+	*cpuread(cpuIY + displace) |= (1 << ((op >> 3) & 7));
+}
+void res()	{ /* RES b,r */
+	uint8_t *r[8] = {cpuBreg, cpuCreg, cpuDreg, cpuEreg, cpuHreg, cpuLreg, cpuread(*cpuHLreg), cpuAreg};
+	*r[op & 7] &= ~(1 << ((op >> 3) & 7));
+}
+void resix(){ /* RES b,(IX+d) */
+	*cpuread(cpuIX+displace) &= ~(1 << ((op >> 3) & 7));
+}
+void resiy(){ /* RES b,(IY+d) */
+	*cpuread(cpuIY+displace) &= ~(1 << ((op >> 3) & 7));
+}
+
+
+/* JUMP GROUP */
+
+void jp()	{ /* JP nn */
+	uint16_t address = *cpuread(cpuPC++);
+	address |= ((*cpuread(cpuPC++)) << 8);
+	cpuPC = address;
+}
+void jpc()	{ /* JP cc,nn */
+	uint8_t cc[8] = {!(*cpuFreg & 0x40), (*cpuFreg & 0x40), !(*cpuFreg & 0x01), (*cpuFreg & 0x01), !(*cpuFreg & 0x04), (*cpuFreg & 0x04), !(*cpuFreg & 0x80), (*cpuFreg & 0x80)};
+	uint16_t address = *cpuread(cpuPC++);
+	address |= ((*cpuread(cpuPC++)) << 8);
+	if(cc[(op>>3) & 7])
+		cpuPC = address;
+}
+void jr()	{ /* JR e */
+	cpuPC += ((int8_t)*cpuread(cpuPC) + 1);
+}
+void jrc()	{ /* JR cc,e */
+	uint8_t cc[4] = {!(*cpuFreg & 0x40), (*cpuFreg & 0x40), !(*cpuFreg & 0x01), (*cpuFreg & 0x01)};
+	if(cc[((op>>3) & 7) - 4]) {
+		jr();
+		addcycles(5);
+	}
+	else
+		cpuPC++;
+}
+void jphl()	{ /* JP (HL) */
+	cpuPC = *cpuHLreg;
+}
+void jpix()	{ /* JP (IX) */
+	cpuPC = cpuIX;
+}
+void jpiy()	{ /* JP (IY) */
+	cpuPC = cpuIY;
+}
+void djnz()	{ /* DJNZ,e */
+	(*cpuBreg)--;
+	if(*cpuBreg) {
+		cpuPC += ((int8_t)*cpuread(cpuPC) + 1);
+		addcycles(5);
+	}
+	else
+		cpuPC++;
+}
+
+
+/* CALL AND RETURN GROUP */
+
+void call()	{ /* CALL nn */
+	uint16_t address = *cpuread(cpuPC++);
+	address |= (*cpuread(cpuPC++) << 8);
+	cpuwrite(--cpuSP, ((cpuPC & 0xFF00) >> 8));
+	cpuwrite(--cpuSP, (cpuPC & 0x00FF));
+	cpuPC = address;
+}
+void callc(){ /* CALL cc,nn */
+	uint8_t cc[8] = {!(*cpuFreg & 0x40), (*cpuFreg & 0x40), !(*cpuFreg & 0x01), (*cpuFreg & 0x01), !(*cpuFreg & 0x04), (*cpuFreg & 0x04), !(*cpuFreg & 0x80), (*cpuFreg & 0x80)};
+	uint16_t address = *cpuread(cpuPC++);
+	address |= (*cpuread(cpuPC++) << 8);
+	if(cc[(op>>3) & 7]) {
+		cpuwrite(--cpuSP, ((cpuPC & 0xFF00) >> 8));
+		cpuwrite(--cpuSP, (cpuPC & 0x00FF));
+		cpuPC = address;
+		addcycles(7);
+	}
+}
+void ret()	{ /* RET */
+	uint16_t address = *cpuread(cpuSP++);
+	address |= ((*cpuread(cpuSP++)) << 8);
+	cpuPC = address;
+}
+void retc()	{ /* RET cc */
+	uint8_t cc[8] = {!(*cpuFreg & 0x40), (*cpuFreg & 0x40), !(*cpuFreg & 0x01), (*cpuFreg & 0x01), !(*cpuFreg & 0x04), (*cpuFreg & 0x04), !(*cpuFreg & 0x80), (*cpuFreg & 0x80)};
+	if (cc[(op >> 3) & 7]){
+		ret();
+		addcycles(6);
+	}
+}
+void rst()	{ /* RST */
+	cpuwrite(--cpuSP, ((cpuPC & 0xff00) >> 8));
+	cpuwrite(--cpuSP, ( cpuPC & 0x00ff));
+	cpuPC = (op & 0x38);
+}
+
+
+/* INPUT AND OUTPUT GROUP */
+
+void in()	{ /* IN A,(n) */
+	uint8_t reg = *cpuread(cpuPC++);
+	*cpuAreg = read_cpu_register(reg);
+}
+void out()	{ /* OUT (n),A */
+	uint8_t reg = *cpuread(cpuPC++);
+	write_cpu_register(reg, *cpuAreg);
+}
+void outc()	{ /* OUT (C),r */
+	uint8_t *r[8] = {cpuBreg, cpuCreg, cpuDreg, cpuEreg, cpuHreg, cpuLreg, cpuread(*cpuHLreg), cpuAreg};
+	write_cpu_register(*cpuCreg, *r[(op >> 3) & 7]);
+}
+void outi()	{ /* OUTI */
+	uint8_t tmp = *cpuread(*cpuHLreg); /* to be written to port */
+	(*cpuBreg)--; /* byte counter */
+	write_cpu_register(*cpuCreg, tmp);
+	(*cpuHLreg)++;
+	*cpuFreg = (!*cpuBreg) ? (*cpuFreg | 0x40) : (*cpuFreg & ~0x40); /* Z flag */
+	*cpuFreg = (*cpuFreg | 0x02); /* N flag */
+}
+void otir()	{ /* OTIR */
+uint8_t tmp = *cpuread(*cpuHLreg); /* to be written to port */
+(*cpuBreg)--; /* byte counter */
+write_cpu_register(*cpuCreg, tmp);
+(*cpuHLreg)++;
+if (*cpuBreg){
+	cpuPC -= 2;
+	addcycles(5);
+}
+uint16_t k = (*cpuLreg + tmp);
+*cpuFreg = (*cpuBreg & 0x80) ? (*cpuFreg | 0x80) : (*cpuFreg & ~0x80); /* S flag */
+*cpuFreg = (!*cpuBreg) ? (*cpuFreg | 0x40) : (*cpuFreg & ~0x40); /* Z flag */
+*cpuFreg = (k > 0xff) ? (*cpuFreg | 0x10) : (*cpuFreg & ~0x10); /* H flag */
+*cpuFreg = (parcalc((k & 7) ^ *cpuBreg)) ? (*cpuFreg | 0x04) : (*cpuFreg & ~0x04); /* P/V flag */
+*cpuFreg = (tmp & 0x80) ? (*cpuFreg | 0x02): (*cpuFreg & ~0x02); /* N flag */
+*cpuFreg = (k > 0xff) ? (*cpuFreg | 0x01) : (*cpuFreg & ~0x01); /* C flag */
+}
+void outd()	{ /* OUTD */
+	uint8_t tmp = *cpuread(*cpuHLreg); /* to be written to port */
+	(*cpuBreg)--; /* byte counter */
+	write_cpu_register(*cpuCreg, tmp);
+	(*cpuHLreg)--;
+	*cpuFreg = (!*cpuBreg) ? (*cpuFreg | 0x40) : (*cpuFreg & ~0x40); /* Z flag */
+	*cpuFreg = (*cpuFreg | 0x02); /* N flag */
+}
+
+
 /* UNDOCUMENTED OPCODES */
 
 void ldixh(){ /* LD IXh,n */
@@ -1183,259 +1653,83 @@ void ldixl(){ /* LD IXl,n */
 void ldiyl(){ /* LD IYl,n */
 	cpuIY = ((cpuIY & 0xff00) | (*cpuread(cpuPC++) & 0x00ff));
 }
-
-
-
+void inixh()	{ /* INC IXh */
+	uint8_t tmp = (cpuIX >> 8);
+	cpuIX = ((cpuIX & 0x00ff) | ((tmp + 1) << 8));
+	*cpuFreg = ((cpuIX >> 8) & 0x80) ? (*cpuFreg | 0x80) : (*cpuFreg & ~0x80); /* S flag */
+	*cpuFreg = !(cpuIX >> 8) ? (*cpuFreg | 0x40) : (*cpuFreg & ~0x40); /* Z flag */
+	*cpuFreg = ((tmp & 0x0f) == 0x0f) ? (*cpuFreg | 0x10) : (*cpuFreg & ~0x10); /* H flag */
+	*cpuFreg = (tmp == 0x7f) ? (*cpuFreg | 0x04) : (*cpuFreg & ~0x04); /* P/V flag */
+	*cpuFreg = (*cpuFreg & ~0x02); /* N flag */
+}
+void iniyh()	{ /* INC IYh */
+	uint8_t tmp = (cpuIY >> 8);
+	cpuIY = ((cpuIY & 0x00ff) | ((tmp + 1) << 8));
+	*cpuFreg = ((cpuIY >> 8) & 0x80) ? (*cpuFreg | 0x80) : (*cpuFreg & ~0x80); /* S flag */
+	*cpuFreg = !(cpuIY >> 8) ? (*cpuFreg | 0x40) : (*cpuFreg & ~0x40); /* Z flag */
+	*cpuFreg = ((tmp & 0x0f) == 0x0f) ? (*cpuFreg | 0x10) : (*cpuFreg & ~0x10); /* H flag */
+	*cpuFreg = (tmp == 0x7f) ? (*cpuFreg | 0x04) : (*cpuFreg & ~0x04); /* P/V flag */
+	*cpuFreg = (*cpuFreg & ~0x02); /* N flag */
+}
+void inixl()	{ /* INC IXl */
+	uint8_t tmp = (cpuIX & 0xff);
+	cpuIX = ((cpuIX & 0xff00) | (tmp + 1));
+	*cpuFreg = ((cpuIX & 0xff) & 0x80) ? (*cpuFreg | 0x80) : (*cpuFreg & ~0x80); /* S flag */
+	*cpuFreg = !(cpuIX & 0xff) ? (*cpuFreg | 0x40) : (*cpuFreg & ~0x40); /* Z flag */
+	*cpuFreg = ((tmp & 0x0f) == 0x0f) ? (*cpuFreg | 0x10) : (*cpuFreg & ~0x10); /* H flag */
+	*cpuFreg = (tmp == 0x7f) ? (*cpuFreg | 0x04) : (*cpuFreg & ~0x04); /* P/V flag */
+	*cpuFreg = (*cpuFreg & ~0x02); /* N flag */
+}
+void iniyl()	{ /* INC IYl */
+	uint8_t tmp = (cpuIY & 0xff);
+	cpuIY = ((cpuIY & 0xff00) | (tmp + 1));
+	*cpuFreg = ((cpuIY & 0xff) & 0x80) ? (*cpuFreg | 0x80) : (*cpuFreg & ~0x80); /* S flag */
+	*cpuFreg = !(cpuIY & 0xff) ? (*cpuFreg | 0x40) : (*cpuFreg & ~0x40); /* Z flag */
+	*cpuFreg = ((tmp & 0x0f) == 0x0f) ? (*cpuFreg | 0x10) : (*cpuFreg & ~0x10); /* H flag */
+	*cpuFreg = (tmp == 0x7f) ? (*cpuFreg | 0x04) : (*cpuFreg & ~0x04); /* P/V flag */
+	*cpuFreg = (*cpuFreg & ~0x02); /* N flag */
+}
+void dcixh()	{ /* DEC IXh */
+	uint8_t tmp = (cpuIX >> 8);
+	cpuIX = ((cpuIX & 0x00ff) | ((tmp - 1) << 8));
+	*cpuFreg = ((cpuIX >> 8) & 0x80) ? (*cpuFreg | 0x80) : (*cpuFreg & ~0x80); /* S flag */
+	*cpuFreg = !(cpuIX >> 8) ? (*cpuFreg | 0x40) : (*cpuFreg & ~0x40); /* Z flag */
+	*cpuFreg = (!(tmp & 0x0f)) ? (*cpuFreg | 0x10) : (*cpuFreg & ~0x10); /* H flag */
+	*cpuFreg = (tmp == 0x80) ? (*cpuFreg | 0x04) : (*cpuFreg & ~0x04); /* P/V flag */
+	*cpuFreg |= 0x02; /* N flag */
+}
+void dciyh()	{ /* DEC IYh */
+	uint8_t tmp = (cpuIY >> 8);
+	cpuIY = ((cpuIY & 0x00ff) | ((tmp - 1) << 8));
+	*cpuFreg = ((cpuIY >> 8) & 0x80) ? (*cpuFreg | 0x80) : (*cpuFreg & ~0x80); /* S flag */
+	*cpuFreg = !(cpuIY >> 8) ? (*cpuFreg | 0x40) : (*cpuFreg & ~0x40); /* Z flag */
+	*cpuFreg = (!(tmp & 0x0f)) ? (*cpuFreg | 0x10) : (*cpuFreg & ~0x10); /* H flag */
+	*cpuFreg = (tmp == 0x80) ? (*cpuFreg | 0x04) : (*cpuFreg & ~0x04); /* P/V flag */
+	*cpuFreg |= 0x02; /* N flag */
+}
+void dcixl()	{ /* DEC IXl */
+	uint8_t tmp = (cpuIX & 0xff);
+	cpuIX = ((cpuIX & 0xff00) | (tmp - 1));
+	*cpuFreg = ((cpuIX & 0xff) & 0x80) ? (*cpuFreg | 0x80) : (*cpuFreg & ~0x80); /* S flag */
+	*cpuFreg = !(cpuIX & 0xff) ? (*cpuFreg | 0x40) : (*cpuFreg & ~0x40); /* Z flag */
+	*cpuFreg = (!(tmp & 0x0f)) ? (*cpuFreg | 0x10) : (*cpuFreg & ~0x10); /* H flag */
+	*cpuFreg = (tmp == 0x80) ? (*cpuFreg | 0x04) : (*cpuFreg & ~0x04); /* P/V flag */
+	*cpuFreg |= 0x02; /* N flag */
+}
+void dciyl()	{ /* DEC IYl */
+	uint8_t tmp = (cpuIY & 0xff);
+	cpuIY = ((cpuIY & 0xff00) | (tmp - 1));
+	*cpuFreg = ((cpuIY & 0xff) & 0x80) ? (*cpuFreg | 0x80) : (*cpuFreg & ~0x80); /* S flag */
+	*cpuFreg = !(cpuIY & 0xff) ? (*cpuFreg | 0x40) : (*cpuFreg & ~0x40); /* Z flag */
+	*cpuFreg = (!(tmp & 0x0f)) ? (*cpuFreg | 0x10) : (*cpuFreg & ~0x10); /* H flag */
+	*cpuFreg = (tmp == 0x80) ? (*cpuFreg | 0x04) : (*cpuFreg & ~0x04); /* P/V flag */
+	*cpuFreg |= 0x02; /* N flag */
+}
 
 
 void noop(){
 printf("Illegal opcode: %02x %02x %02x %02x\n",*cpuread(cpuPC-4),*cpuread(cpuPC-3),*cpuread(cpuPC-2),op);
 exit(1);}
-
-
-
-
-void otir(){
-uint8_t tmp;
-tmp = *cpuread(*cpuHLreg); /* to be written to port */
-(*cpuBreg)--; /* byte counter */
-write_cpu_register(*cpuCreg, tmp);
-(*cpuHLreg)++;
-if (*cpuBreg){
-	cpuPC--;
-	cpuPC--;
-}
-uint16_t k = (*cpuLreg + tmp);
-*cpuFreg = (*cpuBreg & 0x80) ? (*cpuFreg | 0x80) : (*cpuFreg & ~0x80); /* S flag */
-*cpuFreg = (!*cpuBreg) ? (*cpuFreg | 0x40) : (*cpuFreg & ~0x40); /* Z flag */
-*cpuFreg = (k > 0xff) ? (*cpuFreg | 0x10) : (*cpuFreg & ~0x10); /* H flag */
-*cpuFreg = (parcalc((k & 7) ^ *cpuBreg)) ? (*cpuFreg | 0x04) : (*cpuFreg & ~0x04); /* P/V flag */
-*cpuFreg = (tmp & 0x80) ? (*cpuFreg | 0x02): (*cpuFreg & ~0x02); /* N flag */
-*cpuFreg = (k > 0xff) ? (*cpuFreg | 0x01) : (*cpuFreg & ~0x01); /* C flag */
-}
-
-void out(){
-	uint8_t reg;
-	reg = *cpuread(cpuPC++);
-	write_cpu_register(reg, *cpuAreg);
-}
-
-void outc(){
-	uint8_t *r[8] = {cpuBreg, cpuCreg, cpuDreg, cpuEreg, cpuHreg, cpuLreg, cpuread(*cpuHLreg), cpuAreg};
-	write_cpu_register(*cpuCreg, *r[(op >> 3) & 7]);
-}
-
-void outd(){
-	uint8_t tmp;
-	tmp = *cpuread(*cpuHLreg); /* to be written to port */
-	(*cpuBreg)--; /* byte counter */
-	write_cpu_register(*cpuCreg, tmp);
-	(*cpuHLreg)--;
-	*cpuFreg = (!*cpuBreg) ? (*cpuFreg | 0x40) : (*cpuFreg & ~0x40); /* Z flag */
-	*cpuFreg = (*cpuFreg | 0x02); /* N flag */
-}
-
-void outi(){
-	uint8_t tmp;
-	tmp = *cpuread(*cpuHLreg); /* to be written to port */
-	(*cpuBreg)--; /* byte counter */
-	write_cpu_register(*cpuCreg, tmp);
-	(*cpuHLreg)++;
-	*cpuFreg = (!*cpuBreg) ? (*cpuFreg | 0x40) : (*cpuFreg & ~0x40); /* Z flag */
-	*cpuFreg = (*cpuFreg | 0x02); /* N flag */
-}
-
-
-void res(){
-	uint8_t *r[8] = {cpuBreg, cpuCreg, cpuDreg, cpuEreg, cpuHreg, cpuLreg, cpuread(*cpuHLreg), cpuAreg};
-	*r[op & 7] &= ~(1 << ((op >> 3) & 7));
-}
-
-void resix(){
-	*cpuread(cpuIX+displace) &= ~(1 << ((op >> 3) & 7));
-}
-
-void resiy(){
-	*cpuread(cpuIY+displace) &= ~(1 << ((op >> 3) & 7));
-}
-
-void ret(){
-	uint16_t tmp;
-	tmp = *cpuread(cpuSP++);
-	tmp |= ((*cpuread(cpuSP++)) << 8);
-	cpuPC = tmp;
-}
-
-void retc(){
-	uint8_t cc[8] = {!(*cpuFreg & 0x40), (*cpuFreg & 0x40), !(*cpuFreg & 0x01), (*cpuFreg & 0x01), !(*cpuFreg & 0x04), (*cpuFreg & 0x04), !(*cpuFreg & 0x80), (*cpuFreg & 0x80)};
-	if (cc[(op >> 3) & 7]){
-		ret();
-		/* TODO: add extra cycles */
-	}
-}
-
-void rl(){
-	uint8_t *r[8] = {cpuBreg, cpuCreg, cpuDreg, cpuEreg, cpuHreg, cpuLreg, cpuread(*cpuHLreg), cpuAreg};
-	uint8_t tmp = *r[op & 7];
-	*r[op & 7] = ((*r[op & 7] << 1) | (*cpuFreg & 0x01));
-	*cpuFreg = (*r[op & 7] & 0x80) ? (*cpuFreg | 0x80) : (*cpuFreg & ~0x80); /* S flag */
-	*cpuFreg = (!*r[op & 7]) ? (*cpuFreg | 0x40) : (*cpuFreg & ~0x40); /* Z flag */
-	*cpuFreg = (*cpuFreg & ~0x10); /* H flag */
-	*cpuFreg = (!(parcalc(*r[op & 7]) % 2)) ? (*cpuFreg | 0x04) : (*cpuFreg & ~0x04); /* P/V flag */
-	*cpuFreg = (*cpuFreg & ~0x02); /* N flag */
-	*cpuFreg = (tmp & 0x80) ? (*cpuFreg | 0x01) : (*cpuFreg & ~0x01); /* C flag */
-}
-
-void rla(){
-	uint8_t tmp = *cpuAreg;
-	*cpuAreg = ((*cpuAreg << 1) | (*cpuFreg & 0x01));
-	*cpuFreg = (*cpuFreg & ~0x10); /* H flag */
-	*cpuFreg = (*cpuFreg & ~0x02); /* N flag */
-	*cpuFreg = (tmp & 0x80) ? (*cpuFreg | 0x01) : (*cpuFreg & ~0x01); /* C flag */
-}
-
-void rlca(){
-	uint8_t tmp = *cpuAreg;
-	*cpuAreg = ((*cpuAreg << 1) | (tmp >> 7));
-	*cpuFreg = (*cpuFreg & ~0x10); /* H flag */
-	*cpuFreg = (*cpuFreg & ~0x02); /* N flag */
-	*cpuFreg = (tmp & 0x80) ? (*cpuFreg | 0x01) : (*cpuFreg & ~0x01); /* C flag */
-}
-
-void rr(){
-	uint8_t *r[8] = {cpuBreg, cpuCreg, cpuDreg, cpuEreg, cpuHreg, cpuLreg, cpuread(*cpuHLreg), cpuAreg};
-	uint8_t tmp = *r[op & 7];
-	*r[op & 7] = ((*r[op & 7] >> 1) | (*cpuFreg << 7));
-	*cpuFreg = (*r[op & 7] & 0x80) ? (*cpuFreg | 0x80) : (*cpuFreg & ~0x80); /* S flag */
-	*cpuFreg = (!*r[op & 7]) ? (*cpuFreg | 0x40) : (*cpuFreg & ~0x40); /* Z flag */
-	*cpuFreg = (*cpuFreg & ~0x10); /* H flag */
-	*cpuFreg = (!(parcalc(*r[op & 7]) % 2)) ? (*cpuFreg | 0x04) : (*cpuFreg & ~0x04); /* P/V flag */
-	*cpuFreg = (*cpuFreg & ~0x02); /* N flag */
-	*cpuFreg = (tmp & 0x01) ? (*cpuFreg | 0x01) : (*cpuFreg & ~0x01); /* C flag */
-}
-
-void rra(){
-	uint8_t tmp = *cpuAreg;
-	*cpuAreg = ((*cpuAreg >> 1) | (*cpuFreg << 7));
-	*cpuFreg = (*cpuFreg & ~0x10); /* H flag */
-	*cpuFreg = (*cpuFreg & ~0x02); /* N flag */
-	*cpuFreg = (tmp & 0x01) ? (*cpuFreg | 0x01) : (*cpuFreg & ~0x01); /* C flag */
-}
-
-void rrc(){
-	uint8_t *r[8] = {cpuBreg, cpuCreg, cpuDreg, cpuEreg, cpuHreg, cpuLreg, cpuread(*cpuHLreg), cpuAreg};
-	uint8_t tmp = *r[op & 7];
-	*r[op & 7] = ((*r[op & 7] >> 1) | (tmp << 7));
-	*cpuFreg = (*r[op & 7] & 0x80) ? (*cpuFreg | 0x80) : (*cpuFreg & ~0x80); /* S flag */
-	*cpuFreg = (!*r[op & 7]) ? (*cpuFreg | 0x40) : (*cpuFreg & ~0x40); /* Z flag */
-	*cpuFreg = (*cpuFreg & ~0x10); /* H flag */
-	*cpuFreg = (!(parcalc(*r[op & 7]) % 2)) ? (*cpuFreg | 0x04) : (*cpuFreg & ~0x04); /* P/V flag */
-	*cpuFreg = (*cpuFreg & ~0x02); /* N flag */
-	*cpuFreg = (tmp & 0x01) ? (*cpuFreg | 0x01) : (*cpuFreg & ~0x01); /* C flag */
-}
-
-void rrca(){
-	uint8_t tmp = *cpuAreg;
-	*cpuAreg = (*cpuAreg >> 1);
-	*cpuAreg |= (tmp << 7);
-	*cpuFreg = (*cpuFreg & ~0x10); /* H flag */
-	*cpuFreg = (*cpuFreg & ~0x02); /* N flag */
-	*cpuFreg = (tmp & 0x01) ? (*cpuFreg | 0x01) : (*cpuFreg & ~0x01); /* C flag */
-}
-
-void rld(){
-	uint8_t tmp = *cpuAreg;
-	uint8_t val = *cpuread(*cpuHLreg);
-	*cpuAreg = ((*cpuAreg & 0xf0) | ((val & 0xf0) >> 4));
-	val = (val << 4);
-	val |= (tmp & 0x0f);
-	cpuwrite(*cpuHLreg, val);
-	*cpuFreg = (*cpuAreg & 0x80) ? (*cpuFreg | 0x80) : (*cpuFreg & ~0x80); /* S flag */
-	*cpuFreg = (!*cpuAreg) ? (*cpuFreg | 0x40) : (*cpuFreg & ~0x40); /* Z flag */
-	*cpuFreg = (*cpuFreg & ~0x10); /* H flag */
-	*cpuFreg = (!(parcalc(*cpuAreg) % 2)) ? (*cpuFreg | 0x04) : (*cpuFreg & ~0x04); /* P/V flag */
-	*cpuFreg = (*cpuFreg & ~0x02); /* N flag */
-}
-
-void rrd(){
-	uint8_t tmp = *cpuAreg;
-	uint8_t val = *cpuread(*cpuHLreg);
-	*cpuAreg = ((*cpuAreg & 0xf0) | (val & 0x0f));
-	val = (val >> 4);
-	val |= (tmp << 4);
-	cpuwrite(*cpuHLreg, val);
-	*cpuFreg = (*cpuAreg & 0x80) ? (*cpuFreg | 0x80) : (*cpuFreg & ~0x80); /* S flag */
-	*cpuFreg = (!*cpuAreg) ? (*cpuFreg | 0x40) : (*cpuFreg & ~0x40); /* Z flag */
-	*cpuFreg = (*cpuFreg & ~0x10); /* H flag */
-	*cpuFreg = (!(parcalc(*cpuAreg) % 2)) ? (*cpuFreg | 0x04) : (*cpuFreg & ~0x04); /* P/V flag */
-	*cpuFreg = (*cpuFreg & ~0x02); /* N flag */
-}
-
-void rst(){
-	cpuwrite(--cpuSP, ((cpuPC & 0xff00) >> 8));
-	cpuwrite(--cpuSP, ( cpuPC & 0x00ff));
-	cpuPC = (op & 0x38);
-}
-
-
-void sbc16(){
-	uint16_t *rp[4] = {cpuBCreg, cpuDEreg, cpuHLreg, &cpuSP};
-	uint16_t val = *rp[(op >> 4) & 0x03] + (*cpuFreg & 0x01);
-	uint32_t res = *cpuHLreg - val;
-	*cpuFreg = (res & 0x8000) ? (*cpuFreg | 0x80) : (*cpuFreg & ~0x80); /* S flag */
-	*cpuFreg = (!(res & 0xffff)) ? (*cpuFreg | 0x40) : (*cpuFreg & ~0x40); /* Z flag */
-	*cpuFreg = ((uint16_t)((*cpuHLreg & 0xfff) - (val & 0xfff)) > 0xfff) ? (*cpuFreg | 0x10) : (*cpuFreg & ~0x10); /* H flag */
-	*cpuFreg = ((*cpuHLreg ^ res) & ((*rp[(op >> 4) & 0x03] + (*cpuFreg & 0x01)) ^ res) & 0x8000) ? (*cpuFreg | 0x04) : (*cpuFreg & ~0x04); /* P/V flag */
-	*cpuFreg = (*cpuFreg | 0x02); /* N flag */
-	*cpuFreg = (res > 0xffff) ? (*cpuFreg | 0x01) : (*cpuFreg & ~0x01); /* C flag */
-	*cpuHLreg = res;
-}
-
-void sbci(){
-	printf("%s: %02x\n",opmess,op);
-	exit(1);}
-
-void scf(){
-*cpuFreg |= 0x01;
-}
-
-void set(){
-	uint8_t *r[8] = {cpuBreg, cpuCreg, cpuDreg, cpuEreg, cpuHreg, cpuLreg, cpuread(*cpuHLreg), cpuAreg};
-	*r[op & 7] |= (1 << ((op >> 3) & 7));
-}
-
-void setix(){
-	*cpuread(cpuIX + displace) |= (1 << ((op >> 3) & 7));
-}
-
-void setiy(){
-	*cpuread(cpuIY + displace) |= (1 << ((op >> 3) & 7));
-}
-
-void sla(){
-	uint8_t *r[8] = {cpuBreg, cpuCreg, cpuDreg, cpuEreg, cpuHreg, cpuLreg, cpuread(*cpuHLreg), cpuAreg};
-	*cpuFreg = (*r[op & 7] & 0x80) ? (*cpuFreg | 0x01) : (*cpuFreg & ~0x01); /* C flag */
-	*r[op & 7] = (*r[op & 7] << 1);
-	*cpuFreg &= ~0x80; /* S flag */
-	*cpuFreg = (!*r[op & 7]) ? (*cpuFreg | 0x40) : (*cpuFreg & ~0x40); /* Z flag */
-	*cpuFreg &= ~0x10; /* H flag */
-	*cpuFreg = (!(parcalc(*r[op & 7]) % 2)) ? (*cpuFreg | 0x04) : (*cpuFreg & ~0x04); /* P/V flag */
-	*cpuFreg &= ~0x02; /* N flag */
-}
-
-void srl(){
-	uint8_t *r[8] = {cpuBreg, cpuCreg, cpuDreg, cpuEreg, cpuHreg, cpuLreg, cpuread(*cpuHLreg), cpuAreg};
-	*cpuFreg = (*r[op & 7] & 0x01) ? (*cpuFreg | 0x01) : (*cpuFreg & ~0x01); /* C flag */
-	*r[op & 7] = (*r[op & 7] >> 1);
-	*cpuFreg &= ~0x80; /* S flag */
-	*cpuFreg = (!*r[op & 7]) ? (*cpuFreg | 0x40) : (*cpuFreg & ~0x40); /* Z flag */
-	*cpuFreg &= ~0x10; /* H flag */
-	*cpuFreg = (!(parcalc(*r[op & 7]) % 2)) ? (*cpuFreg | 0x04) : (*cpuFreg & ~0x04); /* P/V flag */
-	*cpuFreg &= ~0x02; /* N flag */
-}
-
-
-
 
 uint8_t read_cpu_register(uint8_t reg) {
 	uint8_t value;
@@ -1565,4 +1859,9 @@ void synchronize(uint_fast8_t x) {
 uint8_t parcalc(uint8_t val){
 	uint8_t par = ((val>>7)&1)+((val>>6)&1)+((val>>5)&1)+((val>>4)&1)+((val>>3)&1)+((val>>2)&1)+((val>>1)&1)+(val&1);
 	return !(par % 2);
+}
+
+void addcycles(uint8_t val){
+	vdp_wait += (val * 3);
+	cpucc += val;
 }

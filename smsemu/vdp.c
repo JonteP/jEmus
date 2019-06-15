@@ -11,7 +11,7 @@ uint8_t mode1, mode2, screenHeight = 192, codeReg;
 uint16_t controlWord, vdpdot = 0, vCounter = 0, hCounter = 0, addReg, nameAdd;
 uint32_t vdp_wait = 0, vdpcc = 0, frame = 0;
 /* Mapped memory */
-uint8_t vRam[0x4000], cRam[0x1f], screenBuffer[SHEIGHT][SWIDTH];
+uint8_t vRam[0x4000], cRam[0x20], screenBuffer[SHEIGHT][SWIDTH];
 static inline void render_scanline(void);
 
 void write_vdp_control(uint8_t value){
@@ -113,7 +113,7 @@ while (cycles) {
 	else if (vCounter == screenHeight && !vdpdot){
 		statusFlags |= 0x80;
 	}
-	if (vCounter < 240 && !vdpdot)
+	if (vCounter < 240 && !vdpdot && !(frame%20))
 		render_scanline();
 	cycles--;
 	vdp_wait--;
@@ -121,31 +121,34 @@ while (cycles) {
 }
 
 void render_scanline(){
-	uint8_t col = 64, pix, rr, cl, cc, topBorder = 24, bottomBorder = 216;
+	uint8_t col = 64, pix, rr, cl, cc, topBorder = 24, row;
 	uint16_t nameWord, pidx;
-	if (vCounter >= topBorder && vCounter < bottomBorder){
-		uint8_t line = vCounter - topBorder;
-		uint16_t scroll = ((mode2&0x40) && line < 16) ? 0 : bgXScroll;
+	if (vCounter < screenHeight){
+		uint16_t scroll = ((mode2&0x40) && vCounter < 16) ? 0 : bgXScroll;
+		row = ((bgYScroll + vCounter) % 224);
 	for (uint8_t j = 0; j < col; j=j+2){
 		cl = 64 - ((scroll & 0xf8) >> 2) + j;
-		nameWord = (vRam[nameAdd + ((line & 0xf8) << 3) + (cl&0x3f)]);
-		nameWord |= (vRam[nameAdd + ((line & 0xf8) << 3) + (cl&0x3f)+1] << 8);
+		nameWord = (vRam[nameAdd + ((row & 0xf8) << 3) + (cl&0x3f)]);
+		nameWord |= (vRam[nameAdd + ((row & 0xf8) << 3) + (cl&0x3f)+1] << 8);
 		pidx = ((nameWord & 0x1ff) << 5);
-		rr = (nameWord & 0x400) ? 7-(line % 8) : (line % 8);
+		rr = (nameWord & 0x400) ? 7-(vCounter % 8) : (vCounter % 8);
 		for (uint8_t c = 0; c < 8; c++){
 			cc = (nameWord & 0x200) ? c : 7-c;
 			pix  = (vRam[pidx + 4*rr] & (1 << cc)) ? 1:0;
 			pix |= (vRam[pidx + 4*rr + 1] & (1 << cc)) ? 2:0;
 			pix |= (vRam[pidx + 4*rr + 2] & (1 << cc)) ? 4:0;
 			pix |= (vRam[pidx + 4*rr + 3] & (1 << cc)) ? 8:0;
-			screenBuffer[vCounter][(c+(scroll&7)+(j>>1)*8) & 0xff]=cRam[pix+((nameWord & 0x800)?0x10:0)];
-			screenBuffer[vCounter][(c+scroll) & 7]= cRam[bgColor + 0x10];
+			screenBuffer[vCounter + topBorder][(c+(scroll&7)+(j>>1)*8) & 0xff]=cRam[pix+((nameWord & 0x800)?0x10:0)];
+			screenBuffer[vCounter + topBorder][(c+scroll) & 7]= cRam[bgColor + 0x10];
 		}
 	}
 	}
 	else{
+		uint8_t line = vCounter + topBorder;
+		if (line >= 240)
+			line -= 240;
 		for (uint16_t p = 0; p<256; p++){
-			screenBuffer[vCounter][p] = cRam[bgColor + 0x10];
+			screenBuffer[line][p] = cRam[bgColor + 0x10];
 		}
 	}
 }
