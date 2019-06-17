@@ -113,7 +113,7 @@ while (cycles) {
 	else if (vCounter == screenHeight && !vdpdot){
 		statusFlags |= 0x80;
 	}
-	if (vCounter < 240 && !vdpdot && !(frame%20))
+	if (vCounter < 240 && !vdpdot)
 		render_scanline();
 	cycles--;
 	vdp_wait--;
@@ -131,7 +131,7 @@ void render_scanline(){
 		nameWord = (vRam[nameAdd + ((row & 0xf8) << 3) + (cl&0x3f)]);
 		nameWord |= (vRam[nameAdd + ((row & 0xf8) << 3) + (cl&0x3f)+1] << 8);
 		pidx = ((nameWord & 0x1ff) << 5);
-		rr = (nameWord & 0x400) ? 7-(vCounter % 8) : (vCounter % 8);
+		rr = (nameWord & 0x400) ? 7-(row & 7) : (row & 7);
 		for (uint8_t c = 0; c < 8; c++){
 			cc = (nameWord & 0x200) ? c : 7-c;
 			pix  = (vRam[pidx + 4*rr] & (1 << cc)) ? 1:0;
@@ -144,9 +144,7 @@ void render_scanline(){
 	}
 	}
 	else{
-		uint8_t line = vCounter + topBorder;
-		if (line >= 240)
-			line -= 240;
+		uint8_t line = (vCounter + topBorder) % 240;
 		for (uint16_t p = 0; p<256; p++){
 			screenBuffer[line][p] = cRam[bgColor + 0x10];
 		}
