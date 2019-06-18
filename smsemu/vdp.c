@@ -8,7 +8,7 @@
 uint8_t controlFlag = 0, statusFlags = 0, readBuffer = 0, bgColor = 0, bgXScroll, bgYScroll, lineCounter;
 /* REGISTERS */
 uint8_t mode1, mode2, screenHeight = 192, codeReg;
-uint16_t controlWord, vdpdot = 0, vCounter = 0, hCounter = 0, addReg, nameAdd;
+uint16_t controlWord, vdpdot = 0, vCounter = 0, hCounter = 0, addReg, nameAdd, spritePattern, spriteAttribute;
 uint32_t vdp_wait = 0, vdpcc = 0, frame = 0;
 /* Mapped memory */
 uint8_t vRam[0x4000], cRam[0x20], screenBuffer[SHEIGHT][SWIDTH];
@@ -42,8 +42,10 @@ if (controlFlag){
 		case 0x0400: /* Background Pattern Generator Base Address */
 			break;
 		case 0x0500: /* Sprite Attribute Table Base Address */
+			spriteAttribute = ((controlWord & 0x7e) << 7);
 			break;
 		case 0x0600: /* Sprite Pattern Generator Base Address */
+			spritePattern = ((controlWord & 0x04) << 11);
 			break;
 		case 0x0700: /* Overscan/Backdrop Color */
 			bgColor = (controlWord & 0x0f);
@@ -98,6 +100,7 @@ while (cycles) {
 	}
 	vdpcc++;
 	vdpdot++;
+	hCounter = (vdpdot & 0xfe);
 
 	if(vdpdot == 684){
 		vdpdot = 0;
@@ -121,10 +124,10 @@ while (cycles) {
 }
 
 void render_scanline(){
-	uint8_t col = 64, pix, rr, cl, cc, topBorder = 24, row;
-	uint16_t nameWord, pidx;
-	if (vCounter < screenHeight){
-		uint16_t scroll = ((mode2&0x40) && vCounter < 16) ? 0 : bgXScroll;
+	uint8_t col = 64, pix, rr, cl, cc, topBorder = 24, row, spriteY, spriteX, spriteI, sCount = 0, offset;
+	uint16_t nameWord, pidx, sidx;
+	if (vCounter < screenHeight && (mode2 & 0x40)){
+		uint16_t scroll = ((mode1&0x40) && vCounter < 16) ? 0 : bgXScroll;
 		row = ((bgYScroll + vCounter) % 224);
 	for (uint8_t j = 0; j < col; j=j+2){
 		cl = 64 - ((scroll & 0xf8) >> 2) + j;
@@ -134,14 +137,37 @@ void render_scanline(){
 		rr = (nameWord & 0x400) ? 7-(row & 7) : (row & 7);
 		for (uint8_t c = 0; c < 8; c++){
 			cc = (nameWord & 0x200) ? c : 7-c;
-			pix  = (vRam[pidx + 4*rr] & (1 << cc)) ? 1:0;
-			pix |= (vRam[pidx + 4*rr + 1] & (1 << cc)) ? 2:0;
-			pix |= (vRam[pidx + 4*rr + 2] & (1 << cc)) ? 4:0;
-			pix |= (vRam[pidx + 4*rr + 3] & (1 << cc)) ? 8:0;
+			pix  = (vRam[pidx + (rr << 2)] & (1 << cc)) ? 1:0;
+			pix |= (vRam[pidx + (rr << 2) + 1] & (1 << cc)) ? 2:0;
+			pix |= (vRam[pidx + (rr << 2) + 2] & (1 << cc)) ? 4:0;
+			pix |= (vRam[pidx + (rr << 2) + 3] & (1 << cc)) ? 8:0;
 			screenBuffer[vCounter + topBorder][(c+(scroll&7)+(j>>1)*8) & 0xff]=cRam[pix+((nameWord & 0x800)?0x10:0)];
 			screenBuffer[vCounter + topBorder][(c+scroll) & 7]= cRam[bgColor + 0x10];
 		}
 	}
+
+	for(uint8_t s = 0; s < 64; s++){
+		spriteY = (vRam[spriteAttribute + s] + 1);
+		if(spriteY == 0xd0)
+			break;
+		if ((vCounter >= spriteY) && (vCounter < (spriteY + ((mode2 & 0x02) ? 16 : 8)))){
+			sCount++;
+			spriteX = vRam[spriteAttribute + (s << 1) + 128];
+			spriteI = vRam[spriteAttribute + (s << 1) + 129];
+			sidx = spritePattern + (((mode2 & 0x02) ? (spriteI & 0xfe) : spriteI) << 5);
+			for (uint8_t c = 0; c < 8; c++){
+				pix  = (vRam[sidx + ((vCounter - spriteY) << 2)] & (1 << (7-c))) ? 1:0;
+				pix |= (vRam[sidx + ((vCounter - spriteY) << 2) + 1] & (1 << (7-c))) ? 2:0;
+				pix |= (vRam[sidx + ((vCounter - spriteY) << 2) + 2] & (1 << (7-c))) ? 4:0;
+				pix |= (vRam[sidx + ((vCounter - spriteY) << 2) + 3] & (1 << (7-c))) ? 8:0;
+				offset = (c + spriteX - ((mode1 & 0x08) ? 8 : 0));
+				if(pix && offset < 248 && offset > 7)
+					screenBuffer[vCounter + topBorder][offset]=cRam[pix+0x10];
+			}
+		}
+	}
+
+
 	}
 	else{
 		uint8_t line = (vCounter + topBorder) % 240;

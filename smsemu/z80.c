@@ -1536,20 +1536,24 @@ void set()	{ /* SET b,r */
 	*r[op & 7] |= (1 << ((op >> 3) & 7));
 }
 void setix(){ /* SET b,(IX+d) */
-	*cpuread(cpuIX + displace) |= (1 << ((op >> 3) & 7));
+	uint8_t tmp = *cpuread(cpuIX+displace) | (1 << ((op >> 3) & 7));
+	cpuwrite(cpuIX+displace, tmp);
 }
 void setiy(){ /* SET b,(IY+d) */
-	*cpuread(cpuIY + displace) |= (1 << ((op >> 3) & 7));
+	uint8_t tmp = *cpuread(cpuIY+displace) | (1 << ((op >> 3) & 7));
+	cpuwrite(cpuIY+displace, tmp);
 }
 void res()	{ /* RES b,r */
 	uint8_t *r[8] = {cpuBreg, cpuCreg, cpuDreg, cpuEreg, cpuHreg, cpuLreg, cpuread(*cpuHLreg), cpuAreg};
 	*r[op & 7] &= ~(1 << ((op >> 3) & 7));
 }
 void resix(){ /* RES b,(IX+d) */
-	*cpuread(cpuIX+displace) &= ~(1 << ((op >> 3) & 7));
+	uint8_t tmp = *cpuread(cpuIX+displace) & ~(1 << ((op >> 3) & 7));
+	cpuwrite(cpuIX+displace, tmp);
 }
 void resiy(){ /* RES b,(IY+d) */
-	*cpuread(cpuIY+displace) &= ~(1 << ((op >> 3) & 7));
+	uint8_t tmp = *cpuread(cpuIY+displace) & ~(1 << ((op >> 3) & 7));
+	cpuwrite(cpuIY+displace, tmp);
 }
 
 
@@ -1568,7 +1572,7 @@ void jpc()	{ /* JP cc,nn */
 		cpuPC = address;
 }
 void jr()	{ /* JR e */
-	cpuPC += ((int8_t)*cpuread(cpuPC) + 1);
+	cpuPC += ((int8_t)(*cpuread(cpuPC) + 1));
 }
 void jrc()	{ /* JR cc,e */
 	uint8_t cc[4] = {!(*cpuFreg & 0x40), (*cpuFreg & 0x40), !(*cpuFreg & 0x01), (*cpuFreg & 0x01)};
