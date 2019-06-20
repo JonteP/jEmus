@@ -21,7 +21,7 @@ void load_rom(char *r)
 	rom = malloc(rsize);
 	fread(rom, rsize, 1, romFile);
 	/* patch */
-	*(rom+0x85) = 0x3;
+	*(rom+0x85) = 0x9;
 	*(rom+0x86) = 1;
 	bank[0] = rom + (0x4000 * fcr[0]);
 	bank[1] = rom + (0x4000 * fcr[1]);
