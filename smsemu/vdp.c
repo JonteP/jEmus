@@ -124,7 +124,7 @@ while (cycles) {
 }
 
 void render_scanline(){
-	uint8_t col = 64, pix, rr, cl, cc, topBorder = 24, row, spriteY, spriteX, spriteI, sCount = 0, offset;
+	uint8_t col = 64, pix, rr, cl, cc, topBorder = 24, row, spriteY, spriteX, spriteI, sCount = 0, offset, spriteMask[SHEIGHT][SWIDTH] = {0};
 	uint16_t nameWord, pidx, sidx;
 	if (vCounter < screenHeight && (mode2 & 0x40)){
 		uint16_t scroll = ((mode1&0x40) && vCounter < 16) ? 0 : bgXScroll;
@@ -152,6 +152,9 @@ void render_scanline(){
 			break;
 		if ((vCounter >= spriteY) && (vCounter < (spriteY + ((mode2 & 0x02) ? 16 : 8)))){
 			sCount++;
+			if (sCount > 8)
+				statusFlags |= 0x40;
+			else{
 			spriteX = vRam[spriteAttribute + (s << 1) + 128];
 			spriteI = vRam[spriteAttribute + (s << 1) + 129];
 			sidx = spritePattern + (((mode2 & 0x02) ? (spriteI & 0xfe) : spriteI) << 5);
@@ -161,9 +164,16 @@ void render_scanline(){
 				pix |= (vRam[sidx + ((vCounter - spriteY) << 2) + 2] & (1 << (7-c))) ? 4:0;
 				pix |= (vRam[sidx + ((vCounter - spriteY) << 2) + 3] & (1 << (7-c))) ? 8:0;
 				offset = (c + spriteX - ((mode1 & 0x08) ? 8 : 0));
-				if(pix && offset < 248 && offset > 7)
-					screenBuffer[vCounter + topBorder][offset]=cRam[pix+0x10];
+				if(pix && offset < 248 && offset > 7){
+					if (spriteMask[vCounter + topBorder][offset])
+						statusFlags |= 0x20;
+					else{
+						screenBuffer[vCounter + topBorder][offset]=cRam[pix+0x10];
+						spriteMask[vCounter + topBorder][offset]=1;
+					}
+				}
 			}
+		}
 		}
 	}
 
