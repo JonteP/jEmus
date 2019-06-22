@@ -124,7 +124,7 @@ while (cycles) {
 }
 
 void render_scanline(){
-	uint8_t col = 64, pix, rr, cl, cc, topBorder = 24, row, spriteY, spriteX, spriteI, sCount = 0, offset, spriteMask[SHEIGHT][SWIDTH] = {0};
+	uint8_t col = 64, pix, rr, cl, cc, topBorder = 24, row, spriteY, spriteX, spriteI, sCount = 0, offset, spriteMask[SHEIGHT][SWIDTH] = {0}, priorityMask[SHEIGHT][SWIDTH] = {0};
 	uint16_t nameWord, pidx, sidx;
 	if (vCounter < screenHeight && (mode2 & 0x40)){
 		uint16_t scroll = ((mode1&0x40) && vCounter < 16) ? 0 : bgXScroll;
@@ -142,6 +142,7 @@ void render_scanline(){
 			pix |= (vRam[pidx + (rr << 2) + 2] & (1 << cc)) ? 4:0;
 			pix |= (vRam[pidx + (rr << 2) + 3] & (1 << cc)) ? 8:0;
 			screenBuffer[vCounter + topBorder][(c+(scroll&7)+(j>>1)*8) & 0xff]=cRam[pix+((nameWord & 0x800)?0x10:0)];
+			priorityMask[vCounter + topBorder][(c+(scroll&7)+(j>>1)*8) & 0xff]=((nameWord & 0x1000) >> 8);
 			screenBuffer[vCounter + topBorder][(c+scroll) & 7]= cRam[bgColor + 0x10];
 		}
 	}
@@ -166,9 +167,10 @@ void render_scanline(){
 				offset = (c + spriteX - ((mode1 & 0x08) ? 8 : 0));
 				if(pix && offset < 248 && offset > 7){
 					if (spriteMask[vCounter + topBorder][offset])
-						statusFlags |= 0x20;
-					else{
-						screenBuffer[vCounter + topBorder][offset]=cRam[pix+0x10];
+						statusFlags |= 0x20; /* set sprite collision flag */
+					else{/* TODO: proper check for transparent BG */
+						if((!priorityMask[vCounter + topBorder][offset]) || (screenBuffer[vCounter + topBorder][offset] == cRam[bgColor + 0x10]))
+							screenBuffer[vCounter + topBorder][offset]=cRam[pix+0x10];
 						spriteMask[vCounter + topBorder][offset]=1;
 					}
 				}
