@@ -8,7 +8,7 @@ char *romName;
 int main() {
 	init_sdl();
 	init_time();
-	romName = "/home/jonas/games/sms_test/vdptest/VDPTEST.sms";
+	romName = "/home/jonas/games/roms/sms/everdrive/60hz/Wonder Boy III - The Dragon's Trap (USA, Europe).sms";
 	/*romName = "/home/jonas/games/sms_test/zexsms/zexdoc.sms";*/
 	/*romName = "/home/jonas/mame/roms/sms/mpr-11124.ic2";*/
 	load_rom(romName);

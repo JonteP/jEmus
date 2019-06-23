@@ -16,13 +16,12 @@ static inline void render_scanline(void);
 
 void write_vdp_control(uint8_t value){
 controlWord = controlFlag ? ((controlWord & 0x00ff) | (value << 8)) : ((controlWord & 0xff00) | value);
+addReg = (controlWord & 0x3fff);
+codeReg = (controlWord >> 14);
 if (controlFlag){
-	codeReg = (controlWord >> 14);
-	addReg = (controlWord & 0x3fff);
 	switch (codeReg){
 	case 0:
 		read_vdp_data(); /* dummy read? */
-		addReg++;
 		break;
 	case 1:
 		break;
@@ -72,19 +71,20 @@ controlFlag ^= 1;
 }
 
 void write_vdp_data(uint8_t value){
-	if(codeReg <= 2){
-		vRam[addReg & 0x3fff] = value;
+	if(codeReg < 3){
+		vRam[addReg++ & 0x3fff] = value;
+		readBuffer = value;
 	}
 	else if(codeReg == 3){
-		cRam[addReg & 0x1f] = value;
+		cRam[addReg++ & 0x1f] = value;
 	}
-	readBuffer = value;
-	addReg++;
+	controlFlag = 0;
 }
 
 uint8_t read_vdp_data(){
 	uint8_t value = readBuffer;
-	readBuffer = vRam[addReg & 0x3fff];
+	readBuffer = vRam[addReg++ & 0x3fff];
+	controlFlag = 0;
 	return value;
 }
 
@@ -149,9 +149,9 @@ void render_scanline(){
 
 	for(uint8_t s = 0; s < 64; s++){
 		spriteY = (vRam[spriteAttribute + s] + 1);
-		if(spriteY == 0xd0)
+		if(spriteY == 0xd1)
 			break;
-		if ((vCounter >= spriteY) && (vCounter < (spriteY + ((mode2 & 0x02) ? 16 : 8)))){
+		else if ((vCounter >= spriteY) && (vCounter < (spriteY + ((mode2 & 0x02) ? 16 : 8)))){
 			sCount++;
 			if (sCount > 8)
 				statusFlags |= 0x40;

@@ -161,7 +161,7 @@ static inline void jp(), jpc(), jr(), jrc(), jphl(), jpix(), jpiy(), djnz();
 /* call, return */
 static inline void call(), callc(), ret(), retc(), reti(), retn(), rst();
 /* input, output */
-static inline void in(), ini(), inir(), out(), outc(), outi(), otir(), outd();
+static inline void in(), inac(), ini(), inir(), out(), outc(), outi(), otir(), outd();
 
 static inline void cb(), dd(), ddcb(), dcixh(), dciyh(), dcixl(), dciyl(), ed(), fd(), fdcb(), inixh(), iniyh(), inixl(), iniyl(), ldixh(), ldiyh(), ldixl(), ldiyl(), lrixh(), lrixl(), lriyh(), lriyl(), lixhr(), lixlr(), liyhr(), liylr(), noop(), unp();
 
@@ -298,7 +298,7 @@ static void (*edtable[0x100])() = { noop, noop, noop, noop, noop, noop, noop, no
 									noop, outc,sbc16,ldidd,  neg, retn,   im,ldina, noop, outc,adcrp, ldrp,  neg, reti, noop, ldra, /* 4 */
 									noop, outc,sbc16,ldidd,  neg, noop,   im,ldain, noop, outc,adcrp, ldrp,  neg, noop, noop, ldar, /* 5 */
 									noop, outc,sbc16,ldidd,  neg, noop,   im,  rrd, noop, outc,adcrp, ldrp,  neg, noop, noop,  rld, /* 6 */
-									noop, outc,sbc16,ldidd,  neg, noop,   im, noop, noop, outc,adcrp, ldrp,  neg, noop, noop, noop, /* 7 */
+									noop, outc,sbc16,ldidd,  neg, noop,   im, noop, inac, outc,adcrp, ldrp,  neg, noop, noop, noop, /* 7 */
 									noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, /* 8 */
 									noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, /* 9 */
 									 ldi,  cpi,  ini, outi, noop, noop, noop, noop,  ldd,  cpd, noop, outd, noop, noop, noop, noop, /* a */
@@ -1611,6 +1611,16 @@ void in()	{ /* IN A,(n) */
 	uint8_t reg = *cpuread(cpuPC++);
 	*cpuAreg = read_cpu_register(reg);
 }
+void inac()	{ /* IN r,(C) */
+	uint8_t *r[8] = {cpuBreg, cpuCreg, cpuDreg, cpuEreg, cpuHreg, cpuLreg, cpuread(*cpuHLreg), cpuAreg};
+	uint8_t tmp = read_cpu_register(*cpuCreg);
+	*r[(op >> 3) & 7] = tmp;
+	*cpuFreg = (tmp & 0x80) ? (*cpuFreg | 0x80) : (*cpuFreg & ~0x80); /* S flag */
+	*cpuFreg = (!tmp) ? (*cpuFreg | 0x40) : (*cpuFreg & ~0x40); /* Z flag */
+	*cpuFreg &= ~0x10; /* H flag */
+	*cpuFreg = parcalc(tmp) ? (*cpuFreg | 0x04) : (*cpuFreg & ~0x04); /* P/V flag */
+	*cpuFreg &= ~0x02; /* N flag */
+}
 void ini()	{ /* INI */
 	uint8_t tmp = read_cpu_register(*cpuCreg);
 	cpuwrite(*cpuHLreg, tmp);
@@ -1933,7 +1943,6 @@ uint8_t read_cpu_register(uint8_t reg) {
 		break;
 	case 0x80: /* Read VDP Data Port */
 		value = read_vdp_data();
-		controlFlag = 0;
 		break;
 	case 0x81: /* Read VDP Control Port */
 		value = statusFlags;
@@ -1966,7 +1975,6 @@ void write_cpu_register(uint8_t reg, uint_fast8_t value) {
 	case 0x80:
 		/*printf("Writing to VDP data port: %02x\n",reg);*/
 		write_vdp_data(value);
-		controlFlag = 0;
 		break;
 	case 0x81:
 		/*printf("Writing to VDP control port: %02x\n",reg);*/
