@@ -166,7 +166,7 @@ static inline void in(), inac(), ini(), inir(), out(), outc(), outi(), otir(), o
 static inline void cb(), dd(), ddcb(), dcixh(), dciyh(), dcixl(), dciyl(), ed(), fd(), fdcb(), inixh(), iniyh(), inixl(), iniyl(), ldixh(), ldiyh(), ldixl(), ldiyl(), lrixh(), lrixl(), lriyh(), lriyl(), lixhr(), lixlr(), liyhr(), liylr(), noop(), unp();
 
 int8_t displace;
-uint_fast8_t mode, opcode, addmode, addcycle, tmpval8, s = 0, dummy, pcl, pch, dummywrite = 0, op, irqPulled = 0, nmiPulled = 0, irqPending = 0, nmiPending = 0, intDelay = 0, halted = 0;
+uint_fast8_t mode, opcode, addmode, addcycle, tmpval8, s = 0, dummy, pcl, pch, dummywrite = 0, op, irqPulled = 0, nmiPulled = 0, irqPending = 0, nmiPending = 0, intDelay = 0, halted = 0, bramReg = 0;
 uint16_t tmpval16;
 
 /* Mapped memory */
@@ -2001,10 +2001,14 @@ uint8_t * cpuread(uint16_t address) {
 void cpuwrite(uint16_t address, uint_fast8_t value) {
 	if (address >= 0xc000) /* writing to RAM */
 		cpuRam[address & 0x1fff] = value;
-	else
-		printf("Attempting write to ROM\n");
+	else if (address < 0xc000 && address >= 0x8000)
+		if(bramReg & 0x8)
+			bRam[address & 0x3fff];
 	if(address >=0xfff8){
 		switch(address & 0xf){
+		case 0xc:
+			bramReg = value;
+			break;
 		case 0xd:
 			fcr[0] = (value & 0xf);
 			break;
@@ -2017,7 +2021,7 @@ void cpuwrite(uint16_t address, uint_fast8_t value) {
 		}
 		bank[0] = (rom + (0x4000 * fcr[0]));
 		bank[1] = (rom + (0x4000 * fcr[1]));
-		bank[2] = (rom + (0x4000 * fcr[2]));
+		bank[2] = (bramReg & 0x8) ? bRam : (rom + (0x4000 * fcr[2]));
 	}
 }
 
