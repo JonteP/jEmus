@@ -4,7 +4,7 @@
 #include <stdlib.h>	/* malloc; exit */
 #include <string.h>
 
-uint8_t *rom, fcr[3] = {0, 1, 2}, *bank[3], bRam[0x4000];
+uint8_t *rom, fcr[3] = {0, 1, 2}, *bank[3], bRam[0x8000];
 FILE *romFile;
 int rsize;
 

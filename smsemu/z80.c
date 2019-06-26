@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>	/* memcpy */
+#include "smsemu.h"
 #include "cartridge.h"
 #include "vdp.h"
 #include "my_sdl.h"
@@ -1948,6 +1949,7 @@ uint8_t read_cpu_register(uint8_t reg) {
 		value = statusFlags;
 		statusFlags = 0; /* clear all flags when read */
 		controlFlag = 0;
+		lineInt = 0;
 		irqPulled = 0;
 		break;
 	case 0xc0:
@@ -2001,9 +2003,8 @@ uint8_t * cpuread(uint16_t address) {
 void cpuwrite(uint16_t address, uint_fast8_t value) {
 	if (address >= 0xc000) /* writing to RAM */
 		cpuRam[address & 0x1fff] = value;
-	else if (address < 0xc000 && address >= 0x8000)
-		if(bramReg & 0x8)
-			bRam[address & 0x3fff];
+	else if (address < 0xc000 && address >= 0x8000 && (bramReg & 0x8))
+		bank[address >> 14][address & 0x3fff] = value;
 	if(address >=0xfff8){
 		switch(address & 0xf){
 		case 0xc:
@@ -2019,9 +2020,9 @@ void cpuwrite(uint16_t address, uint_fast8_t value) {
 			fcr[2] = (value & 0xf);
 			break;
 		}
-		bank[0] = (rom + (0x4000 * fcr[0]));
-		bank[1] = (rom + (0x4000 * fcr[1]));
-		bank[2] = (bramReg & 0x8) ? bRam : (rom + (0x4000 * fcr[2]));
+		bank[0] = (rom + (fcr[0] << 14));
+		bank[1] = (rom + (fcr[1] << 14));
+		bank[2] = (bramReg & 0x8) ? (bRam + ((bramReg & 0x4) << 12)) : (rom + (fcr[2] << 14));
 	}
 }
 

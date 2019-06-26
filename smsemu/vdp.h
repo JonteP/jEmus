@@ -18,7 +18,7 @@
 #define WPOSY 100
 #define FRAMETIME 16688919 /*exact?*/
 
-extern uint8_t controlFlag, statusFlags, screenBuffer[SHEIGHT][SWIDTH];
+extern uint8_t controlFlag, statusFlags, screenBuffer[SHEIGHT][SWIDTH], lineInt;
 extern uint16_t vCounter, hCounter;
 extern uint32_t vdp_wait;
 

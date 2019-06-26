@@ -5,7 +5,8 @@
 #include "z80.h"
 #include "my_sdl.h"
 
-uint8_t controlFlag = 0, statusFlags = 0, readBuffer = 0, bgColor = 0, bgXScroll, bgYScroll, lineCounter;
+uint8_t lineCounter;
+uint8_t controlFlag = 0, statusFlags = 0, readBuffer = 0, bgColor = 0, bgXScroll, bgYScroll, lineReload, lineInt = 0;
 /* REGISTERS */
 uint8_t mode1, mode2, screenHeight = 192, codeReg;
 uint16_t controlWord, vdpdot = 0, vCounter = 0, hCounter = 0, addReg, nameAdd, spritePattern, spriteAttribute;
@@ -56,7 +57,7 @@ if (controlFlag){
 			bgYScroll = (controlWord & 0xff);
 			break;
 		case 0x0a00: /* Line counter */
-			lineCounter = (controlWord & 0xff);
+			lineReload = (controlWord & 0xff);
 			break;
 		default:
 			printf("Write to undefined VDP register\n");
@@ -73,11 +74,11 @@ controlFlag ^= 1;
 void write_vdp_data(uint8_t value){
 	if(codeReg < 3){
 		vRam[addReg++ & 0x3fff] = value;
-		readBuffer = value;
 	}
 	else if(codeReg == 3){
 		cRam[addReg++ & 0x1f] = value;
 	}
+	readBuffer = value;
 	controlFlag = 0;
 }
 
@@ -90,11 +91,11 @@ uint8_t read_vdp_data(){
 
 void run_vdp(uint32_t cycles){
 while (cycles) {
-	if ((statusFlags & 0x80) && (mode2 & 0x20) && !irqPulled)
+	if ((((statusFlags & 0x80) && (mode2 & 0x20)) || ((lineInt) && (mode1 & 0x10))) && !irqPulled)
 	{
 		irqPulled = 1;
 	}
-	else if (!(mode2 & 0x20) && irqPulled)
+	else if (((!(mode2 & 0x20)) || (!(mode1 & 0x10))) && irqPulled)
 	{
 			irqPulled = 0;
 	}
@@ -116,8 +117,18 @@ while (cycles) {
 	else if (vCounter == screenHeight && !vdpdot){
 		statusFlags |= 0x80;
 	}
-	if (vCounter < 240 && !vdpdot)
+	if (vCounter < 240 && !vdpdot){
 		render_scanline();
+	}
+	if (vCounter <= screenHeight && !vdpdot){
+		lineCounter--;
+		if (lineCounter == 0xff){
+			lineCounter = lineReload;
+			lineInt = 1;
+		}
+	}
+	else if (vCounter > screenHeight && !vdpdot)
+		lineCounter = lineReload;
 	cycles--;
 	vdp_wait--;
 }
