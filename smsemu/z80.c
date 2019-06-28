@@ -8,26 +8,29 @@
 #include "vdp.h"
 #include "my_sdl.h"
 
-						 	  /*0 |1 |2 |3 |4 |5 |6 |7 |8 |9 |a |b |c |d |e |f       */
-static uint_fast8_t ctable[] = { 4,10, 7, 6, 4, 4, 7, 4, 4,11, 7, 6, 4, 4, 7, 4,/* 0 */
-								 8,10, 7, 6, 4, 4, 7, 4,12,11, 7, 6, 4, 4, 7, 4,/* 1 */
-								 7,10,16, 6, 4, 4, 7, 4, 7,11,16, 6, 4, 4, 7, 4,/* 2 */
-								 7,10,13, 6,11,11,10, 4, 7,11,13, 6, 4, 4, 7, 4,/* 3 */
-								 4, 4, 4, 4, 4, 4, 7, 4, 4, 4, 4, 4, 4, 4, 7, 4,/* 4 */
-								 4, 4, 4, 4, 4, 4, 7, 4, 4, 4, 4, 4, 4, 4, 7, 4,/* 5 */
-								 4, 4, 4, 4, 4, 4, 7, 4, 4, 4, 4, 4, 4, 4, 7, 4,/* 6 */
-								 7, 7, 7, 7, 7, 7, 4, 7, 4, 4, 4, 4, 4, 4, 7, 4,/* 7 */
-								 4, 4, 4, 4, 4, 4, 7, 4, 4, 4, 4, 4, 4, 4, 7, 4,/* 8 */
-								 4, 4, 4, 4, 4, 4, 7, 4, 4, 4, 4, 4, 4, 4, 7, 4,/* 9 */
-								 4, 4, 4, 4, 4, 4, 7, 4, 4, 4, 4, 4, 4, 4, 7, 4,/* a */
-								 4, 4, 4, 4, 4, 4, 7, 4, 4, 4, 4, 4, 4, 4, 7, 4,/* b */
-								 5,10,10,10,10,11, 7,11, 5,10,10, 0,10,17, 7,11,/* c */
-								 5,10,10,11,10,11, 7,11, 5, 4,10,11,10, 0, 7,11,/* d */
-								 5,10,10,19,10,11, 7,11, 5, 4,10, 4,10, 0, 7,11,/* e */
-								 5,10,10, 4,10,11, 7,11, 5, 6,10, 4,10, 0, 7,11,/* f */
-							};
-/*0 |1 |2 |3 |4 |5 |6 |7 |8 |9 |a |b |c |d |e |f       */
-static uint_fast8_t ccbtable[] =  {
+
+static uint_fast8_t ctable[] = {
+ /*0 |1 |2 |3 |4 |5 |6 |7 |8 |9 |a |b |c |d |e |f       */
+	4,10, 7, 6, 4, 4, 7, 4, 4,11, 7, 6, 4, 4, 7, 4,/* 0 */
+	8,10, 7, 6, 4, 4, 7, 4,12,11, 7, 6, 4, 4, 7, 4,/* 1 */
+	7,10,16, 6, 4, 4, 7, 4, 7,11,16, 6, 4, 4, 7, 4,/* 2 */
+	7,10,13, 6,11,11,10, 4, 7,11,13, 6, 4, 4, 7, 4,/* 3 */
+	4, 4, 4, 4, 4, 4, 7, 4, 4, 4, 4, 4, 4, 4, 7, 4,/* 4 */
+	4, 4, 4, 4, 4, 4, 7, 4, 4, 4, 4, 4, 4, 4, 7, 4,/* 5 */
+	4, 4, 4, 4, 4, 4, 7, 4, 4, 4, 4, 4, 4, 4, 7, 4,/* 6 */
+	7, 7, 7, 7, 7, 7, 4, 7, 4, 4, 4, 4, 4, 4, 7, 4,/* 7 */
+	4, 4, 4, 4, 4, 4, 7, 4, 4, 4, 4, 4, 4, 4, 7, 4,/* 8 */
+	4, 4, 4, 4, 4, 4, 7, 4, 4, 4, 4, 4, 4, 4, 7, 4,/* 9 */
+	4, 4, 4, 4, 4, 4, 7, 4, 4, 4, 4, 4, 4, 4, 7, 4,/* a */
+	4, 4, 4, 4, 4, 4, 7, 4, 4, 4, 4, 4, 4, 4, 7, 4,/* b */
+	5,10,10,10,10,11, 7,11, 5,10,10, 0,10,17, 7,11,/* c */
+	5,10,10,11,10,11, 7,11, 5, 4,10,11,10, 0, 7,11,/* d */
+	5,10,10,19,10,11, 7,11, 5, 4,10, 4,10, 0, 7,11,/* e */
+	5,10,10, 4,10,11, 7,11, 5, 6,10, 4,10, 0, 7,11,/* f */
+};
+
+static uint_fast8_t ccbtable[] = {
+ /*0 |1 |2 |3 |4 |5 |6 |7 |8 |9 |a |b |c |d |e |f       */
 	8, 8, 8, 8, 8, 8,15, 8, 8, 8, 8, 8, 8, 8,15, 8,/* 0 */
     8, 8, 8, 8, 8, 8,15, 8, 8, 8, 8, 8, 8, 8,15, 8,/* 1 */
     8, 8, 8, 8, 8, 8,15, 8, 8, 8, 8, 8, 8, 8,15, 8,/* 2 */
@@ -45,26 +48,28 @@ static uint_fast8_t ccbtable[] =  {
     8, 8, 8, 8, 8, 8,15, 8, 8, 8, 8, 8, 8, 8,15, 8,/* e */
     8, 8, 8, 8, 8, 8,15, 8, 8, 8, 8, 8, 8, 8,15, 8,/* f */
 };
-/*0 |1 |2 |3 |4 |5 |6 |7 |8 |9 |a |b |c |d |e |f       */
-static uint_fast8_t cddtable[] =   { 4,99,99,99,99,99,99,99,99,15,99,99,99,99,99, 4,/* 0 */
-	 4,99,99,99,99,99,99,99,99,15,99,99,99,99,99, 4,/* 1 */
-	 4,14,20,10, 8, 8,11,99,99,15,20,10, 8, 8,11, 4,/* 2 */
-	 4,99,99,99,23,23,19,99,99,15,99,99,99,99,99, 4,/* 3 */
-	 4, 4, 4, 4, 8, 8,19, 4, 4, 4, 4, 4, 8, 8,19, 4,/* 4 */
-	 4, 4, 4, 4, 8, 8,19, 4, 4, 4, 4, 4, 8, 8,19, 4,/* 5 */
-	 8, 8, 8, 8, 8, 8,19, 8, 8, 8, 8, 8, 8, 8,19, 8,/* 6 */
-	19,19,19,19,19,19,99,19, 4, 4, 4, 4, 8, 8,19, 4,/* 7 */
-	 4,99,99,99, 8, 8,19,99,99,99,99,99, 8, 8,19, 4,/* 8 */
-	 4,99,99,99, 8, 8,19,99,99,99,99,99, 8, 8,19, 4,/* 9 */
-	 4,99,99,99, 8, 8,19,99,99,99,99,99, 8, 8,19, 4,/* a */
-	 4,99,99,99, 8, 8,19,99,99,99,99,99, 8, 8,19, 4,/* b */
-	 4,99,99,99,99,99,99,99,99,99,99, 0,99,99,99, 4,/* c */
-	 4,99,99,99,99,99,99,99,99,99,99,99,99, 0,99, 4,/* d */
-	 4,14,99,23,99,15,99,99,99, 8,99,99,99, 0,99, 4,/* e */
-	 4,99,99,99,99,99,99,99,99,10,99,99,99, 0,99, 4,/* f */
-	};
-/*0 |1 |2 |3 |4 |5 |6 |7 |8 |9 |a |b |c |d |e |f       */
-static uint_fast8_t cedtable[] =   {99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,/* 0 */
+static uint_fast8_t cddtable[] = {
+ /*0 |1 |2 |3 |4 |5 |6 |7 |8 |9 |a |b |c |d |e |f       */
+	4,99,99,99,99,99,99,99,99,15,99,99,99,99,99, 4,/* 0 */
+	4,99,99,99,99,99,99,99,99,15,99,99,99,99,99, 4,/* 1 */
+	4,14,20,10, 8, 8,11,99,99,15,20,10, 8, 8,11, 4,/* 2 */
+	4,99,99,99,23,23,19,99,99,15,99,99,99,99,99, 4,/* 3 */
+	4, 4, 4, 4, 8, 8,19, 4, 4, 4, 4, 4, 8, 8,19, 4,/* 4 */
+	4, 4, 4, 4, 8, 8,19, 4, 4, 4, 4, 4, 8, 8,19, 4,/* 5 */
+	8, 8, 8, 8, 8, 8,19, 8, 8, 8, 8, 8, 8, 8,19, 8,/* 6 */
+   19,19,19,19,19,19,99,19, 4, 4, 4, 4, 8, 8,19, 4,/* 7 */
+	4,99,99,99, 8, 8,19,99,99,99,99,99, 8, 8,19, 4,/* 8 */
+	4,99,99,99, 8, 8,19,99,99,99,99,99, 8, 8,19, 4,/* 9 */
+	4,99,99,99, 8, 8,19,99,99,99,99,99, 8, 8,19, 4,/* a */
+	4,99,99,99, 8, 8,19,99,99,99,99,99, 8, 8,19, 4,/* b */
+	4,99,99,99,99,99,99,99,99,99,99, 0,99,99,99, 4,/* c */
+	4,99,99,99,99,99,99,99,99,99,99,99,99, 0,99, 4,/* d */
+	4,14,99,23,99,15,99,99,99, 8,99,99,99, 0,99, 4,/* e */
+	4,99,99,99,99,99,99,99,99,10,99,99,99, 0,99, 4,/* f */
+};
+static uint_fast8_t cedtable[] = {
+  /*0 |1 |2 |3 |4 |5 |6 |7 |8 |9 |a |b |c |d |e |f       */
+	99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,/* 0 */
 	99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,/* 1 */
 	99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,/* 2 */
 	99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,/* 3 */
@@ -80,27 +85,31 @@ static uint_fast8_t cedtable[] =   {99,99,99,99,99,99,99,99,99,99,99,99,99,99,99
 	99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,/* d */
 	99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,/* e */
 	99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,/* f */
-	};
-/*0 |1 |2 |3 |4 |5 |6 |7 |8 |9 |a |b |c |d |e |f       */
-static uint_fast8_t cfdtable[] =   {99,99,99,99,99,99,99,99,99,15,99,99,99,99,99,99,/* 0 */
-	99,99,99,99,99,99,99,99,99,15,99,99,99,99,99,99,/* 1 */
-	99,14,20,10, 8, 8,11,99,99,15,20,10, 8, 8,11,99,/* 2 */
-	99,99,99,99,23,23,19,99,99,15,99,99,99,99,99,99,/* 3 */
+};
+
+static uint_fast8_t cfdtable[] = {
+  /*0 |1 |2 |3 |4 |5 |6 |7 |8 |9 |a |b |c |d |e |f       */
+	99,99,99,99,99,99,99,99,99,15,99,99,99,99,99,04,/* 0 */
+	99,99,99,99,99,99,99,99,99,15,99,99,99,99,99,04,/* 1 */
+	99,14,20,10, 8, 8,11,99,99,15,20,10, 8, 8,11,04,/* 2 */
+	99,99,99,99,23,23,19,99,99,15,99,99,99,99,99,04,/* 3 */
 	 4, 4, 4, 4, 8, 8,19, 4, 4, 4, 4, 4, 8, 8,19, 4,/* 4 */
 	 4, 4, 4, 4, 8, 8,19, 4, 4, 4, 4, 4, 8, 8,19, 4,/* 5 */
 	 8, 8, 8, 8, 8, 8,19, 8, 8, 8, 8, 8, 8, 8,19, 8,/* 6 */
 	19,19,19,19,19,19, 4,19, 4, 4, 4, 4, 8, 8,19, 4,/* 7 */
-	99,99,99,99, 8, 8,19,99,99,99,99,99, 8, 8,19,99,/* 8 */
-	99,99,99,99, 8, 8,19,99,99,99,99,99, 8, 8,19,99,/* 9 */
-	99,99,99,99, 8, 8,19,99,99,99,99,99, 8, 8,19,99,/* a */
-	99,99,99,99, 8, 8,19,99,99,99,99,99, 8, 8,19,99,/* b */
-	99,99,99,99,99,99,99,99,99,99,99, 0,99,99,99,99,/* c */
-	99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,/* d */
-	99,14,99,23,99,15,99,99,99, 8,99,99,99,99,99,99,/* e */
-	99,99,99,99,99,99,99,99,99,10,99,99,99,99,99,99,/* f */
-	};
-/*0 |1 |2 |3 |4 |5 |6 |7 |8 |9 |a |b |c |d |e |f       */
-static uint_fast8_t cddcbtable[] =   {99,99,99,99,99,99,23,99,99,99,99,99,99,99,23,99,/* 0 */
+	99,99,99,99, 8, 8,19,99,99,99,99,99, 8, 8,19,04,/* 8 */
+	99,99,99,99, 8, 8,19,99,99,99,99,99, 8, 8,19,04,/* 9 */
+	99,99,99,99, 8, 8,19,99,99,99,99,99, 8, 8,19,04,/* a */
+	99,99,99,99, 8, 8,19,99,99,99,99,99, 8, 8,19,04,/* b */
+	99,99,99,99,99,99,99,99,99,99,99, 0,04,04,04,04,/* c */
+	99,99,99,99,99,99,99,99,99,99,99,99,04,04,04,04,/* d */
+	99,14,99,23,99,15,99,99,99, 8,99,99,04,04,04,04,/* e */
+	99,99,99,99,99,99,99,99,99,10,99,99,04,04,04,04,/* f */
+};
+
+static uint_fast8_t cddcbtable[] = {
+  /*0 |1 |2 |3 |4 |5 |6 |7 |8 |9 |a |b |c |d |e |f       */
+	99,99,99,99,99,99,23,99,99,99,99,99,99,99,23,99,/* 0 */
 	99,99,99,99,99,99,23,99,99,99,99,99,99,99,23,99,/* 1 */
 	99,99,99,99,99,99,23,99,99,99,99,99,99,99,23,99,/* 2 */
 	99,99,99,99,99,99,99,99,99,99,99,99,99,99,23,99,/* 3 */
@@ -117,24 +126,26 @@ static uint_fast8_t cddcbtable[] =   {99,99,99,99,99,99,23,99,99,99,99,99,99,99,
 	99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,/* e */
 	99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,/* f */
 	};
-/*0 |1 |2 |3 |4 |5 |6 |7 |8 |9 |a |b |c |d |e |f       */
-static uint_fast8_t cfdcbtable[] =   {99,99,99,99,99,99,23,99,99,99,99,99,99,99,23,99,/* 0 */
-		99,99,99,99,99,99,23,99,99,99,99,99,99,99,23,99,/* 1 */
-		99,99,99,99,99,99,23,99,99,99,99,99,99,99,23,99,/* 2 */
-		99,99,99,99,99,99,99,99,99,99,99,99,99,99,23,99,/* 3 */
-		99,99,99,99,99,99,20,99,99,99,99,99,99,99,20,99,/* 4 */
-		99,99,99,99,99,99,20,99,99,99,99,99,99,99,20,99,/* 5 */
-		99,99,99,99,99,99,20, 8, 8, 8, 8, 8, 8, 8,20, 8,/* 6 */
-		99,99,99,99,99,99,20,19,99,99,99,99, 8, 8,20,99,/* 7 */
-		99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,/* 8 */
-		99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,/* 9 */
-		99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,/* a */
-		99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,/* b */
-		99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,/* c */
-		99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,/* d */
-		99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,/* e */
-		99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,/* f */
-		};
+
+static uint_fast8_t cfdcbtable[] = {
+  /*0 |1 |2 |3 |4 |5 |6 |7 |8 |9 |a |b |c |d |e |f       */
+	99,99,99,99,99,99,23,99,99,99,99,99,99,99,23,99,/* 0 */
+	99,99,99,99,99,99,23,99,99,99,99,99,99,99,23,99,/* 1 */
+	99,99,99,99,99,99,23,99,99,99,99,99,99,99,23,99,/* 2 */
+	99,99,99,99,99,99,99,99,99,99,99,99,99,99,23,99,/* 3 */
+	99,99,99,99,99,99,20,99,99,99,99,99,99,99,20,99,/* 4 */
+	99,99,99,99,99,99,20,99,99,99,99,99,99,99,20,99,/* 5 */
+	99,99,99,99,99,99,20, 8, 8, 8, 8, 8, 8, 8,20, 8,/* 6 */
+	99,99,99,99,99,99,20,19,99,99,99,99, 8, 8,20,99,/* 7 */
+	99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,/* 8 */
+	99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,/* 9 */
+	99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,/* a */
+	99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,/* b */
+	99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,/* c */
+	99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,/* d */
+	99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,/* e */
+	99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,/* f */
+};
 
 FILE *logfile;
 static inline void write_cpu_register(uint8_t, uint_fast8_t), cpuwrite(uint16_t, uint_fast8_t), interrupt_polling(), addcycles(uint8_t);
@@ -162,12 +173,12 @@ static inline void jp(), jpc(), jr(), jrc(), jphl(), jpix(), jpiy(), djnz();
 /* call, return */
 static inline void call(), callc(), ret(), retc(), reti(), retn(), rst();
 /* input, output */
-static inline void in(), inac(), ini(), inir(), out(), outc(), outi(), otir(), outd();
+static inline void in(), inrc(), ini(), inir(), out(), outc(), outi(), otir(), outd();
 
 static inline void cb(), dd(), ddcb(), dcixh(), dciyh(), dcixl(), dciyl(), ed(), fd(), fdcb(), inixh(), iniyh(), inixl(), iniyl(), ldixh(), ldiyh(), ldixl(), ldiyl(), lrixh(), lrixl(), lriyh(), lriyl(), lixhr(), lixlr(), liyhr(), liylr(), noop(), unp();
 
 int8_t displace;
-uint_fast8_t mode, opcode, addmode, addcycle, tmpval8, s = 0, dummy, pcl, pch, dummywrite = 0, op, irqPulled = 0, nmiPulled = 0, irqPending = 0, nmiPending = 0, intDelay = 0, halted = 0, bramReg = 0;
+uint_fast8_t mode, opcode, addmode, addcycle, tmpval8, s = 0, dummy, pcl, pch, dummywrite = 0, op, irqPulled = 0, nmiPulled = 0, irqPending = 0, nmiPending = 0, intDelay = 0, halted = 0, bramReg = 0, reset = 0;
 uint16_t tmpval16;
 
 /* Mapped memory */
@@ -185,7 +196,7 @@ uint16_t cpuIX, cpuIY, cpuPC, cpuSP; /* special purpose (16-bit) */
 uint8_t iff1, iff2, iMode;
 
 /* Vector pointers */
-static const uint16_t nmi = 0x60, irq = 0x38;
+static const uint16_t nmi = 0x66, irq = 0x38;
 
 uint32_t cpucc = 0;
 
@@ -211,26 +222,32 @@ static void (*optable[0x100])() = {
 	 retc,  pop,  jpc, exhl,callc, push, andi,  rst, retc, jphl,  jpc,   ex,callc,   ed, xori,  rst, /* e */
 	 retc,  pop,  jpc,   di,callc, push,  ori,  rst, retc,lsphl,  jpc,   ei,callc,   fd,  cpn,  rst, /* f */
 };
-
-	if(irqPulled && iff1 && !intDelay){
+	if(reset){
+		reset = 0;
+		power_reset();
+	}
+	else if((irqPulled && iff1 && !intDelay) || nmiPulled){
 		if(halted){
 			halted = 0;
 			cpuPC++;
 		}
 		/* TODO: this is assuming Mode 1 */
-		addcycles(13);
-		irqPulled = 0;
-		iff1 = iff2 = 0;
 		cpuwrite(--cpuSP, ((cpuPC & 0xff00) >> 8));
 		cpuwrite(--cpuSP, ( cpuPC & 0x00ff));
-		cpuPC = irq;
+		if (irqPulled){
+			iff1 = iff2 = 0;
+			addcycles(13);
+			irqPulled = 0;
+			cpuPC = irq;
+		}
+		else if (nmiPulled){
+			addcycles(11);
+			nmiPulled = 0;
+			cpuPC = nmi;
+		}
 	}
 	else {
 		intDelay = 0;
-		if(cpuPC==0xc418)
-			logging=1;
-		if(cpuPC==0x87)
-			logging=1;
 		op = *cpuread(cpuPC++);
 		/* TODO: update memory refresh register */
 	/*		printf("Opcode is: %02X at address: %04X\n",op,cpuPC-1); */
@@ -291,46 +308,49 @@ op = *cpuread(cpuPC++);
 addcycles(cddtable[op]);
 (*ddtable[op])();
 }
-void ed(){ 	 	 	 	 	 	 /*  0  |  1  |  2  |  3  |  4  |  5  |  6  |  7  |  8  |  9  |  a  |  b  |  c  |  d  |  e  |  f  |      */
-static void (*edtable[0x100])() = { noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, /* 0 */
-		 	 	 	 	 	 	 	noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, /* 1 */
-									noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, /* 2 */
-									noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, /* 3 */
-									noop, outc,sbc16,ldidd,  neg, retn,   im,ldina, noop, outc,adcrp, ldrp,  neg, reti, noop, ldra, /* 4 */
-									noop, outc,sbc16,ldidd,  neg, noop,   im,ldain, noop, outc,adcrp, ldrp,  neg, noop, noop, ldar, /* 5 */
-									noop, outc,sbc16,ldidd,  neg, noop,   im,  rrd, noop, outc,adcrp, ldrp,  neg, noop, noop,  rld, /* 6 */
-									noop, outc,sbc16,ldidd,  neg, noop,   im, noop, inac, outc,adcrp, ldrp,  neg, noop, noop, noop, /* 7 */
-									noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, /* 8 */
-									noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, /* 9 */
-									 ldi,  cpi,  ini, outi, noop, noop, noop, noop,  ldd,  cpd, noop, outd, noop, noop, noop, noop, /* a */
-									ldir, cpir, inir, otir, noop, noop, noop, noop, lddr, cpdr, noop, noop, noop, noop, noop, noop, /* b */
-									noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, /* c */
-									noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, /* d */
-									noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, /* e */
-									noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, /* f */
-};
+void ed(){
+static void (*edtable[0x100])() = {
+ /*  0  |  1  |  2  |  3  |  4  |  5  |  6  |  7  |  8  |  9  |  a  |  b  |  c  |  d  |  e  |  f  |      */
+	noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, /* 0 */
+	noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, /* 1 */
+	noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, /* 2 */
+	noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, /* 3 */
+	inrc, outc,sbc16,ldidd,  neg, retn,   im,ldina, inrc, outc,adcrp, ldrp,  neg, reti, noop, ldra, /* 4 */
+	inrc, outc,sbc16,ldidd,  neg, noop,   im,ldain, inrc, outc,adcrp, ldrp,  neg, noop, noop, ldar, /* 5 */
+	inrc, outc,sbc16,ldidd,  neg, noop,   im,  rrd, inrc, outc,adcrp, ldrp,  neg, noop, noop,  rld, /* 6 */
+	inrc, outc,sbc16,ldidd,  neg, noop,   im, noop, inrc, outc,adcrp, ldrp,  neg, noop, noop, noop, /* 7 */
+	noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, /* 8 */
+	noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, /* 9 */
+	 ldi,  cpi,  ini, outi, noop, noop, noop, noop,  ldd,  cpd, noop, outd, noop, noop, noop, noop, /* a */
+	ldir, cpir, inir, otir, noop, noop, noop, noop, lddr, cpdr, noop, noop, noop, noop, noop, noop, /* b */
+	noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, /* c */
+	noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, /* d */
+	noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, /* e */
+	noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, /* f */
+	};
 	op = *cpuread(cpuPC++);
 	addcycles(cedtable[op]);
 	(*edtable[op])();
 }
 void fd(){	 	     	 	 	 /*  0  |  1  |  2  |  3  |  4  |  5  |  6  |  7  |  8  |  9  |  a  |  b  |  c  |  d  |  e  |  f  |      */
-static void (*fdtable[0x100])() = { noop, noop, noop, noop, noop, noop, noop, noop, noop,addiy, noop, noop, noop, noop, noop, noop, /* 0 */
-	 	 							noop, noop, noop, noop, noop, noop, noop, noop, noop,addiy, noop, noop, noop, noop, noop, noop, /* 1 */
-									noop, ldiy,liniy,inciy,iniyh,dciyh,ldiyh, noop, noop,addiy,ldyin,deciy,iniyl,dciyl,ldiyl, noop, /* 2 */
-									noop, noop, noop, noop,iniyi,deiyi,ldiyn, noop, noop,addiy, noop, noop, noop, noop, noop, noop, /* 3 */
-									 unp,  unp,  unp,  unp,lriyh,lriyl,ldiyi,  unp,  unp,  unp,  unp,  unp,lriyh,lriyl,ldiyi,  unp, /* 4 */
-									 unp,  unp,  unp,  unp,lriyh,lriyl,ldiyi,  unp,  unp,  unp,  unp,  unp,lriyh,lriyl,ldiyi,  unp, /* 5 */
-								   liyhr,liyhr,liyhr,liyhr,liyhr,liyhr,ldiyi,liyhr,liylr,liylr,liylr,liylr,liylr,liylr,ldiyi,liylr, /* 6 */
-								   ldiiy,ldiiy,ldiiy,ldiiy,ldiiy,ldiiy,  unp,ldiiy,  unp,  unp,  unp,  unp,lriyh,lriyl,ldiyi,  unp, /* 7 */
-								   noop, noop, noop, noop,adiyh,adiyl,adiyi, noop, noop, noop, noop, noop,aciyh,aciyl,aciyi, noop, /* 8 */
-									noop, noop, noop, noop,sbiyh,sbiyl,sbiyi, noop, noop, noop, noop, noop,sciyh,sciyl,sciyi, noop, /* 9 */
-									noop, noop, noop, noop,aniyh,aniyl,aniyi, noop, noop, noop, noop, noop,xriyh,xriyl,xriyi, noop, /* a */
-									noop, noop, noop, noop,oriyh,oriyl,oriyi, noop, noop, noop, noop, noop,cpiyh,cpiyl,cpiyi, noop, /* b */
-									noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, fdcb, noop, noop, noop, noop, /* c */
-									noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, /* d */
-									noop,popiy, noop, exiy, noop,pusiy, noop, noop, noop, jpiy, noop, noop, noop, noop, noop, noop, /* e */
-									noop, noop, noop, noop, noop, noop, noop, noop, noop,lspiy, noop, noop, noop, noop, noop, noop, /* f */
-									};
+static void (*fdtable[0x100])() = {
+	noop, noop, noop, noop, noop, noop, noop, noop, noop,addiy, noop, noop, noop, noop, noop, unp, /* 0 */
+	noop, noop, noop, noop, noop, noop, noop, noop, noop,addiy, noop, noop, noop, noop, noop, unp, /* 1 */
+	noop, ldiy,liniy,inciy,iniyh,dciyh,ldiyh, noop, noop,addiy,ldyin,deciy,iniyl,dciyl,ldiyl, unp, /* 2 */
+	noop, noop, noop, noop,iniyi,deiyi,ldiyn, noop, noop,addiy, noop, noop, noop, noop, noop, unp, /* 3 */
+	 unp,  unp,  unp,  unp,lriyh,lriyl,ldiyi,  unp,  unp,  unp,  unp,  unp,lriyh,lriyl,ldiyi,  unp, /* 4 */
+	 unp,  unp,  unp,  unp,lriyh,lriyl,ldiyi,  unp,  unp,  unp,  unp,  unp,lriyh,lriyl,ldiyi,  unp, /* 5 */
+   liyhr,liyhr,liyhr,liyhr,liyhr,liyhr,ldiyi,liyhr,liylr,liylr,liylr,liylr,liylr,liylr,ldiyi,liylr, /* 6 */
+   ldiiy,ldiiy,ldiiy,ldiiy,ldiiy,ldiiy,  unp,ldiiy,  unp,  unp,  unp,  unp,lriyh,lriyl,ldiyi,  unp, /* 7 */
+    noop, noop, noop, noop,adiyh,adiyl,adiyi, noop, noop, noop, noop, noop,aciyh,aciyl,aciyi, unp, /* 8 */
+	noop, noop, noop, noop,sbiyh,sbiyl,sbiyi, noop, noop, noop, noop, noop,sciyh,sciyl,sciyi, unp, /* 9 */
+	noop, noop, noop, noop,aniyh,aniyl,aniyi, noop, noop, noop, noop, noop,xriyh,xriyl,xriyi, unp, /* a */
+	noop, noop, noop, noop,oriyh,oriyl,oriyi, noop, noop, noop, noop, noop,cpiyh,cpiyl,cpiyi, unp, /* b */
+	noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, fdcb, unp, unp, unp, unp, /* c */
+	noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, unp, unp, unp, unp, /* d */
+	noop,popiy, noop, exiy, noop,pusiy, noop, noop, noop, jpiy, noop, noop, unp, unp, unp, unp, /* e */
+	noop, noop, noop, noop, noop, noop, noop, noop, noop,lspiy, noop, noop, unp, unp, unp, unp, /* f */
+	};
 	op = *cpuread(cpuPC++);
 	addcycles(cfdtable[op]);
 	(*fdtable[op])();
@@ -1612,7 +1632,7 @@ void in()	{ /* IN A,(n) */
 	uint8_t reg = *cpuread(cpuPC++);
 	*cpuAreg = read_cpu_register(reg);
 }
-void inac()	{ /* IN r,(C) */
+void inrc()	{ /* IN r,(C) */
 	uint8_t *r[8] = {cpuBreg, cpuCreg, cpuDreg, cpuEreg, cpuHreg, cpuLreg, cpuread(*cpuHLreg), cpuAreg};
 	uint8_t tmp = read_cpu_register(*cpuCreg);
 	*r[(op >> 3) & 7] = tmp;
@@ -1965,17 +1985,20 @@ uint8_t read_cpu_register(uint8_t reg) {
 void write_cpu_register(uint8_t reg, uint_fast8_t value) {
 	switch (reg & 0xc1){
 	case 0x00:
-		printf("Writing to memory control register: %02x\n",reg);
+		printf("Writing %02x to memory control register: %02x\n",value,reg);
 		break;
 	case 0x01:
-		printf("Writing to I/O control register: %02x\n",reg);
+		printf("Writing %02x to I/O control register: %02x\n",value, reg);
+		ioControl = value;
+		ioPort2 = (ioPort2 & 0x7f) | ((value & 0x80) ^ ((region == 0) ? 0x80 : 0));
+		ioPort2 = (ioPort2 & 0xbf) | (((value & 0x20) << 1) ^ ((region == 0) ? 0x40 : 0));
+		/* (!(ioControl & 0x0a)) = TH pins are output */
 		break;
 	case 0x40:
 	case 0x41:
 	/*	printf("Writing to SN76489 PSG: %02x\n",reg);*/
 		break;
 	case 0x80:
-		/*printf("Writing to VDP data port: %02x\n",reg);*/
 		write_vdp_data(value);
 		break;
 	case 0x81:
@@ -2028,9 +2051,9 @@ void cpuwrite(uint16_t address, uint_fast8_t value) {
 
 void power_reset () {
 halted = 0;
-iff1 = iff2 = cpuPC = iMode = 0;
+iff1 = iff2 = cpuPC = iMode = cpuI = cpuR = 0;
 cpuAF = cpuBC = cpuDE = cpuHL = cpuIX = cpuIY = 0xffff;
-cpuSP = 0xdff0; /* TODO: hack to bypass BIOS */
+cpuSP = 0xdff0; /* TODO: hack to bypass BIOS - should be 0xffff? */
 /* TODO: platform specific assignment */
 cpuAreg = (uint8_t *)&cpuAF+1;
 cpuFreg = (uint8_t *)&cpuAF;

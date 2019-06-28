@@ -30,9 +30,17 @@ if (controlFlag){
 		switch (controlWord & 0x0f00){
 		case 0x0000: /* Mode Control No. 1 */
 			mode1 = (controlWord & 0xff);
+			if(!(mode1 & 0x04))
+				printf("Uses legacy mode\n");
+			if((mode1 & 0x01))
+				printf("Is monochrome\n");
 			break;
 		case 0x0100: /* Mode Control No. 2 */
 			mode2 = (controlWord & 0xff);
+			if(mode2 & 0x01)
+				printf("Uses zoomed sprites\n");
+			if(mode2 & 0x10)
+				printf("224 line mode\n");
 			break;
 		case 0x0200: /* Name Table Base Address */
 			nameAdd = ((controlWord & 0x0e) << 10);

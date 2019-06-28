@@ -9,7 +9,7 @@
 #define SMSEMU_H_
 #include <stdint.h>
 
-extern uint8_t quit, ioPort1, ioPort2;
+extern uint8_t quit, ioPort1, ioPort2, ioControl, region;
 
 
 #endif /* SMSEMU_H_ */

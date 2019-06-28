@@ -13,6 +13,6 @@
 void opdecode(void), power_reset(void);
 
 extern FILE *logfile;
-uint_fast8_t irqPulled;
+uint_fast8_t irqPulled, nmiPulled, reset;
 
 #endif /* Z80_H_ */

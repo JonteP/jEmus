@@ -8,6 +8,7 @@
 #include "smsemu.h"
 #include "vdp.h"
 #include "sn76489.h"
+#include "z80.h"
 
 SDL_AudioSpec AudioSettings = {0};
 SDL_DisplayMode current;
@@ -221,7 +222,7 @@ void io_handle()
 				break;
 			case SDL_SCANCODE_F3:
 				printf("Resetting\n");
-			/*	rstFlag = SOFT_RESET; */
+				reset = 1;
 				isPaused = 0;
 				break;
 			case SDL_SCANCODE_F10:
@@ -320,6 +321,7 @@ void io_handle()
 				ioPort1 &= ~0x08;
 				break;
 			case SDL_SCANCODE_RETURN:
+				nmiPulled = 1;
 				break;
 			case SDL_SCANCODE_BACKSPACE:
 				break;
