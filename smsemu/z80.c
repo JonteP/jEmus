@@ -148,7 +148,7 @@ static uint_fast8_t cfdcbtable[] = {
 };
 
 FILE *logfile;
-static inline void write_cpu_register(uint8_t, uint_fast8_t), cpuwrite(uint16_t, uint_fast8_t), interrupt_polling(), addcycles(uint8_t);
+static inline void write_cpu_register(uint8_t, uint_fast8_t), cpuwrite(uint16_t, uint_fast8_t), interrupt_polling(), addcycles(uint8_t), noop(), unp();
 static inline uint8_t read_cpu_register(uint8_t), parcalc(uint8_t);
 static inline uint8_t * cpuread(uint16_t);
 /* 8-bit load */
@@ -174,23 +174,22 @@ static inline void jp(), jpc(), jr(), jrc(), jphl(), jpix(), jpiy(), djnz();
 static inline void call(), callc(), ret(), retc(), reti(), retn(), rst();
 /* input, output */
 static inline void in(), inrc(), ini(), inir(), out(), outc(), outi(), otir(), outd();
-
-static inline void cb(), dd(), ddcb(), dcixh(), dciyh(), dcixl(), dciyl(), ed(), fd(), fdcb(), inixh(), iniyh(), inixl(), iniyl(), ldixh(), ldiyh(), ldixl(), ldiyl(), lrixh(), lrixl(), lriyh(), lriyl(), lixhr(), lixlr(), liyhr(), liylr(), noop(), unp();
+/* prefixed opcodes */
+static inline void cb(), dd(), ed(), fd(), ddcb(), fdcb();
+/* undocumented opcodes */
+static inline void dcixh(), dciyh(), dcixl(), dciyl(), inixh(), iniyh(), inixl(), iniyl(), ldixh(), ldiyh(), ldixl(), ldiyl(), lrixh(), lrixl(), lriyh(), lriyl(), lixhr(), lixlr(), liyhr(), liylr();
 
 int8_t displace;
-uint_fast8_t mode, opcode, addmode, addcycle, tmpval8, s = 0, dummy, pcl, pch, dummywrite = 0, op, irqPulled = 0, nmiPulled = 0, irqPending = 0, nmiPending = 0, intDelay = 0, halted = 0, bramReg = 0, reset = 0;
-uint16_t tmpval16;
-
-/* Mapped memory */
-uint_fast8_t *prgSlot[0x8], cpuRam[0x2000], logging=0;
+uint8_t op, irqPulled = 0, nmiPulled = 0, intDelay = 0, halted = 0, bramReg = 0, reset = 0;
+uint32_t cpucc = 0;
 
 /* Internal registers */
 uint16_t cpuAF, cpuAFx;
 uint16_t cpuBC, cpuDE, cpuHL, cpuBCx, cpuDEx, cpuHLx; /* General purpose */
-uint8_t *cpuAreg, *cpuFreg, *cpuBreg, *cpuCreg, *cpuDreg, *cpuEreg, *cpuHreg, *cpuLreg, *cpuIXhreg, *cpuIXlreg, *cpuIYhreg, *cpuIYlreg, reg_select = 0;
-uint16_t *cpuAFreg, *cpuBCreg, *cpuDEreg, *cpuHLreg, *cpuIXreg, *cpuIYreg;
 uint8_t cpuI, cpuR; /* special purpose (8-bit) */
 uint16_t cpuIX, cpuIY, cpuPC, cpuSP; /* special purpose (16-bit) */
+uint8_t *cpuAreg, *cpuFreg, *cpuBreg, *cpuCreg, *cpuDreg, *cpuEreg, *cpuHreg, *cpuLreg, *cpuIXhreg, *cpuIXlreg, *cpuIYhreg, *cpuIYlreg;
+uint16_t *cpuAFreg, *cpuBCreg, *cpuDEreg, *cpuHLreg, *cpuIXreg, *cpuIYreg;
 
 /* Interrupt flip-flops */
 uint8_t iff1, iff2, iMode;
@@ -198,7 +197,8 @@ uint8_t iff1, iff2, iMode;
 /* Vector pointers */
 static const uint16_t nmi = 0x66, irq = 0x38;
 
-uint32_t cpucc = 0;
+/* Mapped memory  - should be moved to machine specific code */
+uint_fast8_t cpuRam[0x2000];
 
 char opmess[] = "Unimplemented opcode";
 void opdecode() {
@@ -241,6 +241,8 @@ static void (*optable[0x100])() = {
 			cpuPC = irq;
 		}
 		else if (nmiPulled){
+			iff2 = iff1;
+			iff1 = 0;
 			addcycles(11);
 			nmiPulled = 0;
 			cpuPC = nmi;
@@ -250,7 +252,7 @@ static void (*optable[0x100])() = {
 		intDelay = 0;
 		op = *cpuread(cpuPC++);
 		/* TODO: update memory refresh register */
-	/*		printf("Opcode is: %02X at address: %04X\n",op,cpuPC-1); */
+		/*	printf("%04X: %02X\n",cpuPC-1,op);*/
 	/*	if(cpuPC==0xc41c)
 			fprintf(logfile,"%04x,%04x,%04x,%04x,%04x,%04x,%04x,%04x\n",cpuPC-1,*cpuAFreg,*cpuBCreg,*cpuDEreg,*cpuHLreg,*cpuIXreg,*cpuIYreg,cpuSP);*/
 		addcycles(ctable[op]);
@@ -328,12 +330,13 @@ static void (*edtable[0x100])() = {
 	noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, /* e */
 	noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, /* f */
 	};
-	op = *cpuread(cpuPC++);
-	addcycles(cedtable[op]);
-	(*edtable[op])();
+op = *cpuread(cpuPC++);
+addcycles(cedtable[op]);
+(*edtable[op])();
 }
-void fd(){	 	     	 	 	 /*  0  |  1  |  2  |  3  |  4  |  5  |  6  |  7  |  8  |  9  |  a  |  b  |  c  |  d  |  e  |  f  |      */
+void fd(){
 static void (*fdtable[0x100])() = {
+ /*  0  |  1  |  2  |  3  |  4  |  5  |  6  |  7  |  8  |  9  |  a  |  b  |  c  |  d  |  e  |  f  |      */
 	noop, noop, noop, noop, noop, noop, noop, noop, noop,addiy, noop, noop, noop, noop, noop, unp, /* 0 */
 	noop, noop, noop, noop, noop, noop, noop, noop, noop,addiy, noop, noop, noop, noop, noop, unp, /* 1 */
 	noop, ldiy,liniy,inciy,iniyh,dciyh,ldiyh, noop, noop,addiy,ldyin,deciy,iniyl,dciyl,ldiyl, unp, /* 2 */
@@ -351,9 +354,9 @@ static void (*fdtable[0x100])() = {
 	noop,popiy, noop, exiy, noop,pusiy, noop, noop, noop, jpiy, noop, noop, unp, unp, unp, unp, /* e */
 	noop, noop, noop, noop, noop, noop, noop, noop, noop,lspiy, noop, noop, unp, unp, unp, unp, /* f */
 	};
-	op = *cpuread(cpuPC++);
-	addcycles(cfdtable[op]);
-	(*fdtable[op])();
+op = *cpuread(cpuPC++);
+addcycles(cfdtable[op]);
+(*fdtable[op])();
 }
 
 void ddcb(){ 	 	 	 	 	 	 /*  0  |  1  |  2  |  3  |  4  |  5  |  6  |  7  |  8  |  9  |  a  |  b  |  c  |  d  |  e  |  f  |      */
@@ -403,9 +406,9 @@ void fdcb(){ 	 	 	 	 	 	 /*  0  |  1  |  2  |  3  |  4  |  5  |  6  |  7  |  8  
 	(*fdcbtable[op])();
 }
 
-/*#########*/
+/***********/
 /* OPCODES */
-/*#########*/
+/***********/
 
 /* 8-BIT LOAD GROUP */
 
@@ -1544,7 +1547,7 @@ void jpc()	{ /* JP cc,nn */
 		cpuPC = address;
 }
 void jr()	{ /* JR e */
-	cpuPC += ((int8_t)(*cpuread(cpuPC) + 1));
+	cpuPC += ((int8_t)*cpuread(cpuPC) + 1);
 }
 void jrc()	{ /* JR cc,e */
 	uint8_t cc[4] = {!(*cpuFreg & 0x40), (*cpuFreg & 0x40), !(*cpuFreg & 0x01), (*cpuFreg & 0x01)};
@@ -1618,6 +1621,7 @@ void retn()	{ /* RETN */
 	uint16_t address = *cpuread(cpuSP++);
 	address |= ((*cpuread(cpuSP++)) << 8);
 	cpuPC = address;
+	iff1 = iff2;
 }
 void rst()	{ /* RST */
 	cpuwrite(--cpuSP, ((cpuPC & 0xff00) >> 8));
@@ -1988,10 +1992,9 @@ void write_cpu_register(uint8_t reg, uint_fast8_t value) {
 		printf("Writing %02x to memory control register: %02x\n",value,reg);
 		break;
 	case 0x01:
-		printf("Writing %02x to I/O control register: %02x\n",value, reg);
 		ioControl = value;
-		ioPort2 = (ioPort2 & 0x7f) | ((value & 0x80) ^ ((region == 0) ? 0x80 : 0));
-		ioPort2 = (ioPort2 & 0xbf) | (((value & 0x20) << 1) ^ ((region == 0) ? 0x40 : 0));
+		ioPort2 = (ioPort2 & 0x7f) | ((value & 0x80) ^ (((region == 0) && (!(ioControl & 0x08))) ? 0x80 : 0));
+		ioPort2 = (ioPort2 & 0xbf) | (((value & 0x20) << 1) ^ (((region == 0)  && (!(ioControl & 0x02))) ? 0x40 : 0));
 		/* (!(ioControl & 0x0a)) = TH pins are output */
 		break;
 	case 0x40:
@@ -2002,7 +2005,6 @@ void write_cpu_register(uint8_t reg, uint_fast8_t value) {
 		write_vdp_data(value);
 		break;
 	case 0x81:
-		/*printf("Writing to VDP control port: %02x\n",reg);*/
 		write_vdp_control(value);
 		break;
 	case 0xc0: /* Keyboard support? */
@@ -2034,13 +2036,13 @@ void cpuwrite(uint16_t address, uint_fast8_t value) {
 			bramReg = value;
 			break;
 		case 0xd:
-			fcr[0] = (value & 0xf);
+			fcr[0] = (value & bankmask);
 			break;
 		case 0xe:
-			fcr[1] = (value & 0xf);
+			fcr[1] = (value & bankmask);
 			break;
 		case 0xf:
-			fcr[2] = (value & 0xf);
+			fcr[2] = (value & bankmask);
 			break;
 		}
 		bank[0] = (rom + (fcr[0] << 14));

@@ -103,7 +103,7 @@ while (cycles) {
 	{
 		irqPulled = 1;
 	}
-	else if (((!(mode2 & 0x20)) || (!(mode1 & 0x10))) && irqPulled)
+	else if ((!(mode2 & 0x20)) && irqPulled)
 	{
 			irqPulled = 0;
 	}
@@ -128,7 +128,7 @@ while (cycles) {
 	if (vCounter < 240 && !vdpdot){
 		render_scanline();
 	}
-	if (vCounter <= screenHeight && !vdpdot){
+	if (vCounter <= screenHeight && (vdpdot == 100)){
 		lineCounter--;
 		if (lineCounter == 0xff){
 			lineCounter = lineReload;

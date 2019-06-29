@@ -37,7 +37,7 @@ void init_sdl() {
 		coltable[(i*3)+1] = (((i & 0x0c) << 4) | ((i & 0x0c) << 2) | ((i & 0x0c) >> 2) | (i & 0xc0));
 		coltable[(i*3)+2] = (((i & 0x30) << 2) | ((i & 0x30) >> 4) | ((i & 0x30) >> 2) | (i & 0x30));
 	}
-	handleMain = create_handle ("jNes", 100, 100, WWIDTH<<1, WHEIGHT<<1, SWIDTH, SHEIGHT, 8, 8);
+	handleMain = create_handle ("jNes", 100, 100, WWIDTH<<1, WHEIGHT<<1, SWIDTH, SHEIGHT, 0, 0);
 	handleNametable = create_handle ("Nametable", 1000, 100, WWIDTH<<1, WHEIGHT<<1, SWIDTH<<1, SHEIGHT<<1,0,0);
 	handlePattern = create_handle ("Pattern", 1000, 100, WWIDTH<<1, WHEIGHT<<1, SWIDTH<<1, SHEIGHT<<1,0,0);
 	handlePalette = create_handle ("Palette", 1000, 100, WWIDTH<<1, WHEIGHT<<1, SWIDTH<<1, SHEIGHT<<1,0,0);
