@@ -28,17 +28,20 @@
  * -backup RAM save support
  * -correct timing
  */
-char *romName;
+char *cartFile, *cardFile, *expFile, *biosFile;
 uint8_t quit = 0, ioPort1, ioPort2, ioControl, region;
 /* trace zexdoc.log,0,noloop,{tracelog "%04x,%04x,%04x,%04x,%04x,%04x,%04x,%04x,",pc,(af&ffd7),bc,de,hl,ix,iy,sp}*/
 int main() {
 	region = 1;
 	init_sdl();
 	init_time();
-	romName = "/home/jonas/Desktop/sms/unsorted/Europe/Renegade (Europe).sms";
+	biosFile = "/home/jonas/Desktop/sms/bios13fx.sms";
+	cartFile = "/home/jonas/Desktop/sms/unsorted/Europe/Renegade (Europe).sms";
+	cardFile = NULL;
+	expFile = NULL;
 	/*romName = "/home/jonas/games/sms_test/zexsms/zexdoc.sms";*/
 	/*romName = "/home/jonas/mame/roms/sms/mpr-11124.ic2";*/
-	load_rom(romName);
+	init_slots();
 	logfile = fopen("/home/jonas/git/logfile.txt","w");
 	if (logfile==NULL){
 		printf("Error: Could not create logfile\n");

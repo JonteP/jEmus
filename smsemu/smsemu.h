@@ -10,6 +10,6 @@
 #include <stdint.h>
 
 extern uint8_t quit, ioPort1, ioPort2, ioControl, region;
-
+extern char *cartFile, *cardFile, *expFile, *biosFile;
 
 #endif /* SMSEMU_H_ */

@@ -180,7 +180,7 @@ static inline void cb(), dd(), ed(), fd(), ddcb(), fdcb();
 static inline void dcixh(), dciyh(), dcixl(), dciyl(), inixh(), iniyh(), inixl(), iniyl(), ldixh(), ldiyh(), ldixl(), ldiyl(), lrixh(), lrixl(), lriyh(), lriyl(), lixhr(), lixlr(), liyhr(), liylr();
 
 int8_t displace;
-uint8_t op, irqPulled = 0, nmiPulled = 0, intDelay = 0, halted = 0, bramReg = 0, reset = 0;
+uint8_t op, irqPulled = 0, nmiPulled = 0, intDelay = 0, halted = 0, reset = 0;
 uint32_t cpucc = 0;
 
 /* Internal registers */
@@ -1989,13 +1989,12 @@ uint8_t read_cpu_register(uint8_t reg) {
 void write_cpu_register(uint8_t reg, uint_fast8_t value) {
 	switch (reg & 0xc1){
 	case 0x00:
-		printf("Writing %02x to memory control register: %02x\n",value,reg);
+		memory_control(value);
 		break;
 	case 0x01:
 		ioControl = value;
 		ioPort2 = (ioPort2 & 0x7f) | ((value & 0x80) ^ (((region == 0) && (!(ioControl & 0x08))) ? 0x80 : 0));
 		ioPort2 = (ioPort2 & 0xbf) | (((value & 0x20) << 1) ^ (((region == 0)  && (!(ioControl & 0x02))) ? 0x40 : 0));
-		/* (!(ioControl & 0x0a)) = TH pins are output */
 		break;
 	case 0x40:
 	case 0x41:
@@ -2018,12 +2017,15 @@ uint8_t * cpuread(uint16_t address) {
 	uint_fast8_t *value;
 	if (address >= 0xc000) /* reading from RAM */
 		value = &cpuRam[address & 0x1fff];
-	else if (address < 0xc000 && address >= 0x400) /* reading from ROM */
-		value = &bank[address >> 14][address & 0x3fff];
-	else if (address < 0x400)
-		value = (rom + (address & 0x3ff));
+	else if (address < 0xc000 && address >= 0x8000)
+		value = read_bank2(address);
+	else if (address < 0x8000 && address >= 0x4000)
+		value = read_bank1(address);
+	else if (address < 0x4000)
+		value = read_bank0(address);
 	return value;
 }
+
 /* TODO: use cpuwrite for all memory changes to catch register writes */
 void cpuwrite(uint16_t address, uint_fast8_t value) {
 	if (address >= 0xc000) /* writing to RAM */
@@ -2036,18 +2038,16 @@ void cpuwrite(uint16_t address, uint_fast8_t value) {
 			bramReg = value;
 			break;
 		case 0xd:
-			fcr[0] = (value & bankmask);
+			fcr[0] = (value & currentRom->mask);
 			break;
 		case 0xe:
-			fcr[1] = (value & bankmask);
+			fcr[1] = (value & currentRom->mask);
 			break;
 		case 0xf:
-			fcr[2] = (value & bankmask);
+			fcr[2] = (value & currentRom->mask);
 			break;
 		}
-		bank[0] = (rom + (fcr[0] << 14));
-		bank[1] = (rom + (fcr[1] << 14));
-		bank[2] = (bramReg & 0x8) ? (bRam + ((bramReg & 0x4) << 12)) : (rom + (fcr[2] << 14));
+		banking();
 	}
 }
 
