@@ -14,22 +14,21 @@ int rsize;
 void init_slots()
 {
 	biosRom = load_rom(biosFile);
-	if(cartFile != NULL)
-		cartRom = load_rom(cartFile);
-	if(cardFile != NULL)
-		cardRom = load_rom(cardFile);
+	cartRom = load_rom(cartFile);
+	cardRom = load_rom(cardFile);
+	expRom = load_rom(expFile);
 	memory_control(0xe7);
 }
 
 void memory_control(uint8_t value){
+	/* TODO: wram + ioport enable/disable */
 	memControl = value;
 	if(!(memControl & 0x80))
 		currentRom = &expRom;
 	else if(!(memControl & 0x40))
 		currentRom = &cartRom;
-	else if(!(memControl & 0x20)){
+	else if(!(memControl & 0x20))
 		currentRom = &cardRom;
-	}
 	else if(!(memControl & 0x08))
 		currentRom = &biosRom;
 	banking();
@@ -39,7 +38,7 @@ void banking(){
 	bank[0] = currentRom->rom + ((fcr[0] & currentRom->mask) << 14);
 	bank[1] = currentRom->rom + ((fcr[1] & currentRom->mask) << 14);
 	bank[2] = (bramReg & 0x8) ? (bRam + ((bramReg & 0x4) << 12)) : currentRom->rom + ((fcr[2] & currentRom->mask) << 14);
-	if(!currentRom->rom){
+	if(currentRom->rom == NULL){
 		read_bank0 = &empty;
 		read_bank1 = &empty;
 		read_bank2 = &empty;
@@ -52,8 +51,10 @@ void banking(){
 }
 uint8_t * empty(){
 	uint8_t *value = malloc(sizeof *value);
+	/* TODO: different read back value on sms 1 */
 	*value=0xff;
 	return value;
+	free (value);
 }
 uint8_t * read0(uint16_t address){
 	uint8_t *value;
@@ -77,8 +78,8 @@ uint8_t * read2(uint16_t address){
 struct RomFile load_rom(char *r){
 	FILE *rfile = fopen(r, "r");
 	if(rfile == NULL){
-		printf("Could not open file: %s\n",r);
-		exit(1);
+		struct RomFile output = { NULL };
+		return output;
 	}
 	fseek(rfile, 0L, SEEK_END);
 	rsize = ftell(rfile);
@@ -94,5 +95,12 @@ struct RomFile load_rom(char *r){
 }
 void close_rom()
 {
-	free(cartRom.rom);
+	if(cartRom.rom != NULL)
+		free(cartRom.rom);
+	if(biosRom.rom != NULL)
+		free(biosRom.rom);
+	if(cardRom.rom != NULL)
+		free(cardRom.rom);
+	if(expRom.rom != NULL)
+		free(expRom.rom);
 }

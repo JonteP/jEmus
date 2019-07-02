@@ -8,7 +8,8 @@
 uint8_t lineCounter;
 uint8_t controlFlag = 0, statusFlags = 0, readBuffer = 0, bgColor = 0, bgXScroll, bgYScroll, lineReload, lineInt = 0;
 /* REGISTERS */
-uint8_t mode1, mode2, screenHeight = 192, codeReg;
+uint8_t mode1, mode2, codeReg;
+struct VideoMode ntsc192={256,262,192,216,219,222,235,262}, *currentMode;
 uint16_t controlWord, vdpdot = 0, vCounter = 0, hCounter = 0, addReg, nameAdd, spritePattern, spriteAttribute;
 uint32_t vdp_wait = 0, vdpcc = 0, frame = 0;
 /* Mapped memory */
@@ -43,7 +44,7 @@ if (controlFlag){
 				printf("224 line mode\n");
 			break;
 		case 0x0200: /* Name Table Base Address */
-			nameAdd = ((controlWord & 0x0e) << 10);
+			nameAdd = ((controlWord & 0x0f) << 10);
 			break;
 		case 0x0300: /* Color Table Base Address */
 			break;
@@ -97,8 +98,8 @@ uint8_t read_vdp_data(){
 	return value;
 }
 
-void run_vdp(uint32_t cycles){
-while (cycles) {
+void run_vdp(){
+while (vdp_wait) {
 	if ((((statusFlags & 0x80) && (mode2 & 0x20)) || ((lineInt) && (mode1 & 0x10))) && !irqPulled)
 	{
 		irqPulled = 1;
@@ -115,43 +116,46 @@ while (cycles) {
 		vdpdot = 0;
 		vCounter++;
 	}
-	if(vCounter == 262){
+	if(vCounter == currentMode->height){
 		vCounter = 0;
 		statusFlags &= ~0x80;
 		irqPulled = 0;
 		frame++;
 		render_frame();
 	}
-	else if (vCounter == screenHeight && !vdpdot){
+	else if ((vCounter == currentMode->active) && !vdpdot){
 		statusFlags |= 0x80;
 	}
-	if (vCounter < 240 && !vdpdot){
+	if (!vdpdot){
 		render_scanline();
 	}
-	if (vCounter <= screenHeight && (vdpdot == 100)){
+	if ((vCounter <= currentMode->active) && (vdpdot == 100)){
 		lineCounter--;
 		if (lineCounter == 0xff){
 			lineCounter = lineReload;
 			lineInt = 1;
 		}
 	}
-	else if (vCounter > screenHeight && !vdpdot)
+	else if ((vCounter > currentMode->active) && !vdpdot)
 		lineCounter = lineReload;
-	cycles--;
 	vdp_wait--;
 }
 }
-
+uint8_t blank=0x15, black=0x00;
 void render_scanline(){
-	uint8_t col = 64, pix, rr, cl, cc, topBorder = 24, row, spriteY, spriteX, spriteI, sCount = 0, offset, spriteMask[SHEIGHT][SWIDTH] = {0}, priorityMask[SHEIGHT][SWIDTH] = {0};
-	uint16_t nameWord, pidx, sidx;
-	if (vCounter < screenHeight && (mode2 & 0x40)){
+	uint8_t col = 64, pix, rr, cl, cc, row, spriteY, spriteX, spriteI, sCount = 0, offset, spriteMask[currentMode->width], priorityMask[currentMode->width], transMask[currentMode->width];
+	uint16_t nameWord, pidx, sidx, yOffset;
+	memset(spriteMask, 0, currentMode->width*sizeof(uint8_t));
+	memset(priorityMask, 0, currentMode->width*sizeof(uint8_t));
+	memset(transMask, 0, currentMode->width*sizeof(uint8_t));
+	yOffset = vCounter + (currentMode->tborder - currentMode->vblank);
+	if ((vCounter < currentMode->active) && (mode2 & 0x40)){
 		uint16_t scroll = ((mode1&0x40) && vCounter < 16) ? 0 : bgXScroll;
-		row = ((bgYScroll + vCounter) % 224);
 	for (uint8_t j = 0; j < col; j=j+2){
+		row = ((vCounter + (((mode1&0x80) && j >= 48) ? 0 : bgYScroll)) % 224);
 		cl = 64 - ((scroll & 0xf8) >> 2) + j;
-		nameWord = (vRam[nameAdd + ((row & 0xf8) << 3) + (cl&0x3f)]);
-		nameWord |= (vRam[nameAdd + ((row & 0xf8) << 3) + (cl&0x3f)+1] << 8);
+		nameWord = (vRam[(nameAdd & 0x3800) + ((row & ((nameAdd&0x400) ? 0xf8 : 0x78)) << 3) + (cl&0x3f)]);
+		nameWord |= (vRam[(nameAdd & 0x3800) + ((row & ((nameAdd&0x400) ? 0xf8 : 0x78)) << 3) + (cl&0x3f)+1] << 8);
 		pidx = ((nameWord & 0x1ff) << 5);
 		rr = (nameWord & 0x400) ? 7-(row & 7) : (row & 7);
 		for (uint8_t c = 0; c < 8; c++){
@@ -160,9 +164,10 @@ void render_scanline(){
 			pix |= (vRam[pidx + (rr << 2) + 1] & (1 << cc)) ? 2:0;
 			pix |= (vRam[pidx + (rr << 2) + 2] & (1 << cc)) ? 4:0;
 			pix |= (vRam[pidx + (rr << 2) + 3] & (1 << cc)) ? 8:0;
-			screenBuffer[vCounter + topBorder][(c+(scroll&7)+(j>>1)*8) & 0xff]=cRam[pix+((nameWord & 0x800)?0x10:0)];
-			priorityMask[vCounter + topBorder][(c+(scroll&7)+(j>>1)*8) & 0xff]=((nameWord & 0x1000) >> 8);
-			screenBuffer[vCounter + topBorder][(c+scroll) & 7]= cRam[bgColor + 0x10];
+			screenBuffer[yOffset][(c+(scroll&7)+(j>>1)*8) & 0xff]=cRam[pix+((nameWord & 0x800)?0x10:0)];
+			priorityMask[(c+(scroll&7)+(j>>1)*8) & 0xff]=((nameWord & 0x1000) >> 8);
+			transMask[(c+(scroll&7)+(j>>1)*8) & 0xff] = pix ? 1 : 0;
+			screenBuffer[yOffset][(c+scroll) & 7]= cRam[bgColor + 0x10];
 		}
 	}
 
@@ -184,26 +189,36 @@ void render_scanline(){
 				pix |= (vRam[sidx + ((vCounter - spriteY) << 2) + 2] & (1 << (7-c))) ? 4:0;
 				pix |= (vRam[sidx + ((vCounter - spriteY) << 2) + 3] & (1 << (7-c))) ? 8:0;
 				offset = (c + spriteX - ((mode1 & 0x08) ? 8 : 0));
-				if(pix && offset < 248 && offset > 7){
-					if (spriteMask[vCounter + topBorder][offset])
+				if(pix && offset < currentMode->width && offset > 7){
+					if (spriteMask[offset])
 						statusFlags |= 0x20; /* set sprite collision flag */
 					else{/* TODO: proper check for transparent BG */
-						if((!priorityMask[vCounter + topBorder][offset]) || (screenBuffer[vCounter + topBorder][offset] == cRam[bgColor + 0x10]))
-							screenBuffer[vCounter + topBorder][offset]=cRam[pix+0x10];
-						spriteMask[vCounter + topBorder][offset]=1;
+						if((!priorityMask[offset]) || (!transMask[offset]))
+							screenBuffer[yOffset][offset]=cRam[pix+0x10];
+						spriteMask[offset]= pix ? 1 : 0;
 					}
 				}
 			}
 		}
 		}
-	}
+}
 
 
 	}
 	else{
-		uint8_t line = (vCounter + topBorder) % 240;
+		uint8_t fillValue;
+		if(vCounter < (currentMode->bborder))
+			fillValue = cRam[bgColor + 0x10];
+		else if(vCounter < (currentMode->bblank))
+			fillValue = blank;
+		else if(vCounter < (currentMode->vblank))
+			fillValue = black;
+		else if(vCounter < (currentMode->tblank))
+			fillValue = blank;
+		else if(vCounter < (currentMode->tborder))
+			fillValue = cRam[bgColor + 0x10];
 		for (uint16_t p = 0; p<256; p++){
-			screenBuffer[line][p] = cRam[bgColor + 0x10];
+			screenBuffer[(yOffset) % currentMode->height][p] = fillValue;
 		}
 	}
 }

@@ -324,6 +324,7 @@ void io_handle()
 				nmiPulled = 1;
 				break;
 			case SDL_SCANCODE_BACKSPACE:
+				ioPort2 &= ~0x10;
 				break;
 			case SDL_SCANCODE_Z:
 				ioPort1 &= ~0x10;
@@ -376,6 +377,7 @@ void io_handle()
 			case SDL_SCANCODE_RETURN:
 				break;
 			case SDL_SCANCODE_BACKSPACE:
+				ioPort2 |= 0x10;
 				break;
 			case SDL_SCANCODE_Z:
 				ioPort1 |= 0x10;

@@ -173,7 +173,7 @@ static inline void jp(), jpc(), jr(), jrc(), jphl(), jpix(), jpiy(), djnz();
 /* call, return */
 static inline void call(), callc(), ret(), retc(), reti(), retn(), rst();
 /* input, output */
-static inline void in(), inrc(), ini(), inir(), out(), outc(), outi(), otir(), outd();
+static inline void in(), inrc(), ini(), inir(), out(), outc(), outi(), otir(), outd(), otdr();
 /* prefixed opcodes */
 static inline void cb(), dd(), ed(), fd(), ddcb(), fdcb();
 /* undocumented opcodes */
@@ -258,7 +258,7 @@ static void (*optable[0x100])() = {
 		addcycles(ctable[op]);
 		(*optable[op])();
 	}
-	run_vdp(vdp_wait);
+	run_vdp();
 }
 
 /* EXTENDED OPCODE TABLES */
@@ -324,7 +324,7 @@ static void (*edtable[0x100])() = {
 	noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, /* 8 */
 	noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, /* 9 */
 	 ldi,  cpi,  ini, outi, noop, noop, noop, noop,  ldd,  cpd, noop, outd, noop, noop, noop, noop, /* a */
-	ldir, cpir, inir, otir, noop, noop, noop, noop, lddr, cpdr, noop, noop, noop, noop, noop, noop, /* b */
+	ldir, cpir, inir, otir, noop, noop, noop, noop, lddr, cpdr, noop, otdr, noop, noop, noop, noop, /* b */
 	noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, /* c */
 	noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, /* d */
 	noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, /* e */
@@ -1729,6 +1729,25 @@ void outd()	{ /* OUTD */
 	*cpuFreg = (tmp & 0x80) ? (*cpuFreg | 0x02): (*cpuFreg & ~0x02); /* N flag */
 	*cpuFreg = (k > 0xff) ? (*cpuFreg | 0x01) : (*cpuFreg & ~0x01); /* C flag */
 }
+void otdr()	{ /* OUTD */
+	uint8_t tmp = *cpuread(*cpuHLreg); /* to be written to port */
+	(*cpuBreg)--; /* byte counter */
+	write_cpu_register(*cpuCreg, tmp);
+	(*cpuHLreg)--;
+	if (*cpuBreg){
+		cpuPC -= 2;
+		addcycles(5);
+	}
+	*cpuFreg = (!*cpuBreg) ? (*cpuFreg | 0x40) : (*cpuFreg & ~0x40); /* Z flag */
+	*cpuFreg = (*cpuFreg | 0x02); /* N flag */
+	uint16_t k = (*cpuLreg + tmp);
+	*cpuFreg = (*cpuBreg & 0x80) ? (*cpuFreg | 0x80) : (*cpuFreg & ~0x80); /* S flag */
+	*cpuFreg = (!*cpuBreg) ? (*cpuFreg | 0x40) : (*cpuFreg & ~0x40); /* Z flag */
+	*cpuFreg = (k > 0xff) ? (*cpuFreg | 0x10) : (*cpuFreg & ~0x10); /* H flag */
+	*cpuFreg = (parcalc((k & 7) ^ *cpuBreg)) ? (*cpuFreg | 0x04) : (*cpuFreg & ~0x04); /* P/V flag */
+	*cpuFreg = (tmp & 0x80) ? (*cpuFreg | 0x02): (*cpuFreg & ~0x02); /* N flag */
+	*cpuFreg = (k > 0xff) ? (*cpuFreg | 0x01) : (*cpuFreg & ~0x01); /* C flag */
+}
 
 
 /* UNDOCUMENTED OPCODES */
@@ -1964,6 +1983,7 @@ uint8_t read_cpu_register(uint8_t reg) {
 		value = vCounter;
 		break;
 	case 0x41: /* Read VDP H Counter */
+		/* should return upper 8 bits */
 		value = hCounter;
 		break;
 	case 0x80: /* Read VDP Data Port */
