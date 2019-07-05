@@ -8,6 +8,7 @@
 
 /* Compatibility:
  * -Golvellius (U/E) - hangs on overworld (walked up one screen)
+ * -Space Harrier (J) - black screen after game start
  */
 /* TODO:
  * -overscan mask (always on now?)
@@ -20,6 +21,10 @@
  * -dot renderer
  * -correct timing
  * -remaining z80 opcodes
+ * -codemasters mapper
+ * -should color 0 be used for left column mask?
+ * -correct readback value for h and v counter
+ * -port access behavior differs between consoles
  *
  * 1 struct for machine, 1 struct for video mode?
  *
@@ -42,14 +47,29 @@
  */
 char *cartFile, *cardFile, *expFile, *biosFile;
 uint8_t quit = 0, ioPort1, ioPort2, ioControl, region;
+struct machine ntsc_us={"mpr-10052.ic2",53693175,NTSC,EXPORT}, pal={"mpr-10052.ic2",53203424,PAL,EXPORT}, ntsc_jp={"mpr-11124.ic2",53693175,NTSC,JAPAN}, *currentMachine;
+float frameTime, fps;
+sdlSettings settings;
 /* trace zexdoc.log,0,noloop,{tracelog "%04x,%04x,%04x,%04x,%04x,%04x,%04x,%04x,",pc,(af&ffd7),bc,de,hl,ix,iy,sp}*/
 int main() {
-	region = 0;
-	init_sdl();
-	init_time();
-	currentMode = &ntsc192;
-	biosFile = "/home/jonas/mame/roms/smsj/mpr-11124.ic2";
-	cartFile = "/home/jonas/Desktop/sms/unsorted/Japan/Alex Kidd no Miracle World.sms";
+	currentMode = &pal192;
+	currentMachine = &pal;
+	init_vdp();
+	fps = (float)currentMachine->masterClock/(currentMode->fullheight * currentMode->fullwidth * 10);
+	printf("Running at %.02f fps\n",fps);
+	frameTime = ((1/fps) * 1000000000);
+	settings.renderQuality = "0";
+	settings.ctable = (uint8_t*) malloc(0xc0 * sizeof(uint8_t));
+	for (int i = 0; i < 0x40; i++) {
+		settings.ctable[i*3]     = (((i & 0x03) << 6) | ((i & 0x03) << 4) | ((i & 0x03) << 2) | (i & 0x03));
+		settings.ctable[(i*3)+1] = (((i & 0x0c) << 4) | ((i & 0x0c) << 2) | ((i & 0x0c) >> 2) | (i & 0x0c));
+		settings.ctable[(i*3)+2] = (((i & 0x30) << 2) | ((i & 0x30) >> 4) | ((i & 0x30) >> 2) | (i & 0x30));
+	}
+	init_sdl(&settings);
+	init_time(frameTime);
+	biosFile = malloc(strlen(currentMachine->bios) + 6);
+	sprintf(biosFile, "bios/%s",currentMachine->bios);
+	cartFile = "/home/jonas/Desktop/sms/unsorted/Europe/Sonic The Hedgehog 2 (Europe) (Rev 1).sms";
 	/*romName = "/home/jonas/games/sms_test/zexsms/zexdoc.sms";*/
 	/*romName = "/home/jonas/mame/roms/sms/mpr-11124.ic2";*/
 	init_slots();
@@ -58,12 +78,13 @@ int main() {
 		printf("Error: Could not create logfile\n");
 		exit(1);
 	}
-
 	power_reset();
 	while (quit == 0) {
 		opdecode();
 	}
 	fclose(logfile);
+	free(settings.ctable);
 	close_sdl();
 	close_rom();
+	close_vdp();
 }

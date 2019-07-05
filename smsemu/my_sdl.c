@@ -14,14 +14,15 @@ SDL_AudioSpec AudioSettings = {0};
 SDL_DisplayMode current;
 uint_fast8_t nametableActive = 0, patternActive = 0, paletteActive = 0, isPaused = 0, fullscreen = 0, stateSave = 0, stateLoad = 0, vsync = 0;
 uint16_t pulseQueueCounter = 0;
-float frameTime;
 uint_fast8_t coltable[0xc0];
+sdlSettings *currentSettings;
 
 windowHandle handleMain, handleNametable, handlePattern, handlePalette;
 
-static inline void render_window (windowHandle *, void *), idle_time(), update_texture(windowHandle *, uint_fast8_t *);
+static inline void render_window (windowHandle *, void *), idle_time(float), update_texture(windowHandle *, uint_fast8_t *);
 
-void init_sdl() {
+void init_sdl(sdlSettings *settings) {
+	currentSettings = settings;
 	SDL_version ver;
 	SDL_GetVersion(&ver);
 	printf("Running SDL version: %d.%d.%d\n",ver.major,ver.minor,ver.patch);
@@ -30,17 +31,8 @@ void init_sdl() {
 		printf("SDL_Init failed: %s\n", SDL_GetError());
 		exit(EXIT_FAILURE);
 	}
-
-	SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY,"0");
-	for (int i = 0; i < 0x40; i++) {
-		coltable[i*3] = (((i & 0x03) << 6) | ((i & 0x03) << 4) | ((i & 0x03) << 2) | (i & 0x03));
-		coltable[(i*3)+1] = (((i & 0x0c) << 4) | ((i & 0x0c) << 2) | ((i & 0x0c) >> 2) | (i & 0xc0));
-		coltable[(i*3)+2] = (((i & 0x30) << 2) | ((i & 0x30) >> 4) | ((i & 0x30) >> 2) | (i & 0x30));
-	}
-	handleMain = create_handle ("jNes", 100, 100, WWIDTH<<1, WHEIGHT<<1, SWIDTH, SHEIGHT, 0, 0);
-	handleNametable = create_handle ("Nametable", 1000, 100, WWIDTH<<1, WHEIGHT<<1, SWIDTH<<1, SHEIGHT<<1,0,0);
-	handlePattern = create_handle ("Pattern", 1000, 100, WWIDTH<<1, WHEIGHT<<1, SWIDTH<<1, SHEIGHT<<1,0,0);
-	handlePalette = create_handle ("Palette", 1000, 100, WWIDTH<<1, WHEIGHT<<1, SWIDTH<<1, SHEIGHT<<1,0,0);
+	SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY,currentSettings->renderQuality);
+	handleMain = create_handle ("jNes", 100, 100, WWIDTH<<1, WHEIGHT<<1, currentMode->width, currentMode->height, 0, 0);
 	SDL_ShowWindow(handleMain.win);
 	handleMain.visible = 1;
 	AudioSettings.freq = samplesPerSecond;
@@ -53,7 +45,6 @@ void init_sdl() {
 	SDL_ClearQueuedAudio(1);
 /*	originalSampleRate = cpuClock/samplesPerSecond;
 	sampleRate = originalSampleRate;*/
-	frameTime = ((1/fps) * 1000000000);
 }
 
 windowHandle create_handle (char * name, int wpx, int wpy, int ww, int wh, int sw, int sh, int xx, int yy) {
@@ -100,9 +91,6 @@ void destroy_handle (windowHandle * handle) {
 
 void close_sdl () {
 	destroy_handle (&handleMain);
-	destroy_handle (&handleNametable);
-	destroy_handle (&handlePattern);
-	destroy_handle (&handlePalette);
 	SDL_ClearQueuedAudio(1);
 	SDL_CloseAudio();
 	SDL_Quit();
@@ -110,19 +98,19 @@ void close_sdl () {
 }
 
 struct timespec xClock;
-void init_time ()
+void init_time (float time)
 {
 	clock_getres(CLOCK_MONOTONIC, &xClock);
 	clock_gettime(CLOCK_MONOTONIC, &xClock);
-	xClock.tv_nsec += frameTime;
+	xClock.tv_nsec += time;
 	xClock.tv_sec += xClock.tv_nsec / 1000000000;
 	xClock.tv_nsec %= 1000000000;
 }
 
-void idle_time ()
+void idle_time (float time)
 {
 	clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &xClock, NULL);
-	xClock.tv_nsec += frameTime;
+	xClock.tv_nsec += time;
 	xClock.tv_sec += xClock.tv_nsec / 1000000000;
 	xClock.tv_nsec %= 1000000000;
 }
@@ -131,7 +119,7 @@ void render_frame()
 {
 
 	render_window (&handleMain, screenBuffer);
-	idle_time();
+	idle_time(frameTime);
 	io_handle();
 	while (isPaused)
 	{
@@ -158,7 +146,7 @@ void update_texture(windowHandle *handle, uint_fast8_t * buffer)
    		dst = (Uint32*)((Uint8*)pixels + row * pitch);
 		for (col = 0; col < handle->screenWidth; ++col)
 		{
-    		color = coltable + ((*(buffer + row * handle->screenWidth + col)) * 3);
+    		color = (currentSettings->ctable + ((*(buffer + row * handle->screenWidth + col)) * 3));
     		*dst++ = (0xFF000000|(color[0]<<16)|(color[1]<<8)|color[2]);
 		}
     }

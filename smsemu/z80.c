@@ -2013,8 +2013,8 @@ void write_cpu_register(uint8_t reg, uint_fast8_t value) {
 		break;
 	case 0x01:
 		ioControl = value;
-		ioPort2 = (ioPort2 & 0x7f) | ((value & 0x80) ^ (((region == 0) && (!(ioControl & 0x08))) ? 0x80 : 0));
-		ioPort2 = (ioPort2 & 0xbf) | (((value & 0x20) << 1) ^ (((region == 0)  && (!(ioControl & 0x02))) ? 0x40 : 0));
+		ioPort2 = (ioPort2 & 0x7f) | ((value & 0x80) ^ (((currentMachine->region == JAPAN) && (!(ioControl & 0x08))) ? 0x80 : 0));
+		ioPort2 = (ioPort2 & 0xbf) | (((value & 0x20) << 1) ^ (((currentMachine->region == JAPAN)  && (!(ioControl & 0x02))) ? 0x40 : 0));
 		break;
 	case 0x40:
 	case 0x41:
@@ -2050,9 +2050,22 @@ uint8_t * cpuread(uint16_t address) {
 void cpuwrite(uint16_t address, uint_fast8_t value) {
 	if (address >= 0xc000) /* writing to RAM */
 		cpuRam[address & 0x1fff] = value;
-	else if (address < 0xc000 && address >= 0x8000 && (bramReg & 0x8))
+	else if (address < 0xc000 && address >= 0x8000 && (bramReg & 0x8)){
 		bank[address >> 14][address & 0x3fff] = value;
-	if(address >=0xfff8){
+	}
+	if(address == 0x0000 && mapper == CODEMASTERS){
+		fcr[0] = (value & currentRom->mask);
+		banking();
+	}
+	if(address == 0x4000 && mapper == CODEMASTERS){
+		fcr[1] = (value & currentRom->mask);
+		banking();
+	}
+	if(address == 0x8000 && mapper == CODEMASTERS){
+		fcr[2] = (value & currentRom->mask);
+		banking();
+	}
+	if(address >=0xfff8 && mapper == SEGA){
 		switch(address & 0xf){
 		case 0xc:
 			bramReg = value;

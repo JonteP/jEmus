@@ -6,8 +6,9 @@
 #include "smsemu.h"
 
 static inline struct RomFile load_rom(char *);
-static inline uint8_t * read0(uint16_t), * read1(uint16_t), * read2(uint16_t), * empty(void);
-uint8_t fcr[3] = {0, 1, 2}, *bank[3], bRam[0x8000], memControl, bramReg = 0;
+static inline uint8_t * read0(uint16_t), * read1(uint16_t), * read2(uint16_t), * empty(uint16_t);
+static inline void generic_mapper(), sega_mapper(), codemasters_mapper();
+uint8_t fcr[3], *bank[3], bRam[0x8000], memControl, bramReg = 0, mapper = SEGA, returnValue[1]={0};
 struct RomFile cartRom, cardRom, biosRom, expRom, *currentRom;
 int rsize;
 
@@ -23,18 +24,54 @@ void init_slots()
 void memory_control(uint8_t value){
 	/* TODO: wram + ioport enable/disable */
 	memControl = value;
-	if(!(memControl & 0x80))
+	if(!(memControl & 0x80)){
 		currentRom = &expRom;
-	else if(!(memControl & 0x40))
+		banking = &generic_mapper;
+	}
+	else if(!(memControl & 0x40)){
 		currentRom = &cartRom;
-	else if(!(memControl & 0x20))
+		if(mapper){
+			banking = &codemasters_mapper;
+			fcr[0] = 0;
+			fcr[1] = 1;
+			fcr[2] = 0;
+		}
+		else{
+			banking = &sega_mapper;
+			fcr[0] = 0;
+			fcr[1] = 1;
+			fcr[2] = 2;
+		}
+	}
+	else if(!(memControl & 0x20)){
 		currentRom = &cardRom;
-	else if(!(memControl & 0x08))
+		banking = &generic_mapper;
+	}
+	else if(!(memControl & 0x08)){
 		currentRom = &biosRom;
+		banking = &generic_mapper;
+	}
 	banking();
 }
 
-void banking(){
+void generic_mapper(){
+	bank[0] = currentRom->rom;
+	bank[1] = currentRom->rom + 0x4000;
+	bank[2] = currentRom->rom + 0x8000;
+	if(currentRom->rom == NULL){
+		read_bank0 = &empty;
+		read_bank1 = &empty;
+		read_bank2 = &empty;
+	}
+	else{
+		read_bank0 = &read0;
+		read_bank1 = &read1;
+		read_bank2 = &read2;
+	}
+}
+
+void sega_mapper(){
+	/* TODO: bank shifting */
 	bank[0] = currentRom->rom + ((fcr[0] & currentRom->mask) << 14);
 	bank[1] = currentRom->rom + ((fcr[1] & currentRom->mask) << 14);
 	bank[2] = (bramReg & 0x8) ? (bRam + ((bramReg & 0x4) << 12)) : currentRom->rom + ((fcr[2] & currentRom->mask) << 14);
@@ -49,12 +86,28 @@ void banking(){
 		read_bank2 = &read2;
 	}
 }
-uint8_t * empty(){
-	uint8_t *value = malloc(sizeof *value);
+
+void codemasters_mapper(){
+	/* TODO: RAM mapping */
+	bank[0] = currentRom->rom;
+	bank[1] = currentRom->rom + 0x4000;
+	bank[2] = currentRom->rom + ((fcr[2] & currentRom->mask) << 14);
+	if(currentRom->rom == NULL){
+		read_bank0 = &empty;
+		read_bank1 = &empty;
+		read_bank2 = &empty;
+	}
+	else{
+		read_bank0 = &read0;
+		read_bank1 = &read1;
+		read_bank2 = &read2;
+	}
+}
+
+uint8_t * empty(uint16_t address){
 	/* TODO: different read back value on sms 1 */
-	*value=0xff;
-	return value;
-	free (value);
+	returnValue[0]=0xff;
+	return returnValue;
 }
 uint8_t * read0(uint16_t address){
 	uint8_t *value;
