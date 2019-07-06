@@ -6,15 +6,15 @@
 #include "my_sdl.h"
 #include "smsemu.h"
 
-uint8_t lineCounter;
-uint8_t controlFlag = 0, statusFlags = 0, readBuffer = 0, bgColor = 0, bgXScroll, bgYScroll, lineReload, lineInt = 0;
+uint8_t lineCounter, lineReload;
+uint8_t controlFlag = 0, statusFlags = 0, readBuffer = 0, bgColor = 0, bgXScroll, bgYScroll, lineInt = 0;
 /* REGISTERS */
 uint8_t mode1, mode2, codeReg;
-struct VideoMode ntsc192={256,342,240,262,192,216,219,222,235,262}, *currentMode;
-struct VideoMode ntsc224={256,342,240,262,224,232,235,238,251,262};
-struct VideoMode pal192={256,342,288,313,192,240,243,246,259,313};
-struct VideoMode pal224={256,342,288,313,224,256,259,262,275,313};
-uint16_t controlWord, vdpdot = 0, vCounter = 0, hCounter = 0, addReg, nameAdd, spritePattern, spriteAttribute;
+struct VideoMode ntsc192={256,342,240,262,192,216,219,222,235,262,224}, *currentMode;
+struct VideoMode ntsc224={256,342,240,262,224,232,235,238,251,262,256};
+struct VideoMode pal192={256,342,288,313,192,240,243,246,259,313,224};
+struct VideoMode pal224={256,342,288,313,224,256,259,262,275,313,256};
+uint16_t controlWord, vdpdot = 0, vCounter = 0, hCounter = 0, addReg, ntAddress, spritePattern, spriteAttribute;
 uint32_t vdp_wait = 0, vdpcc = 0, frame = 0;
 /* Mapped memory */					/* TODO: dynamically allocate screenBuffer */
 uint8_t vRam[0x4000], cRam[0x20], *screenBuffer;
@@ -22,10 +22,42 @@ static inline void render_scanline(void);
 
 void init_vdp(){
 	screenBuffer = (uint8_t*)calloc(currentMode->height * currentMode->width, sizeof(uint8_t));
+	ntsc192.vcount = (uint8_t*) malloc(ntsc192.fullheight * sizeof(uint8_t));
+	for(int i=0;i<0xdb;i++){
+		ntsc192.vcount[i] = i;
+	}
+	for(int i=0xd5;i<0x100;i++){
+		ntsc192.vcount[i+6] = i;
+	}
+	ntsc224.vcount = (uint8_t*) malloc(ntsc224.fullheight * sizeof(uint8_t));
+	for(int i=0;i<0xeb;i++){
+		ntsc224.vcount[i] = i;
+	}
+	for(int i=0xe5;i<0x100;i++){
+		ntsc224.vcount[i+6] = i;
+	}
+	pal192.vcount = (uint8_t*) malloc(pal192.fullheight * sizeof(uint8_t));
+	for(int i=0;i<0xf3;i++){
+		pal192.vcount[i] = i;
+	}
+	for(int i=0xba;i<0x100;i++){
+		pal192.vcount[i+39] = i;
+	}
+	pal224.vcount = (uint8_t*) malloc(pal224.fullheight * sizeof(uint8_t));
+	for(int i=0;i<0x103;i++){
+		pal224.vcount[i] = i;
+	}
+	for(int i=0xca;i<0x100;i++){
+		pal224.vcount[i+39] = i;
+	}
 }
 
 void close_vdp(){
 	free (screenBuffer);
+	free (ntsc192.vcount);
+	free (ntsc224.vcount);
+	free (pal192.vcount);
+	free (pal224.vcount);
 }
 
 void write_vdp_control(uint8_t value){
@@ -66,7 +98,7 @@ if (controlFlag){
 			}
 			break;
 		case 0x0200: /* Name Table Base Address */
-			nameAdd = ((controlWord & 0x0f) << 10);
+			ntAddress = ((controlWord & 0x0f) << 10);
 			break;
 		case 0x0300: /* Color Table Base Address */
 			break;
@@ -126,7 +158,7 @@ while (vdp_wait) {
 	{
 		irqPulled = 1;
 	}
-	else if ((!(mode2 & 0x20)) && irqPulled)/* disabling line interrupt should deassert the IRQ line */
+	else if ((!(mode2 & 0x20)) && irqPulled)/* TODO: disabling line interrupt should deassert the IRQ line */
 	{
 			irqPulled = 0;
 	}
@@ -166,39 +198,44 @@ while (vdp_wait) {
 uint8_t blank=0x15, black=0x00;
 void render_scanline(){
 	uint8_t pixel, tileRow, ntColumn, tileColumn, ntRow, spriteY, spriteX, spriteI, spriteBuffer = 0, pixelOffset, spriteMask[currentMode->width], priorityMask[currentMode->width], transMask[currentMode->width];
-	uint16_t nameWord, pidx, sidx, yOffset;
+	uint16_t ntData, pidx, sidx, yOffset, ntOffset;
 	memset(spriteMask, 0, currentMode->width*sizeof(uint8_t));
 	memset(priorityMask, 0, currentMode->width*sizeof(uint8_t));
 	memset(transMask, 0, currentMode->width*sizeof(uint8_t));
 	yOffset = vCounter + (currentMode->tborder - currentMode->tblank);
 	if ((vCounter < currentMode->vactive) && (mode2 & 0x40)){
 		uint16_t scroll = ((mode1&0x40) && vCounter < 16) ? 0 : bgXScroll;
-	for (uint8_t j = 0; j < 32; j++){
-		ntRow = ((vCounter + (((mode1&0x80) && j >= 24) ? 0 : bgYScroll)) % 224);
-		ntColumn = 32 - ((scroll & 0xf8) >> 3) + j;
-		nameWord  = (vRam[(nameAdd & 0x3800) + ((ntRow & ((nameAdd & 0x400) ? 0xf8 : 0x78)) << 3) + ((ntColumn & 0x1f) << 1)    ]     );
-		nameWord |= (vRam[(nameAdd & 0x3800) + ((ntRow & ((nameAdd & 0x400) ? 0xf8 : 0x78)) << 3) + ((ntColumn & 0x1f) << 1) + 1] << 8);
-		pidx = ((nameWord & 0x1ff) << 5);
-		tileRow = (nameWord & 0x400) ? 7-(ntRow & 7) : (ntRow & 7);
+	for (uint8_t cc = 0; cc < 32; cc++){
+		ntRow = ((vCounter + (((mode1&0x80) && cc >= 24) ? 0 : bgYScroll)) % currentMode->vwrap);
+		ntColumn = 32 - ((scroll & 0xf8) >> 3) + cc;
+		if(currentMode->vactive == 192)
+				/*   Name table base address 		 + Name table row (handle masking bug in vdp1)          + Name table column	*/ /* TODO: make vdp1/2 independent of video mode*/
+			ntOffset = ((ntAddress & 0x3800) 		 + ((ntRow & ((ntAddress & 0x400) ? 0xf8 : 0x78)) << 3) + ((ntColumn & 0x1f) << 1));
+		else if(currentMode->vactive >= 224)
+			ntOffset = ((ntAddress & 0x3000) + 0x700 + ((ntRow & 0xf8) << 3) 							    + ((ntColumn & 0x1f) << 1));
+		ntData  = (vRam[ntOffset    ]     );
+		ntData |= (vRam[ntOffset + 1] << 8);
+		pidx = ((ntData & 0x1ff) << 5);
+		tileRow = (ntData & 0x400) ? 7-(ntRow & 7) : (ntRow & 7);
 		for (uint8_t c = 0; c < 8; c++){
-			tileColumn = (nameWord & 0x200) ? c : 7-c;
+			tileColumn = (ntData & 0x200) ? c : 7-c;
 			pixel  = (vRam[pidx + (tileRow << 2)    ] & (1 << tileColumn)) ? 1:0;
 			pixel |= (vRam[pidx + (tileRow << 2) + 1] & (1 << tileColumn)) ? 2:0;
 			pixel |= (vRam[pidx + (tileRow << 2) + 2] & (1 << tileColumn)) ? 4:0;
 			pixel |= (vRam[pidx + (tileRow << 2) + 3] & (1 << tileColumn)) ? 8:0;
-			screenBuffer[(yOffset*currentMode->width) + ((c+(scroll&7)+(j)*8) & 0xff)]
-						 = cRam[pixel+((nameWord & 0x800)?0x10:0)];
-			priorityMask[(c+(scroll&7)+(j)*8) & 0xff]=((nameWord & 0x1000) >> 8);
-			transMask[(c+(scroll&7)+(j)*8) & 0xff] = pixel ? 1 : 0;
+			screenBuffer[(yOffset*currentMode->width) + ((c+(scroll&7)+(cc << 3)) & 0xff)]
+						 = cRam[pixel+((ntData & 0x800)?0x10:0)];
+			priorityMask[(c+(scroll&7)+(cc << 3)) & 0xff]=((ntData & 0x1000) >> 8);
+			transMask[(c+(scroll&7)+(cc << 3)) & 0xff] = pixel ? 1 : 0;
 			if((mode1 & 0x20))
 				screenBuffer[(yOffset*currentMode->width) + ((c+scroll) & 7)]
-							 = cRam[0x10];
+							 = cRam[bgColor + 0x10];
 		}
 	}
 
 	for(uint8_t s = 0; s < 64; s++){
 		spriteY = (vRam[spriteAttribute + s] + 1);
-		if(spriteY == 0xd1)
+		if((spriteY == 0xd1) && (currentMode->vactive == 192))
 			break;
 		else if ((vCounter >= spriteY) && (vCounter < (spriteY + ((mode2 & 0x02) ? 16 : 8)))){
 			spriteBuffer++;
@@ -228,7 +265,6 @@ void render_scanline(){
 		}
 		}
 }
-
 
 	}
 	else{

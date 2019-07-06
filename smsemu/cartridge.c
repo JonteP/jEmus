@@ -3,13 +3,17 @@
 #include <unistd.h>
 #include <stdlib.h>	/* malloc; exit */
 #include <string.h>
+#include "parser.h"
+#include "tree.h"
+#include "sha.h"
 #include "smsemu.h"
 
 static inline struct RomFile load_rom(char *);
 static inline uint8_t * read0(uint16_t), * read1(uint16_t), * read2(uint16_t), * empty(uint16_t);
 static inline void generic_mapper(), sega_mapper(), codemasters_mapper();
-uint8_t fcr[3], *bank[3], bRam[0x8000], memControl, bramReg = 0, mapper = SEGA, returnValue[1]={0};
+uint8_t fcr[3], *bank[3], bRam[0x8000], memControl, bramReg = 0, returnValue[1]={0};
 struct RomFile cartRom, cardRom, biosRom, expRom, *currentRom;
+Mapper mapper = SEGA;
 int rsize;
 
 void init_slots()

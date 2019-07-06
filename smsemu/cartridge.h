@@ -13,13 +13,14 @@ typedef enum mapper{
 	SEGA,
 	CODEMASTERS,
 	KOREA
-};
+} Mapper;
 struct RomFile {
 	uint8_t *rom;
 	uint8_t mask;
 };
 
-extern uint8_t fcr[3], *bank[3], bRam[0x8000], memControl, bramReg, mapper;
+extern uint8_t fcr[3], *bank[3], bRam[0x8000], memControl, bramReg;
+Mapper mapper;
 extern struct RomFile cartRom, *currentRom;
 
 void init_slots(), close_rom(), memory_control(uint8_t);

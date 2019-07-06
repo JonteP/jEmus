@@ -1980,7 +1980,7 @@ uint8_t read_cpu_register(uint8_t reg) {
 		printf("Reading (dummy value) from register: %02x\n",reg);
 		break;
 	case 0x40: /* Read VDP V Counter */
-		value = vCounter;
+		value = (currentMode->vcount[vCounter] & 0xff);
 		break;
 	case 0x41: /* Read VDP H Counter */
 		/* should return upper 8 bits */

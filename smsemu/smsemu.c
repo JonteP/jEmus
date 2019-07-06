@@ -11,46 +11,25 @@
  * -Space Harrier (J) - black screen after game start
  */
 /* TODO:
- * -overscan mask (always on now?)
+ * -overscan mask (always on now? Should color 0 be used?)
  * -sound (normal)
  * -FM sound
  * -special peripherals (lightgun, sports pad, paddle)
- * -console versions
- * -video modes
+ * -vdp versions
  * -backup RAM save support
  * -dot renderer
  * -correct timing
  * -remaining z80 opcodes
- * -codemasters mapper
- * -should color 0 be used for left column mask?
- * -correct readback value for h and v counter
- * -port access behavior differs between consoles
- *
- * 1 struct for machine, 1 struct for video mode?
- *
- *machine:
- *-region
- *-pal/ntsc
- *-pal/ntsc
- *-bios
- *-form factor
- *
- * video mode:
- * -lines of active display
- * -bottom border onset
- * -bottom blanking onset
- * -vertical blanking onset
- * -top blanking offset
- * -top border offset
- * -total lines
- * -v counter change value
+ * -correct readback value for h counter
+ * -port access behavior differs between consoles (open bus)
+ * -are sprites clipped on top row?
+ * -load roms by xml
  */
 char *cartFile, *cardFile, *expFile, *biosFile;
 uint8_t quit = 0, ioPort1, ioPort2, ioControl, region;
 struct machine ntsc_us={"mpr-10052.ic2",53693175,NTSC,EXPORT}, pal={"mpr-10052.ic2",53203424,PAL,EXPORT}, ntsc_jp={"mpr-11124.ic2",53693175,NTSC,JAPAN}, *currentMachine;
 float frameTime, fps;
 sdlSettings settings;
-/* trace zexdoc.log,0,noloop,{tracelog "%04x,%04x,%04x,%04x,%04x,%04x,%04x,%04x,",pc,(af&ffd7),bc,de,hl,ix,iy,sp}*/
 int main() {
 	currentMode = &pal192;
 	currentMachine = &pal;
@@ -69,9 +48,7 @@ int main() {
 	init_time(frameTime);
 	biosFile = malloc(strlen(currentMachine->bios) + 6);
 	sprintf(biosFile, "bios/%s",currentMachine->bios);
-	cartFile = "/home/jonas/Desktop/sms/unsorted/Europe/Sonic The Hedgehog 2 (Europe) (Rev 1).sms";
-	/*romName = "/home/jonas/games/sms_test/zexsms/zexdoc.sms";*/
-	/*romName = "/home/jonas/mame/roms/sms/mpr-11124.ic2";*/
+	cartFile = "/home/jonas/Desktop/sms/unsorted/Europe/Shadow Dancer (Europe).sms";
 	init_slots();
 	logfile = fopen("/home/jonas/git/logfile.txt","w");
 	if (logfile==NULL){
@@ -88,3 +65,5 @@ int main() {
 	close_rom();
 	close_vdp();
 }
+
+/* trace zexdoc.log,0,noloop,{tracelog "%04x,%04x,%04x,%04x,%04x,%04x,%04x,%04x,",pc,(af&ffd7),bc,de,hl,ix,iy,sp}*/

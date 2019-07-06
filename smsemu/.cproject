@@ -55,9 +55,13 @@
                                 								
                                 <option defaultValue="gnu.c.debugging.level.max" id="gnu.c.compiler.exe.debug.option.debugging.level.556170839" name="Debug Level" superClass="gnu.c.compiler.exe.debug.option.debugging.level" useByScannerDiscovery="false" valueType="enumerated"/>
                                 								
-                                <option IS_BUILTIN_EMPTY="false" IS_VALUE_EMPTY="false" id="gnu.c.compiler.option.include.paths.536031678" superClass="gnu.c.compiler.option.include.paths" valueType="includePath">
+                                <option IS_BUILTIN_EMPTY="false" IS_VALUE_EMPTY="false" id="gnu.c.compiler.option.include.paths.536031678" name="Include paths (-I)" superClass="gnu.c.compiler.option.include.paths" useByScannerDiscovery="false" valueType="includePath">
                                     									
                                     <listOptionValue builtIn="false" value="/usr/include/SDL2"/>
+                                    									
+                                    <listOptionValue builtIn="false" value="/usr/include/libxml"/>
+                                    									
+                                    <listOptionValue builtIn="false" value="/usr/include/openssl"/>
                                     								
                                 </option>
                                 								
@@ -72,6 +76,10 @@
                                     <listOptionValue builtIn="false" srcPrefixMapping="" srcRootPath="" value="SDL2"/>
                                     									
                                     <listOptionValue builtIn="false" srcPrefixMapping="" srcRootPath="" value="SDL2main"/>
+                                    									
+                                    <listOptionValue builtIn="false" srcPrefixMapping="" srcRootPath="" value="xml2"/>
+                                    									
+                                    <listOptionValue builtIn="false" srcPrefixMapping="" srcRootPath="" value="crypto"/>
                                     								
                                 </option>
                                 								

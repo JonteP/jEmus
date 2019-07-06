@@ -26,6 +26,9 @@ struct VideoMode {
 	uint16_t vblank;
 	uint16_t tblank;
 	uint16_t tborder;
+	uint16_t vwrap;
+	uint8_t *vcount;
+	/* TODO: add y scroll wrap */
 };
 
 /* CONSTANTS */
