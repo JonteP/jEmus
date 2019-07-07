@@ -2018,7 +2018,7 @@ void write_cpu_register(uint8_t reg, uint_fast8_t value) {
 		break;
 	case 0x40:
 	case 0x41:
-	/*	printf("Writing to SN76489 PSG: %02x\n",reg);*/
+		write_sn79489(value);
 		break;
 	case 0x80:
 		write_vdp_data(value);

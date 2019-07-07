@@ -6,8 +6,8 @@
 #include <time.h> 	/* clock */
 #include <unistd.h> /* usleep */
 #include "smsemu.h"
+#include "sn79489.h"
 #include "vdp.h"
-#include "sn76489.h"
 #include "z80.h"
 
 SDL_AudioSpec AudioSettings = {0};

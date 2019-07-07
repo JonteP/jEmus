@@ -9,6 +9,7 @@
 /* Compatibility:
  * -Golvellius (U/E) - hangs on overworld (walked up one screen)
  * -Space Harrier (J) - black screen after game start
+ * -vigilante - garbled graphics
  */
 /* TODO:
  * -overscan mask (always on now? Should color 0 be used?)
@@ -47,7 +48,7 @@ int main() {
 	init_time(frameTime);
 	biosFile = malloc(strlen(currentMachine->bios) + 6);
 	sprintf(biosFile, "bios/%s",currentMachine->bios);
-	cartFile = "/home/jonas/Desktop/sms/unsorted/Europe/Land of Illusion Starring Mickey Mouse (Europe).sms";
+	cartFile = "/home/jonas/Desktop/sms/unsorted/Europe/Asterix and the Great Rescue (Europe) (En,Fr,De,Es,It).sms";
 	init_slots();
 	logfile = fopen("/home/jonas/git/logfile.txt","w");
 	if (logfile==NULL){
