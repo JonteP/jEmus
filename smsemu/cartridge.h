@@ -8,15 +8,21 @@
 #ifndef CARTRIDGE_H_
 #define CARTRIDGE_H_
 #include <stdint.h>
+#include "sha.h"
+#include "parser.h"
 
-typedef enum mapper{
+typedef enum _mapper{
+	GENERIC,
 	SEGA,
 	CODEMASTERS,
 	KOREA
 } Mapper;
+
 struct RomFile {
 	uint8_t *rom;
 	uint8_t mask;
+	xmlChar *sha1;
+	Mapper mapper;
 };
 
 extern uint8_t fcr[3], *bank[3], bRam[0x8000], memControl, bramReg;

@@ -2053,19 +2053,19 @@ void cpuwrite(uint16_t address, uint_fast8_t value) {
 	else if (address < 0xc000 && address >= 0x8000 && (bramReg & 0x8)){
 		bank[address >> 14][address & 0x3fff] = value;
 	}
-	if(address == 0x0000 && mapper == CODEMASTERS){
+	if(address == 0x0000 && currentRom->mapper == CODEMASTERS){
 		fcr[0] = (value & currentRom->mask);
 		banking();
 	}
-	if(address == 0x4000 && mapper == CODEMASTERS){
+	if(address == 0x4000 && currentRom->mapper == CODEMASTERS){
 		fcr[1] = (value & currentRom->mask);
 		banking();
 	}
-	if(address == 0x8000 && mapper == CODEMASTERS){
+	if(address == 0x8000 && currentRom->mapper == CODEMASTERS){
 		fcr[2] = (value & currentRom->mask);
 		banking();
 	}
-	if(address >=0xfff8 && mapper == SEGA){
+	if(address >=0xfff8 && currentRom->mapper == SEGA){
 		switch(address & 0xf){
 		case 0xc:
 			bramReg = value;

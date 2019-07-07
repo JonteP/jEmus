@@ -23,7 +23,6 @@
  * -correct readback value for h counter
  * -port access behavior differs between consoles (open bus)
  * -are sprites clipped on top row?
- * -load roms by xml
  */
 char *cartFile, *cardFile, *expFile, *biosFile;
 uint8_t quit = 0, ioPort1, ioPort2, ioControl, region;
@@ -48,7 +47,7 @@ int main() {
 	init_time(frameTime);
 	biosFile = malloc(strlen(currentMachine->bios) + 6);
 	sprintf(biosFile, "bios/%s",currentMachine->bios);
-	cartFile = "/home/jonas/Desktop/sms/unsorted/Europe/Shadow Dancer (Europe).sms";
+	cartFile = "/home/jonas/Desktop/sms/unsorted/Europe/Land of Illusion Starring Mickey Mouse (Europe).sms";
 	init_slots();
 	logfile = fopen("/home/jonas/git/logfile.txt","w");
 	if (logfile==NULL){

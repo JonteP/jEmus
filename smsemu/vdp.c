@@ -6,7 +6,7 @@
 #include "my_sdl.h"
 #include "smsemu.h"
 
-uint8_t lineCounter, lineReload;
+uint16_t lineCounter, lineReload;
 uint8_t controlFlag = 0, statusFlags = 0, readBuffer = 0, bgColor = 0, bgXScroll, bgYScroll, lineInt = 0;
 /* REGISTERS */
 uint8_t mode1, mode2, codeReg;
@@ -185,7 +185,7 @@ while (vdp_wait) {
 	}
 	if ((vCounter <= currentMode->vactive) && (vdpdot == 100)){
 		lineCounter--;
-		if (lineCounter == 0xff){
+		if ((lineCounter & 0xff) == 0xff){
 			lineCounter = lineReload;
 			lineInt = 1;
 		}

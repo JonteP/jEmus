@@ -9,19 +9,23 @@
 #include "smsemu.h"
 
 static inline struct RomFile load_rom(char *);
+static inline xmlChar * calculate_checksum(uint8_t *, int);
 static inline uint8_t * read0(uint16_t), * read1(uint16_t), * read2(uint16_t), * empty(uint16_t);
 static inline void generic_mapper(), sega_mapper(), codemasters_mapper();
+static inline void extract_xml_data(xmlNode *,struct RomFile *), xml_hash_compare(xmlNode *,struct RomFile *), parse_xml_file(xmlNode *,struct RomFile *);
 uint8_t fcr[3], *bank[3], bRam[0x8000], memControl, bramReg = 0, returnValue[1]={0};
 struct RomFile cartRom, cardRom, biosRom, expRom, *currentRom;
-Mapper mapper = SEGA;
-int rsize;
+char *xmlFile = "sms.xml";
+xmlDoc *smsXml;
 
 void init_slots()
 {
+	smsXml = xmlReadFile(xmlFile, NULL, 0);
 	biosRom = load_rom(biosFile);
 	cartRom = load_rom(cartFile);
 	cardRom = load_rom(cardFile);
 	expRom = load_rom(expFile);
+	xmlFree(smsXml);
 	memory_control(0xe7);
 }
 
@@ -34,13 +38,13 @@ void memory_control(uint8_t value){
 	}
 	else if(!(memControl & 0x40)){
 		currentRom = &cartRom;
-		if(mapper){
+		if(currentRom->mapper == CODEMASTERS){
 			banking = &codemasters_mapper;
 			fcr[0] = 0;
 			fcr[1] = 1;
 			fcr[2] = 0;
 		}
-		else{
+		else if(currentRom->mapper == SEGA){
 			banking = &sega_mapper;
 			fcr[0] = 0;
 			fcr[1] = 1;
@@ -136,28 +140,100 @@ struct RomFile load_rom(char *r){
 	FILE *rfile = fopen(r, "r");
 	if(rfile == NULL){
 		struct RomFile output = { NULL };
+		output.sha1 = NULL;
 		return output;
 	}
 	fseek(rfile, 0L, SEEK_END);
-	rsize = ftell(rfile);
+	int rsize = ftell(rfile);
 	rewind(rfile);
 	uint8_t *tmpRom = malloc(rsize);
 	fread(tmpRom, rsize, 1, rfile);
-	/* patch */
-	/* *(rom+0x85) = 0x25;
-	*(rom+0x86) = 1;*/
 	uint8_t mask = ((rsize >> 14) - 1);
 	struct RomFile output = { tmpRom, mask };
+	output.mapper=GENERIC;
+	output.sha1=calculate_checksum(tmpRom,rsize);
+	parse_xml_file(xmlDocGetRootElement(smsXml),&output);
+	if(output.mapper == GENERIC && rsize > 0x8000)
+		output.mapper = SEGA;
 	return output;
 }
 void close_rom()
 {
-	if(cartRom.rom != NULL)
+	if(cartRom.rom != NULL){
 		free(cartRom.rom);
-	if(biosRom.rom != NULL)
+		free(cartRom.sha1);
+	}
+	if(biosRom.rom != NULL){
 		free(biosRom.rom);
-	if(cardRom.rom != NULL)
+		free(biosRom.sha1);
+	}
+	if(cardRom.rom != NULL){
 		free(cardRom.rom);
-	if(expRom.rom != NULL)
+		free(cardRom.sha1);
+	}
+	if(expRom.rom != NULL){
 		free(expRom.rom);
+		free(expRom.sha1);
+	}
+}
+
+xmlChar * calculate_checksum(uint8_t *data, int size){
+	unsigned char hash[SHA_DIGEST_LENGTH];
+	SHA1(data,size,hash);
+	xmlChar *shash = malloc(SHA_DIGEST_LENGTH*2+1);
+	for (int i = 0; i<sizeof(hash); i++)
+	{
+		sprintf((char *)shash+i*2, "%02x", hash[i]);
+	}
+	return shash;
+}
+
+void extract_xml_data(xmlNode * node, struct RomFile *rom) {
+	xmlNode *cur_node = node->children;
+	xmlChar *nam, *val;
+	while (cur_node) {
+		if (cur_node->type == XML_ELEMENT_NODE && !xmlStrcmp(cur_node->name, (xmlChar *)"feature")) {
+			nam = xmlGetProp(cur_node, (xmlChar *)"name");
+			val = xmlGetProp(cur_node, (xmlChar *)"value");
+			if (!xmlStrcmp(nam,(xmlChar *)"slot")){
+				if (!xmlStrcmp(val,(xmlChar *)"codemasters"))
+					rom->mapper = CODEMASTERS;
+			}
+
+			xmlFree(nam);
+			xmlFree(val);
+		}
+		cur_node = cur_node->next;
+	}
+}
+
+void xml_hash_compare(xmlNode * node, struct RomFile *rom)
+{
+	xmlNode *cur_node = NULL;
+	xmlChar *hashkey;
+	for (cur_node = node; cur_node; cur_node = cur_node->next) {
+		if (cur_node->type == XML_ELEMENT_NODE && !xmlStrcmp(cur_node->name, (const xmlChar *) "rom")) {
+		    hashkey = xmlGetProp(cur_node, (xmlChar *)"sha1");
+		    if (!xmlStrcmp(hashkey,rom->sha1)) {
+		    	extract_xml_data(cur_node->parent->parent, rom);
+		    }
+		    xmlFree(hashkey);
+		}
+	}
+}
+void parse_xml_file(xmlNode * node, struct RomFile *rom)
+{
+	xmlNode *cur_node = NULL;
+	xmlChar *key;
+
+    for (cur_node = node; cur_node; cur_node = cur_node->next) {
+    	if (cur_node->type == XML_ELEMENT_NODE && !xmlStrcmp(cur_node->name, (const xmlChar *) "dataarea")) {
+    		key = xmlGetProp(cur_node, (xmlChar *)"name");
+    		if (!xmlStrcmp(key, (xmlChar *)"rom")) {
+    			xml_hash_compare(cur_node->children, rom);
+    		}
+    		xmlFree(key);
+        }
+        parse_xml_file(cur_node->children, rom);
+    }
 }
