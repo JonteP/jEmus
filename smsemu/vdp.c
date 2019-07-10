@@ -15,7 +15,7 @@ struct VideoMode ntsc224={256,342,240,262,224,232,235,238,251,262,256};
 struct VideoMode pal192={256,342,288,313,192,240,243,246,259,313,224};
 struct VideoMode pal224={256,342,288,313,224,256,259,262,275,313,256};
 uint16_t controlWord, vdpdot = 0, vCounter = 0, hCounter = 0, addReg, ntAddress, spritePattern, spriteAttribute;
-uint32_t vdp_wait = 0, vdpcc = 0, frame = 0;
+uint32_t vdp_wait = 0, frame = 0;
 /* Mapped memory */					/* TODO: dynamically allocate screenBuffer */
 uint8_t vRam[0x4000], cRam[0x20], *screenBuffer;
 static inline void render_scanline(void);
@@ -162,7 +162,6 @@ while (vdp_wait) {
 	{
 			irqPulled = 0;
 	}
-	vdpcc++;
 	vdpdot++;
 	hCounter = (vdpdot & 0xfe);
 

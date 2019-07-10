@@ -12,9 +12,8 @@
 
 SDL_AudioSpec AudioSettings = {0};
 SDL_DisplayMode current;
-uint_fast8_t nametableActive = 0, patternActive = 0, paletteActive = 0, isPaused = 0, fullscreen = 0, stateSave = 0, stateLoad = 0, vsync = 0;
+uint_fast8_t isPaused = 0, fullscreen = 0, stateSave = 0, stateLoad = 0, vsync = 0;
 uint16_t pulseQueueCounter = 0;
-uint_fast8_t coltable[0xc0];
 sdlSettings *currentSettings;
 
 windowHandle handleMain, handleNametable, handlePattern, handlePalette;
@@ -177,13 +176,13 @@ void render_window (windowHandle * handle, void * buffer)
 }
 
 void output_sound()
-{/*
-	if (!throttle)
-		SDL_ClearQueuedAudio(1);
+{
+	/*if (!throttle)*/
+	SDL_ClearQueuedAudio(1);
 	int audioError = SDL_QueueAudio(1, sampleBuffer, (sampleCounter<<2));
 	if (audioError)
 		printf("SDL_QueueAduio failed: %s\n", SDL_GetError());
-	sampleCounter = 0;*/
+	sampleCounter = 0;
 }
 
 void io_handle()

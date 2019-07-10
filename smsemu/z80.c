@@ -7,7 +7,7 @@
 #include "cartridge.h"
 #include "vdp.h"
 #include "my_sdl.h"
-
+#include "sn79489.h"
 
 static uint_fast8_t ctable[] = {
  /*0 |1 |2 |3 |4 |5 |6 |7 |8 |9 |a |b |c |d |e |f       */
@@ -259,6 +259,7 @@ static void (*optable[0x100])() = {
 		(*optable[op])();
 	}
 	run_vdp();
+	run_sn79489();
 }
 
 /* EXTENDED OPCODE TABLES */
@@ -2127,4 +2128,9 @@ uint8_t parcalc(uint8_t val){
 void addcycles(uint8_t val){
 	vdp_wait += (val * 3);
 	cpucc += val;
+	audioAccum += val;
+	while(audioAccum > 16){
+		audioCycles++;
+		audioAccum -= 16;
+	}
 }

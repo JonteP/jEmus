@@ -12,12 +12,14 @@ const int samplesPerSecond = 48000;
 float sampleBuffer[BUFFER_SIZE] = {0};
 float sampleRate, originalSampleRate;
 float cpuClock;
-uint8_t vol0, vol1, vol2, vol3, noise, currentReg;
+uint8_t vol0, vol1, vol2, vol3, noise, currentReg, pol0, pol1, pol2;
+int8_t output0, output1, output2;
 uint16_t tone0, tone1, tone2, tone0counter, tone1counter, tone2counter, noiseCounter;
+int audioCycles = 0, audioAccum = 0, sampleCounter = 0, sample = 0;
 
 void init_sn79489(){
 	vol0 = vol1 = vol2 = vol3 = 0xf;
-	tone0 = tone1 = tone2 = noise = 0;
+	tone0 = tone1 = tone2 = noise = pol0 = pol1 = pol2 = 0;
 }
 
 void write_sn79489(uint8_t value){
@@ -77,5 +79,24 @@ else{ /* DATA */
 		vol3 = (value & 0xf);
 		break;
 	}
+}
+}
+
+void run_sn79489(){
+while(audioCycles){
+	if(tone0counter){
+		tone0counter--;
+		if(!tone0counter){
+			tone0counter = tone0;
+			pol0 ^= 1;
+		}
+		output0 = ((1 - (pol0 << 1)) * vol0);
+	} else{
+		tone0counter = tone0;
+		output0 = vol0;
+	}
+	audioCycles--;
+	sample += output0;
+	sampleCounter++;
 }
 }

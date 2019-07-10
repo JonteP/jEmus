@@ -48,7 +48,7 @@ int main() {
 	init_time(frameTime);
 	biosFile = malloc(strlen(currentMachine->bios) + 6);
 	sprintf(biosFile, "bios/%s",currentMachine->bios);
-	cartFile = "/home/jonas/Desktop/sms/unsorted/Europe/Asterix and the Great Rescue (Europe) (En,Fr,De,Es,It).sms";
+	cartFile = "/home/jonas/Desktop/sms/unsorted/Europe/Alien 3 (Europe).sms";
 	init_slots();
 	logfile = fopen("/home/jonas/git/logfile.txt","w");
 	if (logfile==NULL){
