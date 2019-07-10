@@ -20,7 +20,9 @@ xmlDoc *smsXml;
 
 void init_slots()
 {
-	smsXml = xmlReadFile(xmlFile, NULL, 0);
+	if((smsXml = xmlReadFile(xmlFile, NULL, 0)) == 0){
+		fprintf(stderr,"Error: %s could not be opened.\n",xmlFile);
+		exit(1);}
 	biosRom = load_rom(biosFile);
 	cartRom = load_rom(cartFile);
 	cardRom = load_rom(cardFile);

@@ -5,6 +5,7 @@
 #include "z80.h"
 #include "my_sdl.h"
 #include "vdp.h"
+#include "sn79489.h"
 
 /* Compatibility:
  * -Golvellius (U/E) - hangs on overworld (walked up one screen)
@@ -31,12 +32,13 @@ struct machine ntsc_us={"mpr-10052.ic2",53693175,NTSC,EXPORT}, pal={"mpr-10052.i
 float frameTime, fps;
 sdlSettings settings;
 int main() {
-	currentMode = &pal192;
-	currentMachine = &pal;
+	currentMode = &ntsc192;
+	currentMachine = &ntsc_jp;
 	init_vdp();
+	init_sn79489();
 	fps = (float)currentMachine->masterClock/(currentMode->fullheight * currentMode->fullwidth * 10);
 	printf("Running at %.02f fps\n",fps);
-	frameTime = ((1/fps) * 1000000000);
+	frameTime = (float)((1/fps) * 1000000000);
 	settings.renderQuality = "0";
 	settings.ctable = (uint8_t*) malloc(0xc0 * sizeof(uint8_t));
 	for (int i = 0; i < 0x40; i++) {
@@ -48,7 +50,7 @@ int main() {
 	init_time(frameTime);
 	biosFile = malloc(strlen(currentMachine->bios) + 6);
 	sprintf(biosFile, "bios/%s",currentMachine->bios);
-	cartFile = "/home/jonas/Desktop/sms/unsorted/Europe/Alien 3 (Europe).sms";
+	cartFile = "/home/jonas/games/roms/sms/everdrive/Japan/Phantasy Star (Japan).sms";
 	init_slots();
 	logfile = fopen("/home/jonas/git/logfile.txt","w");
 	if (logfile==NULL){

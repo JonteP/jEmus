@@ -178,9 +178,8 @@ void render_window (windowHandle * handle, void * buffer)
 void output_sound()
 {
 	/*if (!throttle)*/
-	SDL_ClearQueuedAudio(1);
-	int audioError = SDL_QueueAudio(1, sampleBuffer, (sampleCounter<<2));
-	if (audioError)
+	/*SDL_ClearQueuedAudio(1);*/
+	if (SDL_QueueAudio(1, sampleBuffer, (sampleCounter<<2)))
 		printf("SDL_QueueAduio failed: %s\n", SDL_GetError());
 	sampleCounter = 0;
 }
