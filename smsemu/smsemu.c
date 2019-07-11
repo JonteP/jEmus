@@ -13,17 +13,16 @@
  * -the circuit - glitchy status bar
  */
 /* TODO:
- * -overscan mask (always on now? No, it's not. Test against reference. Should color 0 be used?)
  * -sound (normal) - noise channel
  * -FM sound
  * -special peripherals (lightgun, sports pad, paddle)
  * -vdp versions
  * -backup RAM save support
- * -dot renderer with sprite prefetch
+ * -dot renderer with proper timing
  * -remaining z80 opcodes - verify cycle counting
  * -correct readback value for h counter
  * -port access behavior differs between consoles (open bus)
- * -are sprites clipped on top row? - land of illusion for example
+ * -are sprites clipped on top row? - why?
  */
 char *cartFile, *cardFile, *expFile, *biosFile;
 uint8_t quit = 0, ioPort1, ioPort2, ioControl, region;
@@ -32,7 +31,7 @@ float frameTime, fps;
 sdlSettings settings;
 int main() {
 	currentMode = &ntsc192;
-	currentMachine = &ntsc_jp;
+	currentMachine = &ntsc_us;
 
 	settings.renderQuality = "0";
 	settings.ctable = (uint8_t*) malloc(0xc0 * sizeof(uint8_t));
@@ -53,7 +52,7 @@ int main() {
 
 	biosFile = malloc(strlen(currentMachine->bios) + 6);
 	sprintf(biosFile, "bios/%s",currentMachine->bios);
-	cartFile = "/home/jonas/games/roms/sms/everdrive/60hz/Sonic The Hedgehog 2 (Europe).sms";
+	cartFile = "/home/jonas/Desktop/sms/unsorted/Europe/Alex Kidd in Shinobi World (USA, Europe).sms";
 	init_slots();
 	logfile = fopen("/home/jonas/git/logfile.txt","w");
 	if (logfile==NULL){

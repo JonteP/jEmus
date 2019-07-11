@@ -2089,7 +2089,6 @@ void power_reset () {
 halted = 0;
 iff1 = iff2 = cpuPC = iMode = cpuI = cpuR = 0;
 cpuAF = cpuBC = cpuDE = cpuHL = cpuIX = cpuIY = 0xffff;
-cpuSP = 0xdff0; /* TODO: hack to bypass BIOS - should be 0xffff? */
 /* TODO: platform specific assignment */
 cpuAreg = (uint8_t *)&cpuAF+1;
 cpuFreg = (uint8_t *)&cpuAF;

@@ -161,10 +161,10 @@ while (vdp_wait) {
 	vdpdot++;
 	hCounter = (vdpdot & 0xfe);
 
-	if(vdpdot == 684){
+	if(vdpdot == 684)
 		vdpdot = 0;
+	if(vdpdot == 616)
 		vCounter++;
-	}
 	if(vCounter == currentMode->fullheight){
 		vCounter = 0;
 		statusFlags &= ~0x80;
@@ -172,13 +172,13 @@ while (vdp_wait) {
 		frame++;
 		render_frame();
 	}
-	else if ((vCounter == currentMode->vactive) && !vdpdot){
+	else if ((vCounter == currentMode->vactive) && (vdpdot == 612)){
 		statusFlags |= 0x80;
 	}
 	if (vCounter < currentMode->height && !vdpdot){
 		render_scanline();
 	}
-	if ((vCounter <= currentMode->vactive) && (vdpdot == 100)){
+	if ((vCounter <= currentMode->vactive) && (vdpdot == 614)){
 		lineCounter--;
 		if ((lineCounter & 0xff) == 0xff){
 			lineCounter = lineReload;
