@@ -53,7 +53,7 @@ int main() {
 
 	biosFile = malloc(strlen(currentMachine->bios) + 6);
 	sprintf(biosFile, "bios/%s",currentMachine->bios);
-	cartFile = "/home/jonas/games/roms/sms/everdrive/60hz/World Grand Prix (USA).sms";
+	cartFile = "/home/jonas/games/roms/sms/everdrive/60hz/Sonic The Hedgehog 2 (Europe).sms";
 	init_slots();
 	logfile = fopen("/home/jonas/git/logfile.txt","w");
 	if (logfile==NULL){

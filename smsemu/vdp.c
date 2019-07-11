@@ -68,9 +68,7 @@ codeReg = (controlWord >> 14);
 if (!controlFlag){
 	switch (codeReg){
 	case 0:
-		read_vdp_data(); /* dummy read? */
-		break;
-	case 1:
+		read_vdp_data();
 		break;
 	case 2: /* VDP register write */
 		switch (controlWord & 0x0f00){
@@ -127,8 +125,6 @@ if (!controlFlag){
 			printf("Write to undefined VDP register\n");
 			break;
 		}
-		break;
-	case 3: /* Writes go to CRAM */
 		break;
 	}
 }
