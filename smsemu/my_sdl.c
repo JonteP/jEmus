@@ -38,7 +38,7 @@ void init_sdl(sdlSettings *settings) {
 	wantedAudioSettings.format = AUDIO_F32;
 	wantedAudioSettings.channels = CHANNELS;
 	wantedAudioSettings.callback = NULL;
-	wantedAudioSettings.samples = BUFFER_SIZE;
+	wantedAudioSettings.samples = BUFFER_SIZE>>3; /* Must be less than buffer size to prevent increasing lag... */
 	if (SDL_OpenAudio(&wantedAudioSettings, &audioSettings) < 0)
 	    SDL_Log("Failed to open audio: %s", SDL_GetError());
 	else if (audioSettings.format != wantedAudioSettings.format)

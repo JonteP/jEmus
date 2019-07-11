@@ -62,9 +62,10 @@ void close_vdp(){
 
 void write_vdp_control(uint8_t value){
 controlWord = controlFlag ? ((controlWord & 0x00ff) | (value << 8)) : ((controlWord & 0xff00) | value);
+controlFlag ^= 1;
 addReg = (controlWord & 0x3fff);
 codeReg = (controlWord >> 14);
-if (controlFlag){
+if (!controlFlag){
 	switch (codeReg){
 	case 0:
 		read_vdp_data(); /* dummy read? */
@@ -99,7 +100,6 @@ if (controlFlag){
 			break;
 		case 0x0200: /* Name Table Base Address */
 			ntAddress = ((controlWord & 0x0f) << 10);
-			printf("%04x\n",ntAddress);
 			break;
 		case 0x0300: /* Color Table Base Address */
 			break;
@@ -132,7 +132,6 @@ if (controlFlag){
 		break;
 	}
 }
-controlFlag ^= 1;
 }
 
 void write_vdp_data(uint8_t value){

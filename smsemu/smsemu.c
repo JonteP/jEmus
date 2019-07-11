@@ -10,22 +10,20 @@
 /* Compatibility:
  * -Golvellius (U/E) - hangs on overworld (walked up one screen)
  * -Space Harrier (J) - black screen after game start
- * -vigilante - garbled graphics (wrong nametable (0) - hardcode it to 3c00 works)
  * -the circuit - glitchy status bar
  */
 /* TODO:
- * -overscan mask (always on now? Should color 0 be used?)
- * -sound (normal)
+ * -overscan mask (always on now? No, it's not. Test against reference. Should color 0 be used?)
+ * -sound (normal) - noise channel
  * -FM sound
  * -special peripherals (lightgun, sports pad, paddle)
  * -vdp versions
  * -backup RAM save support
- * -dot renderer
- * -correct timing
- * -remaining z80 opcodes
+ * -dot renderer with sprite prefetch
+ * -remaining z80 opcodes - verify cycle counting
  * -correct readback value for h counter
  * -port access behavior differs between consoles (open bus)
- * -are sprites clipped on top row?
+ * -are sprites clipped on top row? - land of illusion for example
  */
 char *cartFile, *cardFile, *expFile, *biosFile;
 uint8_t quit = 0, ioPort1, ioPort2, ioControl, region;
@@ -55,7 +53,7 @@ int main() {
 
 	biosFile = malloc(strlen(currentMachine->bios) + 6);
 	sprintf(biosFile, "bios/%s",currentMachine->bios);
-	cartFile = "/home/jonas/Desktop/sms/unsorted/USA/Vigilante.sms";
+	cartFile = "/home/jonas/games/roms/sms/everdrive/60hz/World Grand Prix (USA).sms";
 	init_slots();
 	logfile = fopen("/home/jonas/git/logfile.txt","w");
 	if (logfile==NULL){
