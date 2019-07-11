@@ -10,7 +10,8 @@
 /* Compatibility:
  * -Golvellius (U/E) - hangs on overworld (walked up one screen)
  * -Space Harrier (J) - black screen after game start
- * -vigilante - garbled graphics
+ * -vigilante - garbled graphics (wrong nametable (0) - hardcode it to 3c00 works)
+ * -the circuit - glitchy status bar
  */
 /* TODO:
  * -overscan mask (always on now? Should color 0 be used?)
@@ -34,11 +35,7 @@ sdlSettings settings;
 int main() {
 	currentMode = &ntsc192;
 	currentMachine = &ntsc_jp;
-	init_vdp();
-	init_sn79489();
-	fps = (float)currentMachine->masterClock/(currentMode->fullheight * currentMode->fullwidth * 10);
-	printf("Running at %.02f fps\n",fps);
-	frameTime = (float)((1/fps) * 1000000000);
+
 	settings.renderQuality = "0";
 	settings.ctable = (uint8_t*) malloc(0xc0 * sizeof(uint8_t));
 	for (int i = 0; i < 0x40; i++) {
@@ -46,11 +43,19 @@ int main() {
 		settings.ctable[(i*3)+1] = (((i & 0x0c) << 4) | ((i & 0x0c) << 2) | ((i & 0x0c) >> 2) | (i & 0x0c));
 		settings.ctable[(i*3)+2] = (((i & 0x30) << 2) | ((i & 0x30) >> 4) | ((i & 0x30) >> 2) | (i & 0x30));
 	}
+	settings.audioFrequency = 48000;
 	init_sdl(&settings);
+
+	init_vdp();
+	init_sn79489(settings.audioFrequency);
+	fps = (float)currentMachine->masterClock/(currentMode->fullheight * currentMode->fullwidth * 10);
+	printf("Running at %.02f fps\n",fps);
+	frameTime = (float)((1/fps) * 1000000000);
 	init_time(frameTime);
+
 	biosFile = malloc(strlen(currentMachine->bios) + 6);
 	sprintf(biosFile, "bios/%s",currentMachine->bios);
-	cartFile = "/home/jonas/games/roms/sms/everdrive/Japan/Phantasy Star (Japan).sms";
+	cartFile = "/home/jonas/Desktop/sms/unsorted/USA/Vigilante.sms";
 	init_slots();
 	logfile = fopen("/home/jonas/git/logfile.txt","w");
 	if (logfile==NULL){

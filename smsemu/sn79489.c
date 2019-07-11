@@ -15,7 +15,6 @@
 #include <stdint.h>
 #include "my_sdl.h"
 #include "smsemu.h"
-const int samplesPerSecond = 48000;
 float sampleBuffer[BUFFER_SIZE] = {0};
 float sampleRate, originalSampleRate, sample = 0;
 float cpuClock;
@@ -26,10 +25,10 @@ float output0, output1, output2;
 uint16_t tone0, tone1, tone2, tone0counter, tone1counter, tone2counter, noiseCounter, noiseShifter;
 int audioCycles = 0, audioAccum = 0, sampleCounter = 0, sCounter = 0;
 
-void init_sn79489(){
+void init_sn79489(int freq){
 	vol0 = vol1 = vol2 = vol3 = 0xf;
 	tone0 = tone1 = tone2 = noise = pol0 = pol1 = pol2 = 0;
-	originalSampleRate = sampleRate = (float)currentMachine->masterClock /(15 * 16 * samplesPerSecond);
+	originalSampleRate = sampleRate = (float)currentMachine->masterClock /(15 * 16 * freq);
 }
 
 void write_sn79489(uint8_t value){

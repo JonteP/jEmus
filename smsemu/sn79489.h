@@ -15,7 +15,7 @@
 #define BUFFER_SIZE (8192)
 #define CPU_CLOCK 1789773 /*1789773 (official?); 1786831*/
 
-void init_sn79489(void), write_sn79489(uint8_t), run_sn79489(void);
+void init_sn79489(int), write_sn79489(uint8_t), run_sn79489(void);
 
 extern float fps, cpuClock;
 extern const int samplesPerSecond;

@@ -10,7 +10,7 @@
 #include "vdp.h"
 #include "z80.h"
 
-SDL_AudioSpec AudioSettings = {0};
+SDL_AudioSpec wantedAudioSettings, audioSettings;
 SDL_DisplayMode current;
 uint_fast8_t isPaused = 0, fullscreen = 0, stateSave = 0, stateLoad = 0, vsync = 0;
 uint16_t pulseQueueCounter = 0;
@@ -34,16 +34,17 @@ void init_sdl(sdlSettings *settings) {
 	handleMain = create_handle ("jNes", 100, 100, WWIDTH<<1, WHEIGHT<<1, currentMode->width, currentMode->height, 0, 0);
 	SDL_ShowWindow(handleMain.win);
 	handleMain.visible = 1;
-	AudioSettings.freq = samplesPerSecond;
-	AudioSettings.format = AUDIO_F32;
-	AudioSettings.channels = CHANNELS;
-	AudioSettings.callback = NULL;
-	AudioSettings.samples = BUFFER_SIZE>>3;
-	SDL_OpenAudio(&AudioSettings, 0);
+	wantedAudioSettings.freq = settings->audioFrequency;
+	wantedAudioSettings.format = AUDIO_F32;
+	wantedAudioSettings.channels = CHANNELS;
+	wantedAudioSettings.callback = NULL;
+	wantedAudioSettings.samples = BUFFER_SIZE;
+	if (SDL_OpenAudio(&wantedAudioSettings, &audioSettings) < 0)
+	    SDL_Log("Failed to open audio: %s", SDL_GetError());
+	else if (audioSettings.format != wantedAudioSettings.format)
+	    SDL_Log("The desired audio format is not available.");
 	SDL_PauseAudio(0);
 	SDL_ClearQueuedAudio(1);
-/*	originalSampleRate = cpuClock/samplesPerSecond;
-	sampleRate = originalSampleRate;*/
 }
 
 windowHandle create_handle (char * name, int wpx, int wpy, int ww, int wh, int sw, int sh, int xx, int yy) {

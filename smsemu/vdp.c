@@ -99,6 +99,7 @@ if (controlFlag){
 			break;
 		case 0x0200: /* Name Table Base Address */
 			ntAddress = ((controlWord & 0x0f) << 10);
+			printf("%04x\n",ntAddress);
 			break;
 		case 0x0300: /* Color Table Base Address */
 			break;
