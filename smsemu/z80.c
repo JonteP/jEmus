@@ -1998,6 +1998,7 @@ uint8_t read_cpu_register(uint8_t reg) {
 		irqPulled = 0;
 		break;
 	case 0xc0:
+		/* if IO chip disabled, reads from F2 detects FM */
 		value = ioPort1;
 		break;
 	case 0xc1:

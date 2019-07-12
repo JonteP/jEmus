@@ -29,7 +29,9 @@ static inline int parity(int);
 void init_sn79489(int freq){
 	vol0 = vol1 = vol2 = vol3 = 0xf;
 	tone0 = tone1 = tone2 = noiseReload = pol0 = pol1 = pol2 = 0;
+	output0 = output1 = output2 = outputNoise = 0;
 	originalSampleRate = sampleRate = (float)currentMachine->masterClock /(15 * 16 * freq);
+	noiseShifter = 0x8000;
 }
 
 void write_sn79489(uint8_t value){
@@ -57,6 +59,20 @@ if(value & 0x80){ /* LATCH/DATA */
 	case 0x60: /* Noise 	*/
 		noise = (value & 0xf);
 		noiseShifter = 0x8000;
+		switch(noise & 0x03){
+		case 0:
+			noiseReload = 0x10;
+			break;
+		case 1:
+			noiseReload = 0x20;
+			break;
+		case 2:
+			noiseReload = 0x40;
+			break;
+		case 3:
+			noiseReload = tone2;
+			break;
+		}
 		break;
 	case 0x70: /* Volume 3 	*/
 		vol3 = (value & 0xf);
@@ -119,7 +135,6 @@ while(audioCycles){
 		output0 = (pol0 ? volume_table[vol0] : 0);
 	} else{
 		tone0counter = tone0;
-		output0 = 0;
 	}
 	if(tone1counter){
 		tone1counter--;
@@ -130,7 +145,6 @@ while(audioCycles){
 		output1 = (pol1 ? volume_table[vol1] : 0);
 	} else{
 		tone1counter = tone1;
-		output1 = 0;
 	}
 	if(tone2counter){
 		tone2counter--;
@@ -141,7 +155,6 @@ while(audioCycles){
 		output2 = (pol2 ? volume_table[vol2] : 0);
 	} else{
 		tone2counter = tone2;
-		output2 = 0;
 	}
 	if(noiseCounter){
 		noiseCounter--;
@@ -150,15 +163,13 @@ while(audioCycles){
 			noiseCounter = noiseReload;
 			if(polNoise){
 				outputNoise = ((noiseShifter & 0x01) ? volume_table[vol3] : 0);
-				noiseShifter = ((noiseShifter >> 1) | (noise & 0x04) ? parity(noiseShifter & 0x09) : ((noiseShifter & 0x01) << 15));
+				noiseShifter = ((noiseShifter >> 1) | (((noise & 0x04) ? parity(noiseShifter & 0x09) : (noiseShifter & 0x01)) << 15));
 			}
 		}
 	}
 	else{
 		noiseCounter = noiseReload;
-		outputNoise = 0;
 	}
-
 	sample += ((output0 + output1 + output2 + outputNoise) / (4*volume_table[0])); /* TODO: less hackish */
 	sCounter++;
 	if(sCounter == (int)sampleRate){

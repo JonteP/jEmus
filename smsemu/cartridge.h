@@ -23,6 +23,7 @@ struct RomFile {
 	uint8_t mask;
 	xmlChar *sha1;
 	Mapper mapper;
+	uint8_t battery;
 };
 
 extern uint8_t fcr[3], *bank[3], bRam[0x8000], memControl, bramReg;

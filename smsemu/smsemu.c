@@ -10,19 +10,16 @@
 /* Compatibility:
  * -Golvellius (U/E) - hangs on overworld (walked up one screen)
  * -Space Harrier (J) - black screen after game start
- * -the circuit - glitchy status bar
  */
 /* TODO:
- * -sound (normal) - noise channel
  * -FM sound
  * -special peripherals (lightgun, sports pad, paddle)
  * -vdp versions
- * -backup RAM save support
+ * -backup RAM save support - requires correct banking of ram slots
  * -dot renderer with proper timing
  * -remaining z80 opcodes - verify cycle counting
  * -correct readback value for h counter
  * -port access behavior differs between consoles (open bus)
- * -are sprites clipped on top row? - why?
  */
 char *cartFile, *cardFile, *expFile, *biosFile;
 uint8_t quit = 0, ioPort1, ioPort2, ioControl, region;
@@ -52,7 +49,7 @@ int main() {
 
 	biosFile = malloc(strlen(currentMachine->bios) + 6);
 	sprintf(biosFile, "bios/%s",currentMachine->bios);
-	cartFile = "/home/jonas/Desktop/sms/unsorted/Europe/Alex Kidd in Shinobi World (USA, Europe).sms";
+	cartFile = "/home/jonas/Desktop/sms/unsorted/USA/Alex Kidd in Miracle World.sms";
 	init_slots();
 	logfile = fopen("/home/jonas/git/logfile.txt","w");
 	if (logfile==NULL){
@@ -65,6 +62,7 @@ int main() {
 	}
 	fclose(logfile);
 	free(settings.ctable);
+	free(biosFile);
 	close_sdl();
 	close_rom();
 	close_vdp();

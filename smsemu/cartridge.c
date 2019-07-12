@@ -15,7 +15,8 @@ static inline void generic_mapper(), sega_mapper(), codemasters_mapper();
 static inline void extract_xml_data(xmlNode *,struct RomFile *), xml_hash_compare(xmlNode *,struct RomFile *), parse_xml_file(xmlNode *,struct RomFile *);
 uint8_t fcr[3], *bank[3], bRam[0x8000], memControl, bramReg = 0, returnValue[1]={0};
 struct RomFile cartRom, cardRom, biosRom, expRom, *currentRom;
-char *xmlFile = "sms.xml";
+char *xmlFile = "sms.xml", *bName;
+FILE *bFile;
 xmlDoc *smsXml;
 
 void init_slots()
@@ -138,7 +139,7 @@ uint8_t * read2(uint16_t address){
 	return value;
 }
 
-struct RomFile load_rom(char *r){
+struct RomFile load_rom(char *r){/* TODO: add check for cart in card slot etc. */
 	FILE *rfile = fopen(r, "r");
 	if(rfile == NULL){
 		struct RomFile output = { NULL };
@@ -153,10 +154,19 @@ struct RomFile load_rom(char *r){
 	uint8_t mask = ((rsize >> 14) - 1);
 	struct RomFile output = { tmpRom, mask };
 	output.mapper=GENERIC;
+	output.battery=0;
 	output.sha1=calculate_checksum(tmpRom,rsize);
 	parse_xml_file(xmlDocGetRootElement(smsXml),&output);
 	if(output.mapper == GENERIC && rsize > 0x8000)
 		output.mapper = SEGA;
+	if(output.battery){
+		bName = strdup(r);
+		sprintf(bName+strlen(bName)-3, "sav");
+		if((bFile = fopen(bName,"r")) != NULL){
+			fread(bRam, 0x8000, 1, bFile);
+			fclose(bFile);
+		}
+	}
 	return output;
 }
 void close_rom()
@@ -176,6 +186,11 @@ void close_rom()
 	if(expRom.rom != NULL){
 		free(expRom.rom);
 		free(expRom.sha1);
+	}
+	if(currentRom->battery){
+		bFile = fopen(bName,"w");
+		fwrite(bRam,0x8000,1,bFile);
+		fclose(bFile);
 	}
 }
 
@@ -200,6 +215,10 @@ void extract_xml_data(xmlNode * node, struct RomFile *rom) {
 			if (!xmlStrcmp(nam,(xmlChar *)"slot")){
 				if (!xmlStrcmp(val,(xmlChar *)"codemasters"))
 					rom->mapper = CODEMASTERS;
+			}
+			else if (!xmlStrcmp(nam,(xmlChar *)"battery")){
+				if (!xmlStrcmp(val,(xmlChar *)"yes"))
+					rom->battery = 1;
 			}
 
 			xmlFree(nam);

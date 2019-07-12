@@ -192,7 +192,8 @@ while (vdp_wait) {
 }
 uint8_t blank=0x15, black=0x00;
 void render_scanline(){
-	uint8_t pixel, tileRow, ntColumn, tileColumn, ntRow, spriteY, spriteX, spriteI, spriteBuffer = 0, pixelOffset, spriteMask[currentMode->width], priorityMask[currentMode->width], transMask[currentMode->width];
+	uint8_t pixel, tileRow, ntColumn, tileColumn, ntRow, spriteX, spriteI, spriteBuffer = 0, pixelOffset, spriteMask[currentMode->width], priorityMask[currentMode->width], transMask[currentMode->width];
+	int16_t spriteY;
 	uint16_t ntData, pidx, sidx, yOffset, ntOffset;
 	memset(spriteMask, 0, currentMode->width*sizeof(uint8_t));
 	memset(priorityMask, 0, currentMode->width*sizeof(uint8_t));
@@ -229,10 +230,13 @@ void render_scanline(){
 	}
 
 	for(uint8_t s = 0; s < 64; s++){
+		uint8_t spriteHeight = ((mode2 & 0x02) ? 16 : 8);
 		spriteY = (vRam[spriteAttribute + s] + 1);
-		if((spriteY == 0xd1) && (currentMode->vactive == 192))
+		if((spriteY == (0xd0 + 1)) && (currentMode->vactive == 192))
 			break;
-		else if ((vCounter >= spriteY) && (vCounter < (spriteY + ((mode2 & 0x02) ? 16 : 8)))){
+		if(spriteY >= (256 - spriteHeight + 1))
+			spriteY = (0 - (256 - spriteY));/* TODO: this works only for 8x8 sprites? */
+		if ((vCounter >= spriteY) && (vCounter < (spriteY + spriteHeight))){
 			spriteBuffer++;
 			if (spriteBuffer > 8)
 				statusFlags |= 0x40;
