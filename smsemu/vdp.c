@@ -1,3 +1,8 @@
+/* TODO: document different VDP versions
+ * -screen height
+ * -masking of nametable address
+ */
+
 #include "vdp.h"
 #include <stdio.h>
 #include <stdint.h>
@@ -15,9 +20,9 @@ struct VideoMode ntsc224={256,342,240,262,224,232,235,238,251,262,256};
 struct VideoMode pal192={256,342,288,313,192,240,243,246,259,313,224};
 struct VideoMode pal224={256,342,288,313,224,256,259,262,275,313,256};
 uint16_t controlWord, vdpdot = 0, vCounter = 0, hCounter = 0, addReg, ntAddress, spritePattern, spriteAttribute;
-uint32_t vdp_wait = 0, frame = 0;
+int vdpCyclesToRun = 0, frame = 0;
 /* Mapped memory */					/* TODO: dynamically allocate screenBuffer */
-uint8_t vRam[0x4000], cRam[0x20], *screenBuffer;
+uint8_t vram[0x4000], cram[0x20], *screenBuffer;
 static inline void render_scanline(void);
 
 void init_vdp(){
@@ -132,10 +137,10 @@ if (!controlFlag){
 
 void write_vdp_data(uint8_t value){
 	if(codeReg < 3){
-		vRam[addReg++ & 0x3fff] = value;
+		vram[addReg++ & 0x3fff] = value;
 	}
 	else if(codeReg == 3){
-		cRam[addReg++ & 0x1f] = value;
+		cram[addReg++ & 0x1f] = value;
 	}
 	readBuffer = value;
 	controlFlag = 0;
@@ -143,13 +148,13 @@ void write_vdp_data(uint8_t value){
 
 uint8_t read_vdp_data(){
 	uint8_t value = readBuffer;
-	readBuffer = vRam[addReg++ & 0x3fff];
+	readBuffer = vram[addReg++ & 0x3fff];
 	controlFlag = 0;
 	return value;
 }
 
 void run_vdp(){
-while (vdp_wait) {
+while (vdpCyclesToRun) {
 	if ((((statusFlags & 0x80) && (mode2 & 0x20)) || ((lineInt) && (mode1 & 0x10))) && !irqPulled)
 	{
 		irqPulled = 1;
@@ -187,7 +192,7 @@ while (vdp_wait) {
 	}
 	else if ((vCounter > currentMode->vactive) && !vdpdot)
 		lineCounter = lineReload;
-	vdp_wait--;
+	vdpCyclesToRun--;
 }
 }
 uint8_t blank=0x15, black=0x00;
@@ -209,29 +214,29 @@ void render_scanline(){
 			ntOffset = ((ntAddress & 0x3800) 		 + ((ntRow & ((ntAddress & 0x400) ? 0xf8 : 0x78)) << 3) + ((ntColumn & 0x1f) << 1));
 		else if(currentMode->vactive >= 224)
 			ntOffset = ((ntAddress & 0x3000) + 0x700 + ((ntRow & 0xf8) << 3) 							    + ((ntColumn & 0x1f) << 1));
-		ntData  = (vRam[ntOffset    ]     );
-		ntData |= (vRam[ntOffset + 1] << 8);
+		ntData  = (vram[ntOffset    ]     );
+		ntData |= (vram[ntOffset + 1] << 8);
 		pidx = ((ntData & 0x1ff) << 5);
 		tileRow = (ntData & 0x400) ? 7-(ntRow & 7) : (ntRow & 7);
 		for (uint8_t c = 0; c < 8; c++){
 			tileColumn = (ntData & 0x200) ? c : 7-c;
-			pixel  = (vRam[pidx + (tileRow << 2)    ] & (1 << tileColumn)) ? 1:0;
-			pixel |= (vRam[pidx + (tileRow << 2) + 1] & (1 << tileColumn)) ? 2:0;
-			pixel |= (vRam[pidx + (tileRow << 2) + 2] & (1 << tileColumn)) ? 4:0;
-			pixel |= (vRam[pidx + (tileRow << 2) + 3] & (1 << tileColumn)) ? 8:0;
+			pixel  = (vram[pidx + (tileRow << 2)    ] & (1 << tileColumn)) ? 1:0;
+			pixel |= (vram[pidx + (tileRow << 2) + 1] & (1 << tileColumn)) ? 2:0;
+			pixel |= (vram[pidx + (tileRow << 2) + 2] & (1 << tileColumn)) ? 4:0;
+			pixel |= (vram[pidx + (tileRow << 2) + 3] & (1 << tileColumn)) ? 8:0;
 			screenBuffer[(yOffset*currentMode->width) + ((c+(scroll&7)+(cc << 3)) & 0xff)]
-						 = cRam[pixel+((ntData & 0x800)?0x10:0)];
+						 = cram[pixel+((ntData & 0x800)?0x10:0)];
 			priorityMask[(c+(scroll&7)+(cc << 3)) & 0xff]=((ntData & 0x1000) >> 8);
 			transMask[(c+(scroll&7)+(cc << 3)) & 0xff] = pixel ? 1 : 0;
 			if((mode1 & 0x20))
 				screenBuffer[(yOffset*currentMode->width) + ((c+scroll) & 7)]
-							 = cRam[bgColor + 0x10];
+							 = cram[bgColor + 0x10];
 		}
 	}
 
 	for(uint8_t s = 0; s < 64; s++){
 		uint8_t spriteHeight = ((mode2 & 0x02) ? 16 : 8);
-		spriteY = (vRam[spriteAttribute + s] + 1);
+		spriteY = (vram[spriteAttribute + s] + 1);
 		if((spriteY == (0xd0 + 1)) && (currentMode->vactive == 192))
 			break;
 		if(spriteY >= (256 - spriteHeight + 1))
@@ -241,14 +246,14 @@ void render_scanline(){
 			if (spriteBuffer > 8)
 				statusFlags |= 0x40;
 			else{
-			spriteX = vRam[spriteAttribute + (s << 1) + 128];
-			spriteI = vRam[spriteAttribute + (s << 1) + 129];
+			spriteX = vram[spriteAttribute + (s << 1) + 128];
+			spriteI = vram[spriteAttribute + (s << 1) + 129];
 			sidx = spritePattern + (((mode2 & 0x02) ? (spriteI & 0xfe) : spriteI) << 5);
 			for (uint8_t c = 0; c < 8; c++){
-				pixel  = (vRam[sidx + ((vCounter - spriteY) << 2)    ] & (1 << (7-c))) ? 1:0;
-				pixel |= (vRam[sidx + ((vCounter - spriteY) << 2) + 1] & (1 << (7-c))) ? 2:0;
-				pixel |= (vRam[sidx + ((vCounter - spriteY) << 2) + 2] & (1 << (7-c))) ? 4:0;
-				pixel |= (vRam[sidx + ((vCounter - spriteY) << 2) + 3] & (1 << (7-c))) ? 8:0;
+				pixel  = (vram[sidx + ((vCounter - spriteY) << 2)    ] & (1 << (7-c))) ? 1:0;
+				pixel |= (vram[sidx + ((vCounter - spriteY) << 2) + 1] & (1 << (7-c))) ? 2:0;
+				pixel |= (vram[sidx + ((vCounter - spriteY) << 2) + 2] & (1 << (7-c))) ? 4:0;
+				pixel |= (vram[sidx + ((vCounter - spriteY) << 2) + 3] & (1 << (7-c))) ? 8:0;
 				pixelOffset = (c + spriteX - ((mode1 & 0x08) ? 8 : 0));
 				if(pixel && pixelOffset < currentMode->width && pixelOffset > 7){
 					if (spriteMask[pixelOffset])
@@ -256,7 +261,7 @@ void render_scanline(){
 					else{
 						if((!priorityMask[pixelOffset]) || (!transMask[pixelOffset]))
 							screenBuffer[(yOffset*currentMode->width) + pixelOffset]
-										 = cRam[pixel+0x10];
+										 = cram[pixel+0x10];
 						spriteMask[pixelOffset]= pixel ? 1 : 0;
 					}
 				}
@@ -269,7 +274,7 @@ void render_scanline(){
 	else{
 		uint8_t fillValue;
 		if(vCounter < (currentMode->bborder))
-			fillValue = cRam[bgColor + 0x10];
+			fillValue = cram[bgColor + 0x10];
 		/*else if(vCounter < (currentMode->bblank))
 			fillValue = blank;
 		else if(vCounter < (currentMode->vblank))
@@ -277,7 +282,7 @@ void render_scanline(){
 		else if(vCounter < (currentMode->tblank))
 			fillValue = blank;*/
 		else if(vCounter < (currentMode->tborder))
-			fillValue = cRam[bgColor + 0x10];
+			fillValue = cram[bgColor + 0x10];
 		for (uint16_t p = 0; p<256; p++){
 			screenBuffer[(((yOffset) % currentMode->height)*currentMode->width) + p]
 						 = fillValue;

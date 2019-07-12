@@ -31,14 +31,14 @@ void init_sdl(sdlSettings *settings) {
 		exit(EXIT_FAILURE);
 	}
 	SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY,currentSettings->renderQuality);
-	handleMain = create_handle ("jNes", 100, 100, WWIDTH<<1, WHEIGHT<<1, currentMode->width, currentMode->height, 0, 0);
+	handleMain = create_handle ("jEmu", 100, 100, WWIDTH<<1, WHEIGHT<<1, currentMode->width, currentMode->height, 0, 0);
 	SDL_ShowWindow(handleMain.win);
 	handleMain.visible = 1;
-	wantedAudioSettings.freq = settings->audioFrequency;
+	wantedAudioSettings.freq = currentSettings->audioFrequency;
 	wantedAudioSettings.format = AUDIO_F32;
-	wantedAudioSettings.channels = CHANNELS;
+	wantedAudioSettings.channels = currentSettings->channels;
 	wantedAudioSettings.callback = NULL;
-	wantedAudioSettings.samples = BUFFER_SIZE>>3; /* Must be less than buffer size to prevent increasing lag... */
+	wantedAudioSettings.samples = currentSettings->audioBufferSize>>1; /* Must be less than buffer size to prevent increasing lag... */
 	if (SDL_OpenAudio(&wantedAudioSettings, &audioSettings) < 0)
 	    SDL_Log("Failed to open audio: %s", SDL_GetError());
 	else if (audioSettings.format != wantedAudioSettings.format)
@@ -59,24 +59,15 @@ windowHandle create_handle (char * name, int wpx, int wpy, int ww, int wh, int s
 	handle.screenHeight = sh;
 	handle.xClip = xx;
 	handle.yClip = yy;
-	handle.win = SDL_CreateWindow(handle.name, handle.winXPosition, handle.winYPosition, handle.winWidth, handle.winHeight, SDL_WINDOW_RESIZABLE);
-	if (handle.win == NULL)
-	{
+	if((handle.win = SDL_CreateWindow(handle.name, handle.winXPosition, handle.winYPosition, handle.winWidth, handle.winHeight, SDL_WINDOW_RESIZABLE)) == NULL){
 		printf("SDL_CreateWindow failed: %s\n", SDL_GetError());
-		exit(EXIT_FAILURE);
-	}
-	handle.rend = SDL_CreateRenderer(handle.win, -1, SDL_RENDERER_ACCELERATED);
-	if (handle.rend == NULL)
-	{
+		exit(EXIT_FAILURE);}
+	if((handle.rend = SDL_CreateRenderer(handle.win, -1, SDL_RENDERER_ACCELERATED)) ==NULL){
 		printf("SDL_CreateRenderer failed: %s\n", SDL_GetError());
-		exit(EXIT_FAILURE);
-	}
-	handle.tex = SDL_CreateTexture(handle.rend, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, handle.screenWidth, handle.screenHeight);
-	if (handle.tex == NULL)
-	{
+		exit(EXIT_FAILURE);}
+	if((handle.tex = SDL_CreateTexture(handle.rend, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, handle.screenWidth, handle.screenHeight)) ==NULL){
 		printf("SDL_CreateTexture failed: %s\n", SDL_GetError());
-		exit(EXIT_FAILURE);
-	}
+		exit(EXIT_FAILURE);}
 	handle.windowID = SDL_GetWindowID(handle.win);
 	SDL_HideWindow(handle.win);
 	handle.visible = 0;
@@ -89,12 +80,11 @@ void destroy_handle (windowHandle * handle) {
 	SDL_DestroyWindow(handle->win);
 }
 
-void close_sdl () {
+void close_sdl() {
 	destroy_handle (&handleMain);
 	SDL_ClearQueuedAudio(1);
 	SDL_CloseAudio();
 	SDL_Quit();
-	exit(EXIT_SUCCESS);
 }
 
 struct timespec xClock;
@@ -117,7 +107,6 @@ void idle_time (float time)
 
 void render_frame()
 {
-
 	render_window (&handleMain, screenBuffer);
 	idle_time(frameTime);
 	io_handle();
@@ -178,8 +167,6 @@ void render_window (windowHandle * handle, void * buffer)
 
 void output_sound()
 {
-	/*if (!throttle)*/
-	/*SDL_ClearQueuedAudio(1);*/
 	if (SDL_QueueAudio(1, sampleBuffer, (sampleCounter<<2)))
 		printf("SDL_QueueAduio failed: %s\n", SDL_GetError());
 	sampleCounter = 0;
@@ -248,7 +235,6 @@ void io_handle()
 					handleMain.tex = SDL_CreateTexture(handleMain.rend, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, 256, 240);
 					fps = current.refresh_rate;
 					frameTime = ((1/fps) * 1000000000);
-				/*	cpuClock = cyclesPerFrame * fps;*/
 				}
 				else
 				{
@@ -257,43 +243,11 @@ void io_handle()
 					handleMain.tex = SDL_CreateTexture(handleMain.rend, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, 256, 240);
 					fps = 60;
 					frameTime = ((1/fps) * 1000000000);
-				/*	cpuClock = originalCpuClock;*/
 				}
 				break;
 			case SDL_SCANCODE_P:
 				if (!(event.key.repeat))
 					isPaused ^= 1;
-				break;
-			case SDL_SCANCODE_F5:
-				handleNametable.visible ^= 1;
-				if (handleNametable.visible)
-				{
-					SDL_ShowWindow(handleNametable.win);
-					SDL_RaiseWindow(handleMain.win);
-				}
-				else
-					SDL_HideWindow(handleNametable.win);
-				break;
-			case SDL_SCANCODE_F6:
-				handlePattern.visible ^= 1;
-				if (handlePattern.visible)
-				{
-					SDL_ShowWindow(handlePattern.win);
-					SDL_RaiseWindow(handleMain.win);
-				}
-				else
-					SDL_HideWindow(handlePattern.win);
-				break;
-			case SDL_SCANCODE_F4:
-				handlePalette.visible ^= 1;
-				if (handlePalette.visible)
-				{
-					SDL_ShowWindow(handlePalette.win);
-					SDL_RaiseWindow(handleMain.win);
-				}
-
-				else
-					SDL_HideWindow(handlePalette.win);
 				break;
 			case SDL_SCANCODE_UP:
 				ioPort1 &= ~0x01;

@@ -28,20 +28,15 @@ struct VideoMode {
 	uint16_t tborder;
 	uint16_t vwrap;
 	uint8_t *vcount;
-	/* TODO: add y scroll wrap */
 };
 
 /* CONSTANTS */
 #define WWIDTH 320 /*1280 */
-#define WHEIGHT 262 /*1024 */
-#define SWIDTH 256
-#define H_DOTS 342
-#define WPOSX 100
-#define WPOSY 100
+#define WHEIGHT 240 /*1024 */
 
 extern uint8_t controlFlag, statusFlags, *screenBuffer, lineInt;
 extern uint16_t vCounter, hCounter;
-extern uint32_t vdp_wait;
+extern int vdpCyclesToRun;
 extern struct VideoMode *currentMode, ntsc192, pal192;
 
 void write_vdp_control(uint8_t), run_vdp(), write_vdp_data(uint8_t), init_vdp(), close_vdp();

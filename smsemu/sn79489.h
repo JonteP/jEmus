@@ -11,15 +11,19 @@
 #include <stdio.h>
 #include <stdint.h>
 
-#define CHANNELS 1
-#define BUFFER_SIZE (8192)
-#define CPU_CLOCK 1789773 /*1789773 (official?); 1786831*/
+void init_sn79489(int,int), close_sn79489(void), write_sn79489(uint8_t), run_sn79489(void);
 
-void init_sn79489(int), write_sn79489(uint8_t), run_sn79489(void);
+struct ToneChannel {
+	uint16_t reg;
+	uint16_t counter;
+	uint8_t phase;
+	uint8_t volume;
+	float output;
+};
 
-extern float fps, cpuClock;
+extern float fps;
 extern const int samplesPerSecond;
-extern float sampleBuffer[BUFFER_SIZE], sampleRate, originalSampleRate;
-extern int audioCycles, audioAccum, sampleCounter;
+extern float *sampleBuffer, sampleRate, originalSampleRate;
+extern int audioCyclesToRun, accumulatedCycles, sampleCounter;
 
 #endif /* SN79489_H_ */

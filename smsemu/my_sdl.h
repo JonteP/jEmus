@@ -8,7 +8,10 @@ typedef struct sdlSettings {
 	const char* renderQuality;
 	uint8_t* ctable;
 	int audioFrequency;
+	int channels;
+	int audioBufferSize;
 } sdlSettings;
+
 typedef struct windowHandle_ {
 	SDL_Window *win;
 	SDL_Renderer *rend;

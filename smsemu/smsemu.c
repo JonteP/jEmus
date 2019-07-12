@@ -21,6 +21,7 @@
  * -correct readback value for h counter
  * -port access behavior differs between consoles (open bus)
  */
+
 char *cartFile, *cardFile, *expFile, *biosFile;
 uint8_t quit = 0, ioPort1, ioPort2, ioControl, region;
 struct machine ntsc_us={"mpr-10052.ic2",53693175,NTSC,EXPORT}, pal={"mpr-10052.ic2",53203424,PAL,EXPORT}, ntsc_jp={"mpr-11124.ic2",53693175,NTSC,JAPAN}, *currentMachine;
@@ -38,10 +39,12 @@ int main() {
 		settings.ctable[(i*3)+2] = (((i & 0x30) << 2) | ((i & 0x30) >> 4) | ((i & 0x30) >> 2) | (i & 0x30));
 	}
 	settings.audioFrequency = 48000;
+	settings.channels = 1;
+	settings.audioBufferSize = 2048;
 	init_sdl(&settings);
 
 	init_vdp();
-	init_sn79489(settings.audioFrequency);
+	init_sn79489(settings.audioFrequency, settings.audioBufferSize);
 	fps = (float)currentMachine->masterClock/(currentMode->fullheight * currentMode->fullwidth * 10);
 	printf("Running at %.02f fps\n",fps);
 	frameTime = (float)((1/fps) * 1000000000);
@@ -66,6 +69,7 @@ int main() {
 	close_sdl();
 	close_rom();
 	close_vdp();
+	close_sn79489();
 }
 
 /* trace zexdoc.log,0,noloop,{tracelog "%04x,%04x,%04x,%04x,%04x,%04x,%04x,%04x,",pc,(af&ffd7),bc,de,hl,ix,iy,sp}*/

@@ -86,7 +86,6 @@ static uint_fast8_t cedtable[] = {
 	99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,/* e */
 	99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,/* f */
 };
-
 static uint_fast8_t cfdtable[] = {
   /*0 |1 |2 |3 |4 |5 |6 |7 |8 |9 |a |b |c |d |e |f       */
 	99,99,99,99,99,99,99,99,99,15,99,99,99,99,99,04,/* 0 */
@@ -106,7 +105,6 @@ static uint_fast8_t cfdtable[] = {
 	99,14,99,23,99,15,99,99,99, 8,99,99,04,04,04,04,/* e */
 	99,99,99,99,99,99,99,99,99,10,99,99,04,04,04,04,/* f */
 };
-
 static uint_fast8_t cddcbtable[] = {
   /*0 |1 |2 |3 |4 |5 |6 |7 |8 |9 |a |b |c |d |e |f       */
 	99,99,99,99,99,99,23,99,99,99,99,99,99,99,23,99,/* 0 */
@@ -125,8 +123,7 @@ static uint_fast8_t cddcbtable[] = {
 	99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,/* d */
 	99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,/* e */
 	99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,/* f */
-	};
-
+};
 static uint_fast8_t cfdcbtable[] = {
   /*0 |1 |2 |3 |4 |5 |6 |7 |8 |9 |a |b |c |d |e |f       */
 	99,99,99,99,99,99,23,99,99,99,99,99,99,99,23,99,/* 0 */
@@ -159,7 +156,7 @@ static inline void ld16(), ldix(), ldiy(), ldhli(), ldrp(), ldxin(), ldyin(), ld
 static inline void ex(), exaf(), exx(), exhl(), exix(), exiy(), ldi(), ldir(), ldd(), lddr(), cpi(), cpir(), cpd(), cpdr();
 /* 8-bit arithmetic */
 static inline void add(uint8_t), addr(), addi(), adixh(), adixl(), adiyh(), adiyl(), adixi(), adiyi(), adc(uint8_t), adcr(), adci(), acixh(), acixl(), aciyh(), aciyl(), acixi(), aciyi(), sub(uint8_t), subr(), subi(), sbixh(), sbixl(), sbiyh(), sbiyl(), sbixi(), sbiyi(), sbc(uint8_t), sbcr(), sbci(), scixh(), scixl(), sciyh(), sciyl(), scixi(), sciyi(), inchl(), dechl();
-static inline void and(uint8_t), andr(), andi(), anixh(), anixl(), aniyh(), aniyl(), anixi(), aniyi(), or(uint8_t), orr(), ori(), orixh(), orixl(), oriyh(), oriyl(), orixi(), oriyi(), xor(uint8_t), xorr(), xori(), xrixh(), xrixl(), xriyh(), xriyl(), xrixi(), xriyi(), cp(uint8_t), cpr(), cpn(), cpixh(), cpixl(), cpiyh(), cpiyl(), cpixi(), cpiyi(), inc(), inixi(), iniyi(), dec(), deixi(), deiyi();
+static inline void and(uint8_t), andr(), andi(), anixh(), anixl(), aniyh(), aniyl(), anixi(), aniyi(),  or(uint8_t), orr(), ori(), orixh(), orixl(), oriyh(), oriyl(), orixi(), oriyi(), xor(uint8_t), xorr(), xori(), xrixh(), xrixl(), xriyh(), xriyl(), xrixi(), xriyi(), cp(uint8_t), cpr(), cpn(), cpixh(), cpixl(), cpiyh(), cpiyl(), cpixi(), cpiyi(), inc(), inixi(), iniyi(), dec(), deixi(), deiyi();
 /* general purpose */
 static inline void daa(), cpl(), neg(), ccf(), scf(), nop(), halt(), di(), ei(), im();
 /* 16-bit arithmetic */
@@ -2121,16 +2118,19 @@ void synchronize(uint_fast8_t x) {
 }
 
 uint8_t parcalc(uint8_t val){
-	uint8_t par = ((val>>7)&1)+((val>>6)&1)+((val>>5)&1)+((val>>4)&1)+((val>>3)&1)+((val>>2)&1)+((val>>1)&1)+(val&1);
-	return !(par % 2);
+    val^=val>>8;
+    val^=val>>4;
+    val^=val>>2;
+    val^=val>>1;
+	return !(val & 1);
 }
 
 void addcycles(uint8_t val){
-	vdp_wait += (val * 3);
+	vdpCyclesToRun += (val * 3);
 	cpucc += val;
-	audioAccum += val;
-	while(audioAccum > 16){
-		audioCycles++;
-		audioAccum -= 16;
+	accumulatedCycles += val;
+	while(accumulatedCycles > 16){
+		audioCyclesToRun++;
+		accumulatedCycles -= 16;
 	}
 }

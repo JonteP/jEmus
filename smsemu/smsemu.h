@@ -10,7 +10,7 @@
 #include <stdint.h>
 #include "vdp.h"
 
-typedef enum region {
+typedef enum _region {
 	JAPAN,
 	EXPORT
 } Region;
@@ -19,7 +19,7 @@ struct machine {
 	char *bios;
 	int  masterClock;
 	Video videoMode;
-	uint8_t region;
+	Region region;
 };
 
 extern uint8_t quit, ioPort1, ioPort2, ioControl, region;
