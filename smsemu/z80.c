@@ -194,9 +194,6 @@ uint8_t iff1, iff2, iMode;
 /* Vector pointers */
 static const uint16_t nmi = 0x66, irq = 0x38;
 
-/* Mapped memory  - should be moved to machine specific code */
-uint_fast8_t cpuRam[0x2000];
-
 char opmess[] = "Unimplemented opcode";
 void opdecode() {
 
@@ -1696,6 +1693,8 @@ void outi()	{ /* OUTI */
 	*cpuFreg = (k > 0xff) ? (*cpuFreg | 0x01) : (*cpuFreg & ~0x01); /* C flag */
 }
 void otir()	{ /* OTIR */
+	if(*cpuHLreg == 0x54fe)
+		printf("here\n");
 uint8_t tmp = *cpuread(*cpuHLreg); /* to be written to port */
 (*cpuBreg)--; /* byte counter */
 write_cpu_register(*cpuCreg, tmp);
@@ -1982,7 +1981,7 @@ uint8_t read_cpu_register(uint8_t reg) {
 		break;
 	case 0x41: /* Read VDP H Counter */
 		/* should return upper 8 bits */
-		value = hCounter;
+		value = 0;
 		break;
 	case 0x80: /* Read VDP Data Port */
 		value = read_vdp_data();
@@ -2027,21 +2026,27 @@ void write_cpu_register(uint8_t reg, uint_fast8_t value) {
 		break;
 	case 0xc0: /* Keyboard support? */
 	case 0xc1:
-		/*printf("Ineffective write to I/O port: %02x\n",reg);*/
+		printf("Ineffective write to I/O port: %02x\n",reg);
 		break;
 	}
 }
 
 uint8_t * cpuread(uint16_t address) {
-	uint_fast8_t *value;
-	if (address >= 0xc000) /* reading from RAM */
-		value = &cpuRam[address & 0x1fff];
-	else if (address < 0xc000 && address >= 0x8000)
-		value = read_bank2(address);
-	else if (address < 0x8000 && address >= 0x4000)
-		value = read_bank1(address);
-	else if (address < 0x4000)
+	uint8_t *value;
+	switch(address & 0xc000){
+	case 0x0000:
 		value = read_bank0(address);
+		break;
+	case 0x4000:
+		value = read_bank1(address);
+		break;
+	case 0x8000:
+		value = read_bank2(address);
+		break;
+	case 0xc000:
+		value = read_bank3(address);
+		break;
+	}
 	return value;
 }
 

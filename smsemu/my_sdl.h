@@ -4,14 +4,6 @@
 #include <stdint.h>
 #include "SDL.h"
 
-typedef struct sdlSettings {
-	const char* renderQuality;
-	uint8_t* ctable;
-	int audioFrequency;
-	int channels;
-	int audioBufferSize;
-} sdlSettings;
-
 typedef struct windowHandle_ {
 	SDL_Window *win;
 	SDL_Renderer *rend;
@@ -28,17 +20,16 @@ typedef struct windowHandle_ {
 	int xClip;
 	int yClip;
 } windowHandle;
-extern windowHandle handleMain, handleNametable;
-extern uint_fast8_t nametableActive, patternActive, paletteActive, isPaused, stateSave, stateLoad;
-
-SDL_Window *windowMain, *windowNametable;
-SDL_Renderer *renderMain, *renderNametable;
-SDL_Texture *textureMain, *textureNametable;
-SDL_Surface *surfaceMain, *surfaceNametable;
-SDL_Event event;
-SDL_Color colors[64];
+typedef struct sdlSettings {
+	const char* renderQuality;
+	uint8_t* ctable;
+	int audioFrequency;
+	int channels;
+	int audioBufferSize;
+	windowHandle window;
+} sdlSettings;
+extern uint_fast8_t isPaused, stateSave, stateLoad;
 
 void render_frame(), init_sdl(sdlSettings*), close_sdl(void), init_sounds(void), output_sound(void), destroy_handle (windowHandle *), io_handle(void), init_time(float);
-windowHandle create_handle (char *, int, int, int, int, int, int, int, int);
 
 #endif /* MY_SDL_H_ */

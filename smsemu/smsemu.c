@@ -8,14 +8,14 @@
 #include "sn79489.h"
 
 /* Compatibility:
- * -Golvellius (U/E) - hangs on overworld (walked up one screen)
+ * -Golvellius (U/E) - hangs on overworld (walk up one screen)
  * -Space Harrier (J) - black screen after game start
+ * -waimanu sms - enemies do not move, sprite wrap from left
  */
 /* TODO:
  * -FM sound
  * -special peripherals (lightgun, sports pad, paddle)
  * -vdp versions
- * -backup RAM save support - requires correct banking of ram slots
  * -dot renderer with proper timing
  * -remaining z80 opcodes - verify cycle counting
  * -correct readback value for h counter
@@ -24,14 +24,14 @@
 
 char *cartFile, *cardFile, *expFile, *biosFile;
 uint8_t quit = 0, ioPort1, ioPort2, ioControl, region;
-struct machine ntsc_us={"mpr-10052.ic2",53693175,NTSC,EXPORT}, pal={"mpr-10052.ic2",53203424,PAL,EXPORT}, ntsc_jp={"mpr-11124.ic2",53693175,NTSC,JAPAN}, *currentMachine;
+struct machine ntsc_us={"mpr-12808.ic2",53693175,NTSC,EXPORT}, pal={"mpr-10052.ic2",53203424,PAL,EXPORT}, ntsc_jp={"mpr-11124.ic2",53693175,NTSC,JAPAN}, *currentMachine;
 float frameTime, fps;
 sdlSettings settings;
 int main() {
-	currentMode = &ntsc192;
 	currentMachine = &ntsc_us;
+	init_vdp();
 
-	settings.renderQuality = "0";
+	settings.renderQuality = "1";
 	settings.ctable = (uint8_t*) malloc(0xc0 * sizeof(uint8_t));
 	for (int i = 0; i < 0x40; i++) {
 		settings.ctable[i*3]     = (((i & 0x03) << 6) | ((i & 0x03) << 4) | ((i & 0x03) << 2) | (i & 0x03));
@@ -41,9 +41,18 @@ int main() {
 	settings.audioFrequency = 48000;
 	settings.channels = 1;
 	settings.audioBufferSize = 2048;
+	settings.window.name = "smsEmu";
+	settings.window.screenHeight = currentMode->height;
+	settings.window.screenWidth = currentMode->width;
+	settings.window.visible = 1;
+	settings.window.winHeight = 480;
+	settings.window.winWidth = 640;
+	settings.window.winXPosition = 100;
+	settings.window.winYPosition = 100;
+	settings.window.xClip = 0;
+	settings.window.yClip = 0;
 	init_sdl(&settings);
 
-	init_vdp();
 	init_sn79489(settings.audioFrequency, settings.audioBufferSize);
 	fps = (float)currentMachine->masterClock/(currentMode->fullheight * currentMode->fullwidth * 10);
 	printf("Running at %.02f fps\n",fps);
@@ -52,7 +61,7 @@ int main() {
 
 	biosFile = malloc(strlen(currentMachine->bios) + 6);
 	sprintf(biosFile, "bios/%s",currentMachine->bios);
-	cartFile = "/home/jonas/Desktop/sms/unsorted/USA/Alex Kidd in Miracle World.sms";
+	cartFile = "/home/jonas/Desktop/sms/unsorted/Unlicensed/WaimanuSMS.sms";
 	init_slots();
 	logfile = fopen("/home/jonas/git/logfile.txt","w");
 	if (logfile==NULL){

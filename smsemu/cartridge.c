@@ -10,10 +10,10 @@
 
 static inline struct RomFile load_rom(char *);
 static inline xmlChar * calculate_checksum(uint8_t *, int);
-static inline uint8_t * read0(uint16_t), * read1(uint16_t), * read2(uint16_t), * empty(uint16_t);
-static inline void generic_mapper(), sega_mapper(), codemasters_mapper();
+static inline uint8_t * read0(uint16_t), * read1(uint16_t), * read2(uint16_t), * read3(uint16_t), * empty(uint16_t);
+static inline void generic_mapper(), sega_mapper(), codemasters_mapper(), setup_banks();
 static inline void extract_xml_data(xmlNode *,struct RomFile *), xml_hash_compare(xmlNode *,struct RomFile *), parse_xml_file(xmlNode *,struct RomFile *);
-uint8_t fcr[3], *bank[3], bRam[0x8000], memControl, bramReg = 0, returnValue[1]={0};
+uint8_t fcr[3], *bank[3], bRam[0x8000], memControl, bramReg = 0, returnValue[1]={0}, cpuRam[0x2000];
 struct RomFile cartRom, cardRom, biosRom, expRom, *currentRom;
 char *xmlFile = "sms.xml", *bName;
 FILE *bFile;
@@ -41,6 +41,13 @@ void memory_control(uint8_t value){
 	}
 	else if(!(memControl & 0x40)){
 		currentRom = &cartRom;
+	}
+	else if(!(memControl & 0x20)){
+		currentRom = &cardRom;
+		banking = &generic_mapper;
+	}
+	else if(!(memControl & 0x08)){
+		currentRom = &biosRom;
 		if(currentRom->mapper == CODEMASTERS){
 			banking = &codemasters_mapper;
 			fcr[0] = 0;
@@ -53,49 +60,27 @@ void memory_control(uint8_t value){
 			fcr[1] = 1;
 			fcr[2] = 2;
 		}
-	}
-	else if(!(memControl & 0x20)){
-		currentRom = &cardRom;
-		banking = &generic_mapper;
-	}
-	else if(!(memControl & 0x08)){
-		currentRom = &biosRom;
-		banking = &generic_mapper;
+		else
+			banking = &generic_mapper;
 	}
 	banking();
+	setup_banks();
 }
 
 void generic_mapper(){
 	bank[0] = currentRom->rom;
 	bank[1] = currentRom->rom + 0x4000;
 	bank[2] = currentRom->rom + 0x8000;
-	if(currentRom->rom == NULL){
-		read_bank0 = &empty;
-		read_bank1 = &empty;
-		read_bank2 = &empty;
-	}
-	else{
-		read_bank0 = &read0;
-		read_bank1 = &read1;
-		read_bank2 = &read2;
-	}
 }
 
 void sega_mapper(){
-	/* TODO: bank shifting */
+	/* TODO:
+	 * bank shifting
+	 * mapping of slot 3
+	 *  */
 	bank[0] = currentRom->rom + ((fcr[0] & currentRom->mask) << 14);
 	bank[1] = currentRom->rom + ((fcr[1] & currentRom->mask) << 14);
 	bank[2] = (bramReg & 0x8) ? (bRam + ((bramReg & 0x4) << 12)) : currentRom->rom + ((fcr[2] & currentRom->mask) << 14);
-	if(currentRom->rom == NULL){
-		read_bank0 = &empty;
-		read_bank1 = &empty;
-		read_bank2 = &empty;
-	}
-	else{
-		read_bank0 = &read0;
-		read_bank1 = &read1;
-		read_bank2 = &read2;
-	}
 }
 
 void codemasters_mapper(){
@@ -103,6 +88,11 @@ void codemasters_mapper(){
 	bank[0] = currentRom->rom;
 	bank[1] = currentRom->rom + 0x4000;
 	bank[2] = currentRom->rom + ((fcr[2] & currentRom->mask) << 14);
+}
+
+void setup_banks(){
+	/* TODO: implement RAM disable */
+	read_bank3 = &read3;
 	if(currentRom->rom == NULL){
 		read_bank0 = &empty;
 		read_bank1 = &empty;
@@ -129,13 +119,16 @@ uint8_t * read0(uint16_t address){
 	return value;
 }
 uint8_t * read1(uint16_t address){
-	uint8_t *value;
-		value = &bank[1][address & 0x3fff];
+	uint8_t *value = &bank[1][address & 0x3fff];
 	return value;
 }
 uint8_t * read2(uint16_t address){
-	uint8_t *value;
-		value = &bank[2][address & 0x3fff];
+	uint8_t *value = &bank[2][address & 0x3fff];
+	return value;
+}
+uint8_t * read3(uint16_t address){
+	/* TODO: bankable */
+	uint8_t *value = &cpuRam[address & 0x1fff];
 	return value;
 }
 
@@ -153,12 +146,13 @@ struct RomFile load_rom(char *r){/* TODO: add check for cart in card slot etc. *
 	fread(tmpRom, rsize, 1, rfile);
 	uint8_t mask = ((rsize >> 14) - 1);
 	struct RomFile output = { tmpRom, mask };
-	output.mapper=GENERIC;
+	if(rsize > 0x8000)
+		output.mapper = SEGA;
+	else
+		output.mapper = GENERIC;
 	output.battery=0;
 	output.sha1=calculate_checksum(tmpRom,rsize);
 	parse_xml_file(xmlDocGetRootElement(smsXml),&output);
-	if(output.mapper == GENERIC && rsize > 0x8000)
-		output.mapper = SEGA;
 	if(output.battery){
 		bName = strdup(r);
 		sprintf(bName+strlen(bName)-3, "sav");

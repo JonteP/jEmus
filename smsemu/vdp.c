@@ -1,6 +1,14 @@
-/* TODO: document different VDP versions
+/* TMS9918a: the original used by SG-1000, SC-3000 and MSX
+ *
+ * 315-5124: TMS9918a with Mode4 added
+ * 315-5246: Revision of 315-5124
+ * 315-5378: 315-5246 with an added graphics mode (Game Gear)
+ * 315-5313: The version used in Mega Drive (reduced functionality)
+ *
+ *TODO: emulate version differences:
  * -screen height
  * -masking of nametable address
+ * -zooming: bug in vdp1, works in vdp2, not at all in md http://benryves.com/journal/2889425
  */
 
 #include "vdp.h"
@@ -23,9 +31,10 @@ uint16_t controlWord, vdpdot = 0, vCounter = 0, hCounter = 0, addReg, ntAddress,
 int vdpCyclesToRun = 0, frame = 0;
 /* Mapped memory */					/* TODO: dynamically allocate screenBuffer */
 uint8_t vram[0x4000], cram[0x20], *screenBuffer;
-static inline void render_scanline(void);
+static inline void render_scanline(void), set_video_mode(void);
 
 void init_vdp(){
+	set_video_mode();
 	screenBuffer = (uint8_t*)calloc(currentMode->height * currentMode->width, sizeof(uint8_t));
 	ntsc192.vcount = (uint8_t*) malloc(ntsc192.fullheight * sizeof(uint8_t));
 	for(int i=0;i<0xdb;i++){
@@ -65,6 +74,21 @@ void close_vdp(){
 	free (pal224.vcount);
 }
 
+void set_video_mode(){
+	if(mode2 & 0x10){
+		if(currentMachine->videoMode == NTSC)
+			currentMode = &ntsc224;
+		else if(currentMachine->videoMode == PAL)
+			currentMode = &pal224;
+	}
+	else if(!(mode2 & 0x10)){
+		if(currentMachine->videoMode == NTSC)
+			currentMode = &ntsc192;
+		else if(currentMachine->videoMode == PAL)
+			currentMode = &pal192;
+	}
+}
+
 void write_vdp_control(uint8_t value){
 controlWord = controlFlag ? ((controlWord & 0x00ff) | (value << 8)) : ((controlWord & 0xff00) | value);
 controlFlag ^= 1;
@@ -86,20 +110,7 @@ if (!controlFlag){
 			break;
 		case 0x0100: /* Mode Control No. 2 */
 			mode2 = (controlWord & 0xff);
-			if(mode2 & 0x01)
-				printf("Uses zoomed sprites\n");
-			if(mode2 & 0x10){
-				if(currentMachine->videoMode == NTSC)
-					currentMode = &ntsc224;
-				else if(currentMachine->videoMode == PAL)
-					currentMode = &pal224;
-			}
-			else if(!(mode2 & 0x10)){
-				if(currentMachine->videoMode == NTSC)
-					currentMode = &ntsc192;
-				else if(currentMachine->videoMode == PAL)
-					currentMode = &pal192;
-			}
+			set_video_mode();
 			break;
 		case 0x0200: /* Name Table Base Address */
 			ntAddress = ((controlWord & 0x0f) << 10);
@@ -235,12 +246,13 @@ void render_scanline(){
 	}
 
 	for(uint8_t s = 0; s < 64; s++){
-		uint8_t spriteHeight = ((mode2 & 0x02) ? 16 : 8);
+		uint8_t zoom = (mode2 & 0x01);
+		uint8_t spriteHeight = (((mode2 & 0x02) ? 16 : 8) << (zoom ? 1 : 0));
 		spriteY = (vram[spriteAttribute + s] + 1);
 		if((spriteY == (0xd0 + 1)) && (currentMode->vactive == 192))
 			break;
 		if(spriteY >= (256 - spriteHeight + 1))
-			spriteY = (0 - (256 - spriteY));/* TODO: this works only for 8x8 sprites? */
+			spriteY = (0 - (256 - spriteY)); /* negative Y offset (sprites go offscreen from top) */
 		if ((vCounter >= spriteY) && (vCounter < (spriteY + spriteHeight))){
 			spriteBuffer++;
 			if (spriteBuffer > 8)
@@ -249,17 +261,17 @@ void render_scanline(){
 			spriteX = vram[spriteAttribute + (s << 1) + 128];
 			spriteI = vram[spriteAttribute + (s << 1) + 129];
 			sidx = spritePattern + (((mode2 & 0x02) ? (spriteI & 0xfe) : spriteI) << 5);
-			for (uint8_t c = 0; c < 8; c++){
-				pixel  = (vram[sidx + ((vCounter - spriteY) << 2)    ] & (1 << (7-c))) ? 1:0;
-				pixel |= (vram[sidx + ((vCounter - spriteY) << 2) + 1] & (1 << (7-c))) ? 2:0;
-				pixel |= (vram[sidx + ((vCounter - spriteY) << 2) + 2] & (1 << (7-c))) ? 4:0;
-				pixel |= (vram[sidx + ((vCounter - spriteY) << 2) + 3] & (1 << (7-c))) ? 8:0;
+			for (uint8_t c = 0; c < (8 << (zoom ? 1 : 0)); c++){
+				pixel  = (vram[sidx + (((vCounter - spriteY) >> (zoom ? 1 : 0)) << 2)    ] & (1 << (7 - (c >> (zoom ? 1 : 0))))) ? 1:0;
+				pixel |= (vram[sidx + (((vCounter - spriteY) >> (zoom ? 1 : 0)) << 2) + 1] & (1 << (7 - (c >> (zoom ? 1 : 0))))) ? 2:0;
+				pixel |= (vram[sidx + (((vCounter - spriteY) >> (zoom ? 1 : 0)) << 2) + 2] & (1 << (7 - (c >> (zoom ? 1 : 0))))) ? 4:0;
+				pixel |= (vram[sidx + (((vCounter - spriteY) >> (zoom ? 1 : 0)) << 2) + 3] & (1 << (7 - (c >> (zoom ? 1 : 0))))) ? 8:0;
 				pixelOffset = (c + spriteX - ((mode1 & 0x08) ? 8 : 0));
-				if(pixel && pixelOffset < currentMode->width && pixelOffset > 7){
+				if(pixel){
 					if (spriteMask[pixelOffset])
 						statusFlags |= 0x20; /* set sprite collision flag */
 					else{
-						if((!priorityMask[pixelOffset]) || (!transMask[pixelOffset]))
+						if(((!priorityMask[pixelOffset]) || (!transMask[pixelOffset])) && pixelOffset < currentMode->width && pixelOffset > 7)
 							screenBuffer[(yOffset*currentMode->width) + pixelOffset]
 										 = cram[pixel+0x10];
 						spriteMask[pixelOffset]= pixel ? 1 : 0;

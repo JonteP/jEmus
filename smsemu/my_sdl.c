@@ -7,18 +7,15 @@
 #include <unistd.h> /* usleep */
 #include "smsemu.h"
 #include "sn79489.h"
-#include "vdp.h"
 #include "z80.h"
 
 SDL_AudioSpec wantedAudioSettings, audioSettings;
+SDL_Event event;
 SDL_DisplayMode current;
 uint_fast8_t isPaused = 0, fullscreen = 0, stateSave = 0, stateLoad = 0, vsync = 0;
-uint16_t pulseQueueCounter = 0;
 sdlSettings *currentSettings;
 
-windowHandle handleMain, handleNametable, handlePattern, handlePalette;
-
-static inline void render_window (windowHandle *, void *), idle_time(float), update_texture(windowHandle *, uint_fast8_t *);
+static inline void render_window (windowHandle *, void *), idle_time(float), update_texture(windowHandle *, uint_fast8_t *), create_handle (windowHandle *);
 
 void init_sdl(sdlSettings *settings) {
 	currentSettings = settings;
@@ -31,9 +28,8 @@ void init_sdl(sdlSettings *settings) {
 		exit(EXIT_FAILURE);
 	}
 	SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY,currentSettings->renderQuality);
-	handleMain = create_handle ("jEmu", 100, 100, WWIDTH<<1, WHEIGHT<<1, currentMode->width, currentMode->height, 0, 0);
-	SDL_ShowWindow(handleMain.win);
-	handleMain.visible = 1;
+	create_handle (&currentSettings->window);
+	SDL_ShowWindow(currentSettings->window.win);
 	wantedAudioSettings.freq = currentSettings->audioFrequency;
 	wantedAudioSettings.format = AUDIO_F32;
 	wantedAudioSettings.channels = currentSettings->channels;
@@ -47,41 +43,29 @@ void init_sdl(sdlSettings *settings) {
 	SDL_ClearQueuedAudio(1);
 }
 
-windowHandle create_handle (char * name, int wpx, int wpy, int ww, int wh, int sw, int sh, int xx, int yy) {
+void create_handle (windowHandle *handle) {
 	/* TODO: add clipping options here */
-	windowHandle handle;
-	handle.name = name;
-	handle.winXPosition = wpx;
-	handle.winYPosition = wpy;
-	handle.winWidth = ww;
-	handle.winHeight = wh;
-	handle.screenWidth = sw;
-	handle.screenHeight = sh;
-	handle.xClip = xx;
-	handle.yClip = yy;
-	if((handle.win = SDL_CreateWindow(handle.name, handle.winXPosition, handle.winYPosition, handle.winWidth, handle.winHeight, SDL_WINDOW_RESIZABLE)) == NULL){
+	if((handle->win = SDL_CreateWindow(handle->name, handle->winXPosition, handle->winYPosition, handle->winWidth, handle->winHeight, SDL_WINDOW_RESIZABLE)) == NULL){
 		printf("SDL_CreateWindow failed: %s\n", SDL_GetError());
 		exit(EXIT_FAILURE);}
-	if((handle.rend = SDL_CreateRenderer(handle.win, -1, SDL_RENDERER_ACCELERATED)) ==NULL){
+	if((handle->rend = SDL_CreateRenderer(handle->win, -1, SDL_RENDERER_ACCELERATED)) ==NULL){
 		printf("SDL_CreateRenderer failed: %s\n", SDL_GetError());
 		exit(EXIT_FAILURE);}
-	if((handle.tex = SDL_CreateTexture(handle.rend, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, handle.screenWidth, handle.screenHeight)) ==NULL){
+	if((handle->tex = SDL_CreateTexture(handle->rend, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, handle->screenWidth, handle->screenHeight)) == NULL){
 		printf("SDL_CreateTexture failed: %s\n", SDL_GetError());
 		exit(EXIT_FAILURE);}
-	handle.windowID = SDL_GetWindowID(handle.win);
-	SDL_HideWindow(handle.win);
-	handle.visible = 0;
-	return handle;
+	handle->windowID = SDL_GetWindowID(handle->win);
+	SDL_HideWindow(handle->win);
 }
 
 void destroy_handle (windowHandle * handle) {
-	SDL_DestroyTexture(handle->tex);
-	SDL_DestroyRenderer(handle->rend);
-	SDL_DestroyWindow(handle->win);
+	SDL_DestroyTexture(currentSettings->window.tex);
+	SDL_DestroyRenderer(currentSettings->window.rend);
+	SDL_DestroyWindow(currentSettings->window.win);
 }
 
 void close_sdl() {
-	destroy_handle (&handleMain);
+	destroy_handle (&currentSettings->window);
 	SDL_ClearQueuedAudio(1);
 	SDL_CloseAudio();
 	SDL_Quit();
@@ -107,7 +91,7 @@ void idle_time (float time)
 
 void render_frame()
 {
-	render_window (&handleMain, screenBuffer);
+	render_window (&currentSettings->window, screenBuffer);
 	idle_time(frameTime);
 	io_handle();
 	while (isPaused)
@@ -175,7 +159,7 @@ void output_sound()
 void io_handle()
 {
 	while (SDL_PollEvent(&event)) {
-		if (event.window.windowID == handleMain.windowID)
+		if (event.window.windowID == currentSettings->window.windowID)
 		{
 		switch (event.type) {
 		/* Pass the event data onto PrintKeyInfo() */
@@ -209,20 +193,20 @@ void io_handle()
 				if (fullscreen)
 				{
 					SDL_DisplayMode mode;
-					SDL_GetWindowDisplayMode(handleMain.win, &mode);
+					SDL_GetWindowDisplayMode(currentSettings->window.win, &mode);
 					mode.w = 1920;
 					mode.h = 1080;
 					mode.refresh_rate = 60;
-					SDL_SetWindowDisplayMode(handleMain.win, &mode);
-					SDL_SetWindowFullscreen(handleMain.win, SDL_WINDOW_FULLSCREEN);
+					SDL_SetWindowDisplayMode(currentSettings->window.win, &mode);
+					SDL_SetWindowFullscreen(currentSettings->window.win, SDL_WINDOW_FULLSCREEN);
 				    SDL_ShowCursor(SDL_DISABLE);
-					SDL_SetWindowGrab(handleMain.win, SDL_TRUE);
+					SDL_SetWindowGrab(currentSettings->window.win, SDL_TRUE);
 				}
 				else if (!fullscreen)
 				{
-					SDL_SetWindowFullscreen(handleMain.win, 0);
+					SDL_SetWindowFullscreen(currentSettings->window.win, 0);
 				    SDL_ShowCursor(SDL_ENABLE);
-					SDL_SetWindowGrab(handleMain.win, SDL_FALSE);
+					SDL_SetWindowGrab(currentSettings->window.win, SDL_FALSE);
 				}
 				break;
 			case SDL_SCANCODE_F12:
@@ -230,17 +214,17 @@ void io_handle()
 				if (vsync)
 				{
 					SDL_GetCurrentDisplayMode(0, &current);
-					SDL_DestroyRenderer(handleMain.rend);
-					handleMain.rend = SDL_CreateRenderer(handleMain.win, -1, SDL_RENDERER_ACCELERATED|SDL_RENDERER_PRESENTVSYNC);
-					handleMain.tex = SDL_CreateTexture(handleMain.rend, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, 256, 240);
+					SDL_DestroyRenderer(currentSettings->window.rend);
+					currentSettings->window.rend = SDL_CreateRenderer(currentSettings->window.win, -1, SDL_RENDERER_ACCELERATED|SDL_RENDERER_PRESENTVSYNC);
+					currentSettings->window.tex = SDL_CreateTexture(currentSettings->window.rend, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, 256, 240);
 					fps = current.refresh_rate;
 					frameTime = ((1/fps) * 1000000000);
 				}
 				else
 				{
-					SDL_DestroyRenderer(handleMain.rend);
-					handleMain.rend = SDL_CreateRenderer(handleMain.win, -1, SDL_RENDERER_ACCELERATED);
-					handleMain.tex = SDL_CreateTexture(handleMain.rend, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, 256, 240);
+					SDL_DestroyRenderer(currentSettings->window.rend);
+					currentSettings->window.rend = SDL_CreateRenderer(currentSettings->window.win, -1, SDL_RENDERER_ACCELERATED);
+					currentSettings->window.tex = SDL_CreateTexture(currentSettings->window.rend, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, 256, 240);
 					fps = 60;
 					frameTime = ((1/fps) * 1000000000);
 				}

@@ -30,10 +30,6 @@ struct VideoMode {
 	uint8_t *vcount;
 };
 
-/* CONSTANTS */
-#define WWIDTH 320 /*1280 */
-#define WHEIGHT 240 /*1024 */
-
 extern uint8_t controlFlag, statusFlags, *screenBuffer, lineInt;
 extern uint16_t vCounter, hCounter;
 extern int vdpCyclesToRun;
