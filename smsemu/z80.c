@@ -1,3 +1,9 @@
+/*
+  	struct timespec start,end;
+	clock_gettime(CLOCK_MONOTONIC,&start);
+	clock_gettime(CLOCK_MONOTONIC,&end);
+	printf("%ld\n",(end.tv_nsec - start.tv_nsec));
+ */
 #include "z80.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -8,6 +14,7 @@
 #include "vdp.h"
 #include "my_sdl.h"
 #include "sn79489.h"
+#include <time.h>
 
 static uint_fast8_t ctable[] = {
  /*0 |1 |2 |3 |4 |5 |6 |7 |8 |9 |a |b |c |d |e |f       */
@@ -726,12 +733,10 @@ void cpdr()	{ /* CPDR */
 
 void add(uint8_t value)	{
 	uint16_t res = *cpuAreg + value;
-	*cpuFreg = (res & 0x80) ? (*cpuFreg | 0x80) : (*cpuFreg & ~0x80); /* S flag */
-	*cpuFreg = (!(res & 0xff)) ? (*cpuFreg | 0x40) : (*cpuFreg & ~0x40); /* Z flag */
-	*cpuFreg = ((*cpuAreg ^ + value ^ res) & 0x10)  ? (*cpuFreg | 0x10) : (*cpuFreg & ~0x10); /* H flag */
-	*cpuFreg = ((*cpuAreg ^ res) & (value ^ res) & 0x80) ? (*cpuFreg | 0x04) : (*cpuFreg & ~0x04); /* P/V flag */
-	*cpuFreg &= ~0x02; /* N flag */
-	*cpuFreg = (res & 0x100) ? (*cpuFreg | 0x01) : (*cpuFreg & ~0x01); /* C flag */
+	*cpuFreg = ((res & 0x80)     | (!(res & 0xff) << 6) 			  				|
+			   (*cpuFreg & 0x20) |	((*cpuAreg ^ value ^ res) & 0x10) 				|
+			   (*cpuFreg & 0x08) | (((*cpuAreg ^ res) & (value ^ res) & 0x80) >> 5) |
+			   	   	   	   	   	   ((res & 0x100) >> 8));
 	*cpuAreg = res;
 }
 void addr()	{ /* ADD A,r */
@@ -751,12 +756,10 @@ void adiyi(){ /* ADD A,(IY+d) */
 }
 void adc(uint8_t value)	{
 	uint16_t res = *cpuAreg + value + (*cpuFreg & 0x01);
-	*cpuFreg = (res & 0x80) ? (*cpuFreg | 0x80) : (*cpuFreg & ~0x80); /* S flag */
-	*cpuFreg = (!(res & 0xff)) ? (*cpuFreg | 0x40) : (*cpuFreg & ~0x40); /* Z flag */
-	*cpuFreg = ((*cpuAreg ^ + value ^ res) & 0x10)  ? (*cpuFreg | 0x10) : (*cpuFreg & ~0x10); /* H flag */
-	*cpuFreg = ((*cpuAreg ^ res) & (value ^ res) & 0x80) ? (*cpuFreg | 0x04) : (*cpuFreg & ~0x04); /* P/V flag */
-	*cpuFreg &= ~0x02; /* N flag */
-	*cpuFreg = (res & 0x100) ? (*cpuFreg | 0x01) : (*cpuFreg & ~0x01); /* C flag */
+	*cpuFreg = ((res & 0x80)     | (!(res & 0xff) << 6) 			  				|
+			   (*cpuFreg & 0x20) |	((*cpuAreg ^ value ^ res) & 0x10) 				|
+			   (*cpuFreg & 0x08) | (((*cpuAreg ^ res) & (value ^ res) & 0x80) >> 5) |
+			   	   	   	   	   	   ((res & 0x100) >> 8));
 	*cpuAreg = res;
 }
 void adcr()	{ /* ADC A,r */
@@ -776,12 +779,10 @@ void aciyi(){ /* ADC A,(IY+d) */
 }
 void sub(uint8_t value)	{
 	uint16_t res = *cpuAreg - value;
-	*cpuFreg = (res & 0x80) ? (*cpuFreg | 0x80) : (*cpuFreg & ~0x80); /* S flag */
-	*cpuFreg = (!(res & 0xff)) ? (*cpuFreg | 0x40) : (*cpuFreg & ~0x40); /* Z flag */
-	*cpuFreg = ((*cpuAreg ^ value ^ res) & 0x10) ? (*cpuFreg | 0x10) : (*cpuFreg & ~0x10); /* H flag */
-	*cpuFreg = ((*cpuAreg ^ value) & (*cpuAreg ^ res) & 0x80) ? (*cpuFreg | 0x04) : (*cpuFreg & ~0x04); /* P/V flag */
-	*cpuFreg |= 0x02; /* N flag */
-	*cpuFreg = (res & 0x100) ? (*cpuFreg | 0x01) : (*cpuFreg & ~0x01); /* C flag */
+	*cpuFreg = ((res & 0x80)     | (!(res & 0xff) << 6) 			  					 |
+			   (*cpuFreg & 0x20) |	((*cpuAreg ^ value ^ res) & 0x10) 					 |
+			   (*cpuFreg & 0x08) | (((*cpuAreg ^ value) & (*cpuAreg ^ res) & 0x80) >> 5) |
+			   N_FLAG			 | ((res & 0x100) >> 8));
 	*cpuAreg = res;
 }
 void subr()	{ /* SUB A,r */
@@ -801,12 +802,10 @@ void sbiyi(){ /* SUB A,(IY+d) */
 }
 void sbc(uint8_t value)	{
 	uint16_t res = *cpuAreg - value - (*cpuFreg & 0x01);
-	*cpuFreg = (res & 0x80) ? (*cpuFreg | 0x80) : (*cpuFreg & ~0x80); /* S flag */
-	*cpuFreg = (!(res & 0xff)) ? (*cpuFreg | 0x40) : (*cpuFreg & ~0x40); /* Z flag */
-	*cpuFreg = ((*cpuAreg ^ value ^ res) & 0x10) ? (*cpuFreg | 0x10) : (*cpuFreg & ~0x10); /* H flag */
-	*cpuFreg = ((*cpuAreg ^ value) & (*cpuAreg ^ res) & 0x80) ? (*cpuFreg | 0x04) : (*cpuFreg & ~0x04); /* P/V flag */
-	*cpuFreg |= 0x02; /* N flag */
-	*cpuFreg = (res & 0x100) ? (*cpuFreg | 0x01) : (*cpuFreg & ~0x01); /* C flag */
+	*cpuFreg = ((res & 0x80)     | (!(res & 0xff) << 6) 			  					 |
+			   (*cpuFreg & 0x20) |	((*cpuAreg ^ value ^ res) & 0x10) 					 |
+			   (*cpuFreg & 0x08) | (((*cpuAreg ^ value) & (*cpuAreg ^ res) & 0x80) >> 5) |
+			   N_FLAG			 | ((res & 0x100) >> 8));
 	*cpuAreg = res;
 }
 void sbcr()	{ /* SBC A,r */

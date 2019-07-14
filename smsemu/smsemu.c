@@ -19,6 +19,7 @@
  * -remaining z80 opcodes - verify cycle counting
  * -correct readback value for h counter
  * -port access behavior differs between consoles (open bus)
+ * -sprite clipping when left col visible
  */
 
 char *cartFile, *cardFile, *expFile, *biosFile;

@@ -10,6 +10,8 @@
 #include <stdio.h>
 #include <stdint.h>
 
+#define N_FLAG 0x02
+
 void opdecode(void), power_reset(void);
 
 extern FILE *logfile;
