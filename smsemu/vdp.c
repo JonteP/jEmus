@@ -208,7 +208,7 @@ while (vdpCyclesToRun) {
 }
 uint8_t blank=0x15, black=0x00;
 void render_scanline(){
-	uint8_t pixel, tileRow, ntColumn, tileColumn, ntRow, spriteX, spriteI, spriteBuffer = 0, pixelOffset, spriteMask[currentMode->width], priorityMask[currentMode->width], transMask[currentMode->width];
+	uint8_t pixel, tileRow, ntColumn, tileColumn, ntRow, spriteX, spriteI, spriteBuffer = 0, spriteMask[currentMode->width], priorityMask[currentMode->width], transMask[currentMode->width];
 	int16_t spriteY;
 	uint16_t ntData, pidx, sidx, yOffset, ntOffset;
 	memset(spriteMask, 0, currentMode->width*sizeof(uint8_t));
@@ -258,29 +258,28 @@ void render_scanline(){
 			if (spriteBuffer > 8)
 				statusFlags |= 0x40;
 			else{
-			spriteX = vram[spriteAttribute + (s << 1) + 128];
-			spriteI = vram[spriteAttribute + (s << 1) + 129];
-			sidx = spritePattern + (((mode2 & 0x02) ? (spriteI & 0xfe) : spriteI) << 5);
-			for (uint8_t c = 0; c < (8 << (zoom ? 1 : 0)); c++){
-				pixel  = (vram[sidx + (((vCounter - spriteY) >> (zoom ? 1 : 0)) << 2)    ] & (1 << (7 - (c >> (zoom ? 1 : 0))))) ? 1:0;
-				pixel |= (vram[sidx + (((vCounter - spriteY) >> (zoom ? 1 : 0)) << 2) + 1] & (1 << (7 - (c >> (zoom ? 1 : 0))))) ? 2:0;
-				pixel |= (vram[sidx + (((vCounter - spriteY) >> (zoom ? 1 : 0)) << 2) + 2] & (1 << (7 - (c >> (zoom ? 1 : 0))))) ? 4:0;
-				pixel |= (vram[sidx + (((vCounter - spriteY) >> (zoom ? 1 : 0)) << 2) + 3] & (1 << (7 - (c >> (zoom ? 1 : 0))))) ? 8:0;
-				pixelOffset = (c + spriteX - ((mode1 & 0x08) ? 8 : 0));
-				if(pixel){
-					if (spriteMask[pixelOffset])
-						statusFlags |= 0x20; /* set sprite collision flag */
-					else{
-						if(((!priorityMask[pixelOffset]) || (!transMask[pixelOffset])) && pixelOffset < currentMode->width && pixelOffset > 7)
-							screenBuffer[(yOffset*currentMode->width) + pixelOffset]
-										 = cram[pixel+0x10];
-						spriteMask[pixelOffset]= pixel ? 1 : 0;
+				spriteX = vram[spriteAttribute + (s << 1) + 128];
+				spriteI = vram[spriteAttribute + (s << 1) + 129];
+				sidx = spritePattern + (((mode2 & 0x02) ? (spriteI & 0xfe) : spriteI) << 5);
+				for (uint8_t c = 0; c < (8 << (zoom ? 1 : 0)); c++){
+					pixel  = (vram[sidx + (((vCounter - spriteY) >> (zoom ? 1 : 0)) << 2)    ] & (1 << (7 - (c >> (zoom ? 1 : 0))))) ? 1:0;
+					pixel |= (vram[sidx + (((vCounter - spriteY) >> (zoom ? 1 : 0)) << 2) + 1] & (1 << (7 - (c >> (zoom ? 1 : 0))))) ? 2:0;
+					pixel |= (vram[sidx + (((vCounter - spriteY) >> (zoom ? 1 : 0)) << 2) + 2] & (1 << (7 - (c >> (zoom ? 1 : 0))))) ? 4:0;
+					pixel |= (vram[sidx + (((vCounter - spriteY) >> (zoom ? 1 : 0)) << 2) + 3] & (1 << (7 - (c >> (zoom ? 1 : 0))))) ? 8:0;
+					int pixelOffset = (c + spriteX - ((mode1 & 0x08) ? 8 : 0)); /* must be signed int */
+					if(pixel){
+						if (spriteMask[pixelOffset])
+							statusFlags |= 0x20; /* set sprite collision flag */
+						else{
+							if(((!priorityMask[pixelOffset]) || (!transMask[pixelOffset])) && pixelOffset < currentMode->width && pixelOffset > 7)
+								screenBuffer[(yOffset*currentMode->width) + pixelOffset] = cram[pixel+0x10];
+							spriteMask[pixelOffset]= pixel ? 1 : 0;
+						}
 					}
 				}
 			}
 		}
-		}
-}
+	}
 
 	}
 	else{

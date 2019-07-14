@@ -10,11 +10,10 @@
 /* Compatibility:
  * -Golvellius (U/E) - hangs on overworld (walk up one screen)
  * -Space Harrier (J) - black screen after game start
- * -waimanu sms - enemies do not move, sprite wrap from left
  */
 /* TODO:
  * -FM sound
- * -special peripherals (lightgun, sports pad, paddle)
+ * -special peripherals (lightgun, sports pad, paddle (https://www.raphnet.net/electronique/sms_paddle/index_en.php))
  * -vdp versions
  * -dot renderer with proper timing
  * -remaining z80 opcodes - verify cycle counting

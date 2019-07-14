@@ -245,6 +245,7 @@ static void (*optable[0x100])() = {
 	else {
 		intDelay = 0;
 		op = *cpuread(cpuPC++);
+		cpuR = ((cpuR & 0x80) | ((cpuR & 0x7f) + 1));
 		/* TODO: update memory refresh register */
 		/*	printf("%04X: %02X\n",cpuPC-1,op);*/
 	/*	if(cpuPC==0xc41c)
@@ -1693,8 +1694,6 @@ void outi()	{ /* OUTI */
 	*cpuFreg = (k > 0xff) ? (*cpuFreg | 0x01) : (*cpuFreg & ~0x01); /* C flag */
 }
 void otir()	{ /* OTIR */
-	if(*cpuHLreg == 0x54fe)
-		printf("here\n");
 uint8_t tmp = *cpuread(*cpuHLreg); /* to be written to port */
 (*cpuBreg)--; /* byte counter */
 write_cpu_register(*cpuCreg, tmp);

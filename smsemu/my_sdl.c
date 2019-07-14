@@ -234,53 +234,47 @@ void io_handle()
 					isPaused ^= 1;
 				break;
 			case SDL_SCANCODE_UP:
-				ioPort1 &= ~0x01;
+				ioPort1 &= ~IO1_PORTA_UP;
 				break;
 			case SDL_SCANCODE_DOWN:
-				ioPort1 &= ~0x02;
+				ioPort1 &= ~IO1_PORTA_DOWN;
 				break;
 			case SDL_SCANCODE_LEFT:
-				ioPort1 &= ~0x04;
+				ioPort1 &= ~IO1_PORTA_LEFT;
 				break;
 			case SDL_SCANCODE_RIGHT:
-				ioPort1 &= ~0x08;
+				ioPort1 &= ~IO1_PORTA_RIGHT;
 				break;
 			case SDL_SCANCODE_RETURN:
 				nmiPulled = 1;
 				break;
 			case SDL_SCANCODE_BACKSPACE:
-				ioPort2 &= ~0x10;
+				ioPort2 &= ~IO2_RESET;
 				break;
 			case SDL_SCANCODE_Z:
-				ioPort1 &= ~0x10;
+				ioPort1 &= ~IO1_PORTA_TL;
 				break;
 			case SDL_SCANCODE_X:
-				ioPort1 &= ~0x20;
+				ioPort1 &= ~IO1_PORTA_TR;
 				break;
-			/*case SDL_SCANCODE_I:
-				bitset(&ctr2, 1, 4);
+			case SDL_SCANCODE_I:
+				ioPort1 &= ~IO1_PORTB_UP;
 				break;
 			case SDL_SCANCODE_K:
-				bitset(&ctr2, 1, 5);
+				ioPort1 &= ~IO1_PORTB_DOWN;
 				break;
 			case SDL_SCANCODE_J:
-				bitset(&ctr2, 1, 6);
+				ioPort2 &= ~IO2_PORTB_LEFT;
 				break;
 			case SDL_SCANCODE_L:
-				bitset(&ctr2, 1, 7);
-				break;
-			case SDL_SCANCODE_1:
-				bitset(&ctr2, 1, 3);
-				break;
-			case SDL_SCANCODE_2:
-				bitset(&ctr2, 1, 2);
+				ioPort2 &= ~IO2_PORTB_RIGHT;
 				break;
 			case SDL_SCANCODE_A:
-				bitset(&ctr2, 1, 1);
+				ioPort2 &= ~IO2_PORTB_TL;
 				break;
 			case SDL_SCANCODE_S:
-				bitset(&ctr2, 1, 0);
-				break;*/
+				ioPort2 &= ~IO2_PORTB_TR;
+				break;
 			default:
 				break;
 			}
@@ -288,56 +282,48 @@ void io_handle()
 		case SDL_KEYUP:
 			switch (event.key.keysym.scancode) {
 			case SDL_SCANCODE_UP:
-				ioPort1 |= 0x01;
+				ioPort1 |= IO1_PORTA_UP;
 				break;
 			case SDL_SCANCODE_DOWN:
-				ioPort1 |= 0x02;
+				ioPort1 |= IO1_PORTA_DOWN;
 				break;
 			case SDL_SCANCODE_LEFT:
-				ioPort1 |= 0x04;
+				ioPort1 |= IO1_PORTA_LEFT;
 				break;
 			case SDL_SCANCODE_RIGHT:
-				ioPort1 |= 0x08;
-				break;
-			case SDL_SCANCODE_RETURN:
+				ioPort1 |= IO1_PORTA_RIGHT;
 				break;
 			case SDL_SCANCODE_BACKSPACE:
-				ioPort2 |= 0x10;
+				ioPort2 |= IO2_RESET;
 				break;
 			case SDL_SCANCODE_Z:
-				ioPort1 |= 0x10;
+				ioPort1 |= IO1_PORTA_TL;
 				break;
 			case SDL_SCANCODE_X:
-				ioPort1 |= 0x20;
-				break;		/*	case SDL_SCANCODE_I:
-				bitset(&ctr2, 0, 4);
+				ioPort1 |= IO1_PORTA_TR;
+				break;
+			case SDL_SCANCODE_I:
+				ioPort1 |= IO1_PORTB_UP;
 				break;
 			case SDL_SCANCODE_K:
-				bitset(&ctr2, 0, 5);
+				ioPort1 |= IO1_PORTB_DOWN;
 				break;
 			case SDL_SCANCODE_J:
-				bitset(&ctr2, 0, 6);
+				ioPort2 |= IO2_PORTB_LEFT;
 				break;
 			case SDL_SCANCODE_L:
-				bitset(&ctr2, 0, 7);
-				break;
-			case SDL_SCANCODE_1:
-				bitset(&ctr2, 0, 3);
-				break;
-			case SDL_SCANCODE_2:
-				bitset(&ctr2, 0, 2);
+				ioPort2 |= IO2_PORTB_RIGHT;
 				break;
 			case SDL_SCANCODE_A:
-				bitset(&ctr2, 0, 1);
+				ioPort2 |= IO2_PORTB_TL;
 				break;
 			case SDL_SCANCODE_S:
-				bitset(&ctr2, 0, 0);
-				break;*/
+				ioPort2 |= IO2_PORTB_TR;
+				break;
 			default:
 				break;
 			}
 			break;
-			/* SDL_QUIT event (window close) */
 		case SDL_QUIT:
 			break;
 		default:
