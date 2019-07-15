@@ -41,6 +41,20 @@ void memory_control(uint8_t value){
 	}
 	else if(!(memControl & 0x40)){
 		currentRom = &cartRom;
+		if(currentRom->mapper == CODEMASTERS){
+			banking = &codemasters_mapper;
+			fcr[0] = 0;
+			fcr[1] = 1;
+			fcr[2] = 0;
+		}
+		else if(currentRom->mapper == SEGA){
+			banking = &sega_mapper;
+			fcr[0] = 0;
+			fcr[1] = 1;
+			fcr[2] = 2;
+		}
+		else
+			banking = &generic_mapper;
 	}
 	else if(!(memControl & 0x20)){
 		currentRom = &cardRom;

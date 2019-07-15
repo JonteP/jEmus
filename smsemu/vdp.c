@@ -271,7 +271,7 @@ void render_scanline(){
 						if (spriteMask[pixelOffset])
 							statusFlags |= 0x20; /* set sprite collision flag */
 						else{
-							if(((!priorityMask[pixelOffset]) || (!transMask[pixelOffset])) && pixelOffset < currentMode->width && pixelOffset > 7)
+							if(((!priorityMask[pixelOffset]) || (!transMask[pixelOffset])) && pixelOffset < currentMode->width && pixelOffset >= ((mode1 & 0x20) ? 8 : 0))
 								screenBuffer[(yOffset*currentMode->width) + pixelOffset] = cram[pixel+0x10];
 							spriteMask[pixelOffset]= pixel ? 1 : 0;
 						}
