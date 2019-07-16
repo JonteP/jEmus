@@ -36,6 +36,13 @@ struct machine {
 	int  masterClock;
 	Video videoMode;
 	Region region;
+	/* has card slot
+	 * has expansion slot
+	 * has bios
+	 * has FM
+	 * has reset
+	 * has pause
+	 */
 };
 
 extern uint8_t quit, ioPort1, ioPort2, ioControl, region;

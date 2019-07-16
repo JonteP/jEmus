@@ -9,7 +9,6 @@
 
 /* Compatibility:
  * -Golvellius (U/E) - hangs on overworld (walk up one screen)
- * -Space Harrier (J) - black screen after game start
  */
 /* TODO:
  * -FM sound
@@ -61,7 +60,7 @@ int main() {
 
 	biosFile = malloc(strlen(currentMachine->bios) + 6);
 	sprintf(biosFile, "bios/%s",currentMachine->bios);
-	cartFile = "/home/jonas/Desktop/sms/unsorted/Unlicensed/WaimanuSMS.sms";
+	cartFile = "/home/jonas/Desktop/sms/unsorted/USA/Space Harrier.sms";
 	init_slots();
 	logfile = fopen("/home/jonas/git/logfile.txt","w");
 	if (logfile==NULL){

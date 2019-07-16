@@ -166,35 +166,25 @@ uint8_t read_vdp_data(){
 
 void run_vdp(){
 while (vdpCyclesToRun) {
-	if ((((statusFlags & 0x80) && (mode2 & 0x20)) || ((lineInt) && (mode1 & 0x10))) && !irqPulled)
-	{
-		irqPulled = 1;
-	}
-	else if ((!(mode2 & 0x20)) && irqPulled)/* TODO: disabling line interrupt should deassert the IRQ line */
-	{
-			irqPulled = 0;
-	}
-	vdpdot++;
 	hCounter = (vdpdot & 0xfe);
 
 	if(vdpdot == 684)
 		vdpdot = 0;
-	if(vdpdot == 616)
+	if(vdpdot == 611)
 		vCounter++;
 	if(vCounter == currentMode->fullheight){
 		vCounter = 0;
-		statusFlags &= ~0x80;
 		irqPulled = 0;
 		frame++;
 		render_frame();
 	}
-	else if ((vCounter == currentMode->vactive) && (vdpdot == 612)){
+	else if ((vCounter == currentMode->vactive) && (vdpdot == 607)){
 		statusFlags |= 0x80;
 	}
 	if (vCounter < currentMode->height && !vdpdot){
 		render_scanline();
 	}
-	if ((vCounter <= currentMode->vactive) && (vdpdot == 614)){
+	if ((vCounter <= currentMode->vactive) && (vdpdot == 608)){
 		lineCounter--;
 		if ((lineCounter & 0xff) == 0xff){
 			lineCounter = lineReload;
@@ -204,6 +194,15 @@ while (vdpCyclesToRun) {
 	else if ((vCounter > currentMode->vactive) && !vdpdot)
 		lineCounter = lineReload;
 	vdpCyclesToRun--;
+	if (( ((statusFlags & 0x80) && (mode2 & 0x20)) || ((lineInt) && (mode1 & 0x10)) ) && !irqPulled)
+	{
+		irqPulled = 1;
+	}
+	else if ((!(mode2 & 0x20) /*|| (!(mode1 & 0x10))*/) && irqPulled)/* TODO: disabling line interrupt should deassert the IRQ line */
+	{
+			irqPulled = 0;
+	}
+	vdpdot++;
 }
 }
 uint8_t blank=0x15, black=0x00;

@@ -252,8 +252,6 @@ static void (*optable[0x100])() = {
 		intDelay = 0;
 		op = *cpuread(cpuPC++);
 		cpuR = ((cpuR & 0x80) | ((cpuR & 0x7f) + 1));
-		/* TODO: update memory refresh register */
-		/*	printf("%04X: %02X\n",cpuPC-1,op);*/
 	/*	if(cpuPC==0xc41c)
 			fprintf(logfile,"%04x,%04x,%04x,%04x,%04x,%04x,%04x,%04x\n",cpuPC-1,*cpuAFreg,*cpuBCreg,*cpuDEreg,*cpuHLreg,*cpuIXreg,*cpuIYreg,cpuSP);*/
 		addcycles(ctable[op]);
@@ -615,19 +613,19 @@ void exx()	{ /* EXX */
 	cpuHLx = tmpHL;
 }
 void exhl()	{ /* EX (SP),HL */
-	uint8_t tmp = (*cpuread(cpuSP) | (*cpuread(cpuSP+1) << 8));
+	uint16_t tmp = (*cpuread(cpuSP) | (*cpuread(cpuSP+1) << 8));
 	cpuwrite(cpuSP, *cpuLreg);
 	cpuwrite(cpuSP+1, *cpuHreg);
 	cpuHL = tmp;
 }
 void exix()	{ /* EX (SP),IX */
-	uint8_t tmp = (*cpuread(cpuSP) | (*cpuread(cpuSP+1) << 8));
+	uint16_t tmp = (*cpuread(cpuSP) | (*cpuread(cpuSP+1) << 8));
 	cpuwrite(cpuSP, *cpuIXlreg);
 	cpuwrite(cpuSP+1, *cpuIXhreg);
 	cpuIX = tmp;
 }
 void exiy()	{ /* EX (SP),IY */
-	uint8_t tmp = (*cpuread(cpuSP) | (*cpuread(cpuSP+1) << 8));
+	uint16_t tmp = (*cpuread(cpuSP) | (*cpuread(cpuSP+1) << 8));
 	cpuwrite(cpuSP, *cpuIYlreg);
 	cpuwrite(cpuSP+1, *cpuIYhreg);
 	cpuIY = tmp;
@@ -837,7 +835,7 @@ void xriyi(){ /* XOR A,(IY+d) */
 }
 void cp(uint8_t value)	{
 	uint16_t res = *cpuAreg - value;
-	*cpuFreg = ((*cpuFreg & XY_FLAG) | (res & 0x80) | ((!(res & 0xff)) << 6) |
+	*cpuFreg = ((res & 0x80) | ((!(res & 0xff)) << 6) |
 			   ((*cpuAreg ^ value ^ res) & 0x10) | (((*cpuAreg ^ value) & (*cpuAreg ^ res) & 0x80) >> 5) |
 			   N_FLAG | ((res & 0x100) >> 8));
 }
@@ -919,17 +917,12 @@ void cpl()	{ /* CPL */
 	*cpuAreg ^= 0xff;
 	*cpuFreg = ((*cpuFreg & 0xed) | H_FLAG | N_FLAG);
 }
-/* TODO: continue optimization here */
 void neg()	{ /* NEG */
 	uint8_t tmp = *cpuAreg;
 	*cpuAreg = (0 - *cpuAreg);
-	*cpuFreg = (*cpuAreg & 0x80) ? (*cpuFreg | 0x80) : (*cpuFreg & ~0x80); /* S flag */
-	*cpuFreg = (!*cpuAreg) ? (*cpuFreg | 0x40) : (*cpuFreg & ~0x40); /* Z flag */
-	*cpuFreg = (tmp & 0xf) ? (*cpuFreg | 0x10) : (*cpuFreg & ~0x10); /* H flag */
-	*cpuFreg = (tmp == 0x80) ? (*cpuFreg | 0x04) : (*cpuFreg & ~0x04); /* P/V flag */
-	*cpuFreg |= 0x02; /* N flag */
-	*cpuFreg = (tmp) ? (*cpuFreg | 0x01) : (*cpuFreg & ~0x01); /* C flag */
+	*cpuFreg = ((*cpuAreg & 0x80) | ((!*cpuAreg) << 6) | ((tmp & 0xf) ? H_FLAG : 0) | ((tmp == 0x80) << 2) | N_FLAG | (tmp ? C_FLAG : 0));
 }
+/* TODO */
 void ccf()	{ /* CCF */
 	*cpuFreg = (*cpuFreg & 0x01) ? (*cpuFreg | 0x10) : (*cpuFreg & ~0x10); /* H flag */
 	*cpuFreg &= ~0x02; /* N flag */
@@ -1878,7 +1871,7 @@ uint8_t read_cpu_register(uint8_t reg) {
 		break;
 	case 0x41: /* Read VDP H Counter */
 		/* should return upper 8 bits */
-		value = 0;
+		value = hCounter;
 		break;
 	case 0x80: /* Read VDP Data Port */
 		value = read_vdp_data();
@@ -1923,7 +1916,7 @@ void write_cpu_register(uint8_t reg, uint_fast8_t value) {
 		break;
 	case 0xc0: /* Keyboard support? */
 	case 0xc1:
-		printf("Ineffective write to I/O port: %02x\n",reg);
+		/*printf("Ineffective write to I/O port: %02x\n",reg); */
 		break;
 	}
 }
@@ -1970,6 +1963,8 @@ void cpuwrite(uint16_t address, uint_fast8_t value) {
 		switch(address & 0xf){
 		case 0xc:
 			bramReg = value;
+			if(bramReg & 0x8)
+				printf("Using cartridge RAM\n");
 			break;
 		case 0xd:
 			fcr[0] = (value & currentRom->mask);

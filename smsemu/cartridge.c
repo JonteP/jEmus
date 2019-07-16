@@ -77,6 +77,10 @@ void memory_control(uint8_t value){
 		else
 			banking = &generic_mapper;
 	}
+	if(memControl & 0x10)
+		printf("Work RAM is disabled\n");
+	if(memControl & 0x04)
+		printf("I/O chip is disabled\n");
 	banking();
 	setup_banks();
 }
