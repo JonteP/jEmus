@@ -31,11 +31,11 @@ struct VideoMode {
 };
 
 extern uint8_t controlFlag, statusFlags, *screenBuffer, lineInt;
-extern uint16_t vCounter, hCounter;
+extern uint16_t vCounter, hCounter, vdpdot;
 extern int vdpCyclesToRun;
 extern struct VideoMode *currentMode, ntsc192, pal192;
 
-void write_vdp_control(uint8_t), run_vdp(), write_vdp_data(uint8_t), init_vdp(), close_vdp();
+void write_vdp_control(uint8_t), run_vdp(), write_vdp_data(uint8_t), init_vdp(), close_vdp(), latch_hcounter(uint8_t);
 uint8_t read_vdp_data(void);
 
 #endif /* VDP_H_ */

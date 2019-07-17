@@ -60,7 +60,7 @@ int main() {
 
 	biosFile = malloc(strlen(currentMachine->bios) + 6);
 	sprintf(biosFile, "bios/%s",currentMachine->bios);
-	cartFile = "/home/jonas/Desktop/sms/unsorted/USA/Space Harrier.sms";
+	cartFile = "/home/jonas/Desktop/sms/unsorted/Unlicensed/WaimanuSMS.sms";
 	init_slots();
 	logfile = fopen("/home/jonas/git/logfile.txt","w");
 	if (logfile==NULL){
@@ -79,5 +79,4 @@ int main() {
 	close_vdp();
 	close_sn79489();
 }
-
 /* trace zexdoc.log,0,noloop,{tracelog "%04x,%04x,%04x,%04x,%04x,%04x,%04x,%04x,",pc,(af&ffd7),bc,de,hl,ix,iy,sp}*/

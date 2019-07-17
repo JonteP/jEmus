@@ -166,7 +166,7 @@ static inline void and(uint8_t), andr(), andi(), anixh(), anixl(), aniyh(), aniy
 /* general purpose */
 static inline void daa(), cpl(), neg(), ccf(), scf(), nop(), halt(), di(), ei(), im();
 /* 16-bit arithmetic */
-static inline void add16(), adcrp(), sbc16(), addix(), addiy(), inc16(), incix(), inciy(), dec16(), decix(), deciy();
+static inline void addrp(), adcrp(), sbcrp(), addix(), addiy(), incrp(), incix(), inciy(), decrp(), decix(), deciy();
 /* rotate, shift */
 static inline void rlca(), rla(), rrca(), rra(), rlc(), rlcix(), rlciy(), rl(), rlix(), rliy(), rrc(), rrcix(), rrciy(), rr(), rrix(), rriy(), sla(), slaix(), slaiy(), sra(), sraix(), sraiy(), sll(), sllix(), slliy(), srl(), srlix(), srliy(), rld(), rrd();
 /* bit set, reset, test */
@@ -205,10 +205,10 @@ void opdecode() {
 
 static void (*optable[0x100])() = {
   /*  0  |  1  |  2  |  3  |  4  |  5  |  6  |  7  |  8  |  9  |  a  |  b  |  c  |  d  |  e  |  f  |      */
-	  nop, ld16,ldbca,inc16,  inc,  dec, ldim, rlca, exaf,add16,ldabc,dec16,  inc,  dec, ldim, rrca, /* 0 */
-	 djnz, ld16,lddea,inc16,  inc,  dec, ldim,  rla,   jr,add16,ldade,dec16,  inc,  dec, ldim,  rra, /* 1 */
-	  jrc, ld16,ldihl,inc16,  inc,  dec, ldim,  daa,  jrc,add16,ldhli,dec16,  inc,  dec, ldim,  cpl, /* 2 */
-	  jrc, ld16, ldia,inc16,inchl,dechl,lhlim,  scf,  jrc,add16, ldai,dec16,  inc,  dec, ldim,  ccf, /* 3 */
+	  nop, ld16,ldbca,incrp,  inc,  dec, ldim, rlca, exaf,addrp,ldabc,decrp,  inc,  dec, ldim, rrca, /* 0 */
+	 djnz, ld16,lddea,incrp,  inc,  dec, ldim,  rla,   jr,addrp,ldade,decrp,  inc,  dec, ldim,  rra, /* 1 */
+	  jrc, ld16,ldihl,incrp,  inc,  dec, ldim,  daa,  jrc,addrp,ldhli,decrp,  inc,  dec, ldim,  cpl, /* 2 */
+	  jrc, ld16, ldia,incrp,inchl,dechl,lhlim,  scf,  jrc,addrp, ldai,decrp,  inc,  dec, ldim,  ccf, /* 3 */
 	   ld,   ld,   ld,   ld,   ld,   ld,   ld,   ld,   ld,   ld,   ld,   ld,   ld,   ld,   ld,   ld, /* 4 */
 	   ld,   ld,   ld,   ld,   ld,   ld,   ld,   ld,   ld,   ld,   ld,   ld,   ld,   ld,   ld,   ld, /* 5 */
 	   ld,   ld,   ld,   ld,   ld,   ld,   ld,   ld,   ld,   ld,   ld,   ld,   ld,   ld,   ld,   ld, /* 6 */
@@ -317,10 +317,10 @@ static void (*edtable[0x100])() = {
 	noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, /* 1 */
 	noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, /* 2 */
 	noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, /* 3 */
-	inrc, outc,sbc16,ldidd,  neg, retn,   im,ldina, inrc, outc,adcrp, ldrp,  neg, reti, noop, ldra, /* 4 */
-	inrc, outc,sbc16,ldidd,  neg, noop,   im,ldain, inrc, outc,adcrp, ldrp,  neg, noop, noop, ldar, /* 5 */
-	inrc, outc,sbc16,ldidd,  neg, noop,   im,  rrd, inrc, outc,adcrp, ldrp,  neg, noop, noop,  rld, /* 6 */
-	inrc, outc,sbc16,ldidd,  neg, noop,   im, noop, inrc, outc,adcrp, ldrp,  neg, noop, noop, noop, /* 7 */
+	inrc, outc,sbcrp,ldidd,  neg, retn,   im,ldina, inrc, outc,adcrp, ldrp,  neg, reti, noop, ldra, /* 4 */
+	inrc, outc,sbcrp,ldidd,  neg, noop,   im,ldain, inrc, outc,adcrp, ldrp,  neg, noop, noop, ldar, /* 5 */
+	inrc, outc,sbcrp,ldidd,  neg, noop,   im,  rrd, inrc, outc,adcrp, ldrp,  neg, noop, noop,  rld, /* 6 */
+	inrc, outc,sbcrp,ldidd,  neg, noop,   im, noop, inrc, outc,adcrp, ldrp,  neg, noop, noop, noop, /* 7 */
 	noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, /* 8 */
 	noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, /* 9 */
 	 ldi,  cpi,  ini, outi, noop, noop, noop, noop,  ldd,  cpd, noop, outd, noop, noop, noop, noop, /* a */
@@ -924,14 +924,10 @@ void neg()	{ /* NEG */
 }
 /* TODO */
 void ccf()	{ /* CCF */
-	*cpuFreg = (*cpuFreg & 0x01) ? (*cpuFreg | 0x10) : (*cpuFreg & ~0x10); /* H flag */
-	*cpuFreg &= ~0x02; /* N flag */
-	*cpuFreg ^= 0x01; /* C flag */
+	*cpuFreg = (((*cpuFreg & 0x01) << 4) | ((*cpuFreg & 0xed) ^ C_FLAG));
 }
 void scf()	{ /* SCF */
-	*cpuFreg &= ~0x10; /* H flag */
-	*cpuFreg &= ~0x02; /* N flag */
-	*cpuFreg |= 0x01; /* C flag */
+	*cpuFreg = ((*cpuFreg & 0xec) | C_FLAG);
 }
 void nop()	{ /* NOP */
 }
@@ -958,26 +954,20 @@ void im()	{ /* IM */
 
 /* 16-BIT ARITHMETIC GROUP */
 
-void add16(){ /* ADD HL,ss */
+void addrp(){ /* ADD HL,ss */
 	uint16_t *rp[4] = {cpuBCreg, cpuDEreg, cpuHLreg, &cpuSP};
 	uint32_t res = *cpuHLreg + *rp[(op >> 4) & 0x03];
-	*cpuFreg = (((*cpuHLreg & 0xfff) + (*rp[(op >> 4) & 0x03] & 0xfff)) > 0xfff) ? (*cpuFreg | 0x10) : (*cpuFreg & ~0x10); /* H flag */
-	*cpuFreg &= ~0x02; /* N flag */
-	*cpuFreg = (res > 0xffff) ? (*cpuFreg | 0x01) : (*cpuFreg & ~0x01); /* C flag */
+	*cpuFreg = ((*cpuFreg & 0xec) | ((((*cpuHLreg & 0xfff) + (*rp[(op >> 4) & 0x03] & 0xfff)) > 0xfff) << 4) | (res > 0xffff));
 	*cpuHLreg = res;
 }
 void adcrp(){ /* ADC HL,ss */
 	uint16_t *rp[4] = {cpuBCreg, cpuDEreg, cpuHLreg, &cpuSP};
 	uint32_t res = *cpuHLreg + *rp[(op >> 4) & 0x03] + (*cpuFreg & 0x01);
-	*cpuFreg = (res & 0x8000) ? (*cpuFreg | 0x80) : (*cpuFreg & ~0x80); /* S flag */
-	*cpuFreg = (!(res & 0xffff)) ? (*cpuFreg | 0x40) : (*cpuFreg & ~0x40); /* Z flag */
-	*cpuFreg = ((*cpuHLreg ^ *rp[(op >> 4) & 0x03] ^ res) & 0x1000) ? (*cpuFreg | 0x10) : (*cpuFreg & ~0x10); /* H flag */
-	*cpuFreg = ((*cpuHLreg ^ res) & (*rp[(op >> 4) & 0x03] ^ res) & 0x8000) ? (*cpuFreg | 0x04) : (*cpuFreg & ~0x04); /* P/V flag */
-	*cpuFreg &= ~0x02; /* N flag */
-	*cpuFreg = (res & 0x10000) ? (*cpuFreg | 0x01) : (*cpuFreg & ~0x01); /* C flag */
+	*cpuFreg = (((res & 0x8000) >> 8) | (!(res & 0xffff) << 6) | (((*cpuHLreg ^ *rp[(op >> 4) & 0x03] ^ res) & 0x1000) >> 8) |
+			(((*cpuHLreg ^ res) & (*rp[(op >> 4) & 0x03] ^ res) & 0x8000) >> 13) | ((res & 0x10000) >> 16));
 	*cpuHLreg = res;
 }
-void sbc16(){ /* SBC HL,ss */
+void sbcrp(){ /* SBC HL,ss */
 	uint16_t *rp[4] = {cpuBCreg, cpuDEreg, cpuHLreg, &cpuSP};
 	uint32_t res = *cpuHLreg - *rp[(op >> 4) & 0x03] - (*cpuFreg & 0x01);
 	*cpuFreg = (res & 0x8000) ? (*cpuFreg | 0x80) : (*cpuFreg & ~0x80); /* S flag */
@@ -1004,7 +994,7 @@ void addiy(){ /* ADD IY,rr */
 	*cpuFreg = (res > 0xffff) ? (*cpuFreg | 0x01) : (*cpuFreg & ~0x01); /* C flag */
 	*cpuIYreg = res;
 }
-void inc16(){ /* INC ss */
+void incrp(){ /* INC ss */
 	uint16_t *rp[4] = {cpuBCreg, cpuDEreg, cpuHLreg, &cpuSP};
 	(*rp[(op>>4) & 3])++;
 }
@@ -1014,7 +1004,7 @@ void incix(){ /* INC IX */
 void inciy(){ /* INC IY */
 	(*cpuIYreg)++;
 }
-void dec16(){ /* DEC ss */
+void decrp(){ /* DEC ss */
 	uint16_t *rp[4] = {cpuBCreg, cpuDEreg, cpuHLreg, &cpuSP};
 	(*rp[(op>>4) & 3])--;
 }
@@ -1470,8 +1460,8 @@ void djnz()	{ /* DJNZ,e */
 void call()	{ /* CALL nn */
 	uint16_t address = *cpuread(cpuPC++);
 	address |= (*cpuread(cpuPC++) << 8);
-	cpuwrite(--cpuSP, ((cpuPC & 0xFF00) >> 8));
-	cpuwrite(--cpuSP, (cpuPC & 0x00FF));
+	cpuwrite(--cpuSP, ((cpuPC & 0xff00) >> 8));
+	cpuwrite(--cpuSP, (cpuPC & 0x00ff));
 	cpuPC = address;
 }
 void callc(){ /* CALL cc,nn */
@@ -1479,8 +1469,8 @@ void callc(){ /* CALL cc,nn */
 	uint16_t address = *cpuread(cpuPC++);
 	address |= (*cpuread(cpuPC++) << 8);
 	if(cc[(op>>3) & 7]) {
-		cpuwrite(--cpuSP, ((cpuPC & 0xFF00) >> 8));
-		cpuwrite(--cpuSP, (cpuPC & 0x00FF));
+		cpuwrite(--cpuSP, ((cpuPC & 0xff00) >> 8));
+		cpuwrite(--cpuSP, (cpuPC & 0x00ff));
 		cpuPC = address;
 		addcycles(7);
 	}
@@ -1520,8 +1510,7 @@ void rst()	{ /* RST */
 /* INPUT AND OUTPUT GROUP */
 
 void in()	{ /* IN A,(n) */
-	uint8_t reg = *cpuread(cpuPC++);
-	*cpuAreg = read_cpu_register(reg);
+	*cpuAreg = read_cpu_register(*cpuread(cpuPC++));
 }
 void inrc()	{ /* IN r,(C) */
 	uint8_t *r[8] = {cpuBreg, cpuCreg, cpuDreg, cpuEreg, cpuHreg, cpuLreg, cpuread(*cpuHLreg), cpuAreg};
@@ -1564,8 +1553,7 @@ uint16_t k = (((*cpuCreg + 1) & 0xff) + tmp);
 *cpuFreg = (k > 0xff) ? (*cpuFreg | 0x01) : (*cpuFreg & ~0x01); /* C flag */
 }
 void out()	{ /* OUT (n),A */
-	uint8_t reg = *cpuread(cpuPC++);
-	write_cpu_register(reg, *cpuAreg);
+	write_cpu_register(*cpuread(cpuPC++), *cpuAreg);
 }
 void outc()	{ /* OUT (C),r */
 	uint8_t *r[8] = {cpuBreg, cpuCreg, cpuDreg, cpuEreg, cpuHreg, cpuLreg, cpuread(*cpuHLreg), cpuAreg};
@@ -1707,16 +1695,16 @@ void aciyh(){ /* ADC A,IYh */
 void aciyl(){ /* ADC A,IYl */
 	adc(*cpuIYlreg);
 }
-void sbixh()	{ /* SUB A,IXh */
+void sbixh(){ /* SUB A,IXh */
 	sub(*cpuIXhreg);
 }
-void sbixl()	{ /* SUB A,IXl */
+void sbixl(){ /* SUB A,IXl */
 	sub(*cpuIXlreg);
 }
-void sbiyh()	{ /* SUB A,IYh */
+void sbiyh(){ /* SUB A,IYh */
 	sub(*cpuIYhreg);
 }
-void sbiyl()	{ /* SUB A,IYl */
+void sbiyl(){ /* SUB A,IYl */
 	sub(*cpuIYlreg);
 }
 void scixh(){ /* SBC A,IXh */
@@ -1779,7 +1767,7 @@ void cpiyh(){ /* CP A,IYh */
 void cpiyl(){ /* CP A,IYl */
 	cp(*cpuIYlreg);
 }
-void inixh()	{ /* INC IXh */
+void inixh(){ /* INC IXh */
 	uint8_t tmp = *cpuIXhreg;
 	(*cpuIXhreg)++;
 	*cpuFreg = (*cpuIXhreg & 0x80) ? (*cpuFreg | 0x80) : (*cpuFreg & ~0x80); /* S flag */
@@ -1788,7 +1776,7 @@ void inixh()	{ /* INC IXh */
 	*cpuFreg = (tmp == 0x7f) ? (*cpuFreg | 0x04) : (*cpuFreg & ~0x04); /* P/V flag */
 	*cpuFreg = (*cpuFreg & ~0x02); /* N flag */
 }
-void iniyh()	{ /* INC IYh */
+void iniyh(){ /* INC IYh */
 	uint8_t tmp = *cpuIYhreg;
 	(*cpuIYhreg)++;
 	*cpuFreg = (*cpuIYhreg & 0x80) ? (*cpuFreg | 0x80) : (*cpuFreg & ~0x80); /* S flag */
@@ -1860,38 +1848,28 @@ printf("Illegal opcode: %02x %02x %02x %02x\n",*cpuread(cpuPC-4),*cpuread(cpuPC-
 exit(1);}
 
 uint8_t read_cpu_register(uint8_t reg) {
-	uint8_t value;
 	switch (reg & 0xc1){
 	case 0x00:
 	case 0x01:
 		printf("Reading (dummy value) from register: %02x\n",reg);
-		break;
+		return 0;
 	case 0x40: /* Read VDP V Counter */
-		value = (currentMode->vcount[vCounter] & 0xff);
-		break;
+		return (currentMode->vcount[vCounter] & 0xff);
 	case 0x41: /* Read VDP H Counter */
-		/* should return upper 8 bits */
-		value = hCounter;
-		break;
+		return hCounter;
 	case 0x80: /* Read VDP Data Port */
-		value = read_vdp_data();
-		break;
-	case 0x81: /* Read VDP Control Port */
-		value = statusFlags;
-		statusFlags = 0; /* clear all flags when read */
-		controlFlag = 0;
-		lineInt = 0;
-		irqPulled = 0;
-		break;
+		return read_vdp_data();
+	case 0x81: ;/* Read VDP Control Port */
+		uint8_t value = statusFlags;
+		statusFlags = controlFlag = lineInt = irqPulled = 0;
+		return value;
 	case 0xc0:
 		/* if IO chip disabled, reads from F2 detects FM */
-		value = ioPort1;
-		break;
+		return ioPort1;
 	case 0xc1:
-		value = ioPort2;
-		break;
+		return ioPort2;
 	}
-	return value;
+	return 0;
 }
 
 void write_cpu_register(uint8_t reg, uint_fast8_t value) {
@@ -1901,8 +1879,10 @@ void write_cpu_register(uint8_t reg, uint_fast8_t value) {
 		break;
 	case 0x01:
 		ioControl = value;
+		uint8_t old = ioPort2;
 		ioPort2 = (ioPort2 & 0x7f) | ((value & 0x80) ^ (((currentMachine->region == JAPAN) && (!(ioControl & 0x08))) ? 0x80 : 0));
 		ioPort2 = (ioPort2 & 0xbf) | (((value & 0x20) << 1) ^ (((currentMachine->region == JAPAN)  && (!(ioControl & 0x02))) ? 0x40 : 0));
+		latch_hcounter(old ^ ioPort2 ^old);
 		break;
 	case 0x40:
 	case 0x41:
@@ -1922,22 +1902,17 @@ void write_cpu_register(uint8_t reg, uint_fast8_t value) {
 }
 
 uint8_t * cpuread(uint16_t address) {
-	uint8_t *value;
 	switch(address & 0xc000){
 	case 0x0000:
-		value = read_bank0(address);
-		break;
+		return read_bank0(address);
 	case 0x4000:
-		value = read_bank1(address);
-		break;
+		return read_bank1(address);
 	case 0x8000:
-		value = read_bank2(address);
-		break;
+		return read_bank2(address);
 	case 0xc000:
-		value = read_bank3(address);
-		break;
+		return read_bank3(address);
 	}
-	return value;
+	return 0;
 }
 
 /* TODO: use cpuwrite for all memory changes to catch register writes */
@@ -1984,7 +1959,7 @@ void power_reset () {
 halted = 0;
 iff1 = iff2 = cpuPC = iMode = cpuI = cpuR = 0;
 cpuAF = cpuBC = cpuDE = cpuHL = cpuIX = cpuIY = 0xffff;
-/* TODO: platform specific assignment */
+/* TODO: this is platform specific assignment (endianness) */
 cpuAreg = (uint8_t *)&cpuAF+1;
 cpuFreg = (uint8_t *)&cpuAF;
 cpuBreg = (uint8_t *)&cpuBC+1;

@@ -166,7 +166,6 @@ uint8_t read_vdp_data(){
 
 void run_vdp(){
 while (vdpCyclesToRun) {
-	hCounter = (vdpdot & 0xfe);
 
 	if(vdpdot == 684)
 		vdpdot = 0;
@@ -266,11 +265,11 @@ void render_scanline(){
 					pixel |= (vram[sidx + (((vCounter - spriteY) >> (zoom ? 1 : 0)) << 2) + 2] & (1 << (7 - (c >> (zoom ? 1 : 0))))) ? 4:0;
 					pixel |= (vram[sidx + (((vCounter - spriteY) >> (zoom ? 1 : 0)) << 2) + 3] & (1 << (7 - (c >> (zoom ? 1 : 0))))) ? 8:0;
 					int pixelOffset = (c + spriteX - ((mode1 & 0x08) ? 8 : 0)); /* must be signed int */
-					if(pixel){
+					if(pixel && pixelOffset < currentMode->width && pixelOffset >= ((mode1 & 0x20) ? 8 : 0)){
 						if (spriteMask[pixelOffset])
 							statusFlags |= 0x20; /* set sprite collision flag */
 						else{
-							if(((!priorityMask[pixelOffset]) || (!transMask[pixelOffset])) && pixelOffset < currentMode->width && pixelOffset >= ((mode1 & 0x20) ? 8 : 0))
+							if((!priorityMask[pixelOffset]) || (!transMask[pixelOffset]))
 								screenBuffer[(yOffset*currentMode->width) + pixelOffset] = cram[pixel+0x10];
 							spriteMask[pixelOffset]= pixel ? 1 : 0;
 						}
@@ -297,5 +296,11 @@ void render_scanline(){
 			screenBuffer[(((yOffset) % currentMode->height)*currentMode->width) + p]
 						 = fillValue;
 		}
+	}
+}
+
+void latch_hcounter(uint8_t value){
+	if(value & (IO2_PORTA_TH | IO2_PORTB_TH)){
+		hCounter = (vdpdot >> 2);
 	}
 }
