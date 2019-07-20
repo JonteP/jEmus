@@ -27,7 +27,7 @@ struct machine ntsc_us={"mpr-12808.ic2",53693175,NTSC,EXPORT}, pal={"mpr-10052.i
 float frameTime, fps;
 sdlSettings settings;
 int main() {
-	currentMachine = &ntsc_us;
+	currentMachine = &pal;
 	init_vdp();
 
 	settings.renderQuality = "1";
@@ -60,7 +60,7 @@ int main() {
 
 	biosFile = malloc(strlen(currentMachine->bios) + 6);
 	sprintf(biosFile, "bios/%s",currentMachine->bios);
-	cartFile = "/home/jonas/Desktop/sms/unsorted/Unlicensed/WaimanuSMS.sms";
+	cartFile = "/home/jonas/Desktop/sms/unsorted/Unlicensed/SMS Bad Apple 1.00.sms";
 	init_slots();
 	logfile = fopen("/home/jonas/git/logfile.txt","w");
 	if (logfile==NULL){

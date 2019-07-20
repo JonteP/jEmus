@@ -250,6 +250,8 @@ static void (*optable[0x100])() = {
 	}
 	else {
 		intDelay = 0;
+		if(cpuPC == 0x6c9)
+			printf("here\n");
 		op = *cpuread(cpuPC++);
 		cpuR = ((cpuR & 0x80) | ((cpuR & 0x7f) + 1));
 	/*	if(cpuPC==0xc41c)
@@ -1513,7 +1515,8 @@ void in()	{ /* IN A,(n) */
 	*cpuAreg = read_cpu_register(*cpuread(cpuPC++));
 }
 void inrc()	{ /* IN r,(C) */
-	uint8_t *r[8] = {cpuBreg, cpuCreg, cpuDreg, cpuEreg, cpuHreg, cpuLreg, cpuread(*cpuHLreg), cpuAreg};
+	uint8_t none; /* TODO: neater solution */
+	uint8_t *r[8] = {cpuBreg, cpuCreg, cpuDreg, cpuEreg, cpuHreg, cpuLreg, &none, cpuAreg};
 	uint8_t tmp = read_cpu_register(*cpuCreg);
 	*r[(op >> 3) & 7] = tmp;
 	*cpuFreg = (tmp & 0x80) ? (*cpuFreg | 0x80) : (*cpuFreg & ~0x80); /* S flag */

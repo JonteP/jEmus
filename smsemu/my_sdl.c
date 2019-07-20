@@ -1,3 +1,6 @@
+/* Good source for text boxes: https://gamedev.stackexchange.com/questions/140294/what-is-the-most-efficient-way-to-render-a-textbox-in-c-sdl2
+ * Good source for file browsing: https://stackoverflow.com/questions/612097/how-can-i-get-the-list-of-files-in-a-directory-using-c-or-c
+ */
 #include "my_sdl.h"
 #include "SDL.h"
 #include <stdio.h>
@@ -14,6 +17,7 @@ SDL_Event event;
 SDL_DisplayMode current;
 uint_fast8_t isPaused = 0, fullscreen = 0, stateSave = 0, stateLoad = 0, vsync = 0;
 sdlSettings *currentSettings;
+
 
 static inline void render_window (windowHandle *, void *), idle_time(float), update_texture(windowHandle *, uint_fast8_t *), create_handle (windowHandle *);
 

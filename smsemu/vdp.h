@@ -15,7 +15,7 @@ typedef enum video {
 	PAL
 } Video;
 
-struct VideoMode {
+struct DisplayMode {
 	uint16_t width;
 	uint16_t fullwidth;
 	uint16_t height;
@@ -31,9 +31,10 @@ struct VideoMode {
 };
 
 extern uint8_t controlFlag, statusFlags, *screenBuffer, lineInt;
-extern uint16_t vCounter, hCounter, vdpdot;
+extern int16_t vdpdot;
+extern uint16_t vCounter, hCounter;
 extern int vdpCyclesToRun;
-extern struct VideoMode *currentMode, ntsc192, pal192;
+extern struct DisplayMode *currentMode, ntsc192, pal192;
 
 void write_vdp_control(uint8_t), run_vdp(), write_vdp_data(uint8_t), init_vdp(), close_vdp(), latch_hcounter(uint8_t);
 uint8_t read_vdp_data(void);

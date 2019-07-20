@@ -34,7 +34,7 @@ typedef enum _region {
 struct machine {
 	char *bios;
 	int  masterClock;
-	Video videoMode;
+	Video videoSystem;
 	Region region;
 	/* has card slot
 	 * has expansion slot
