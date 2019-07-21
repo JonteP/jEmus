@@ -30,7 +30,8 @@ struct DisplayMode {
 	uint8_t *vcount;
 };
 
-extern uint8_t controlFlag, statusFlags, *screenBuffer, lineInt;
+extern uint8_t controlFlag, statusFlags, lineInt, smsColor[0xc0];
+extern uint32_t *screenBuffer;
 extern int16_t vdpdot;
 extern uint16_t vCounter, hCounter;
 extern int vdpCyclesToRun;

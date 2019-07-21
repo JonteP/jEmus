@@ -27,16 +27,10 @@ struct machine ntsc_us={"mpr-12808.ic2",53693175,NTSC,EXPORT}, pal={"mpr-10052.i
 float frameTime, fps;
 sdlSettings settings;
 int main() {
-	currentMachine = &pal;
+	currentMachine = &ntsc_jp;
 	init_vdp();
-
+	settings.ctable = smsColor;
 	settings.renderQuality = "1";
-	settings.ctable = (uint8_t*) malloc(0xc0 * sizeof(uint8_t));
-	for (int i = 0; i < 0x40; i++) {
-		settings.ctable[i*3]     = (((i & 0x03) << 6) | ((i & 0x03) << 4) | ((i & 0x03) << 2) | (i & 0x03));
-		settings.ctable[(i*3)+1] = (((i & 0x0c) << 4) | ((i & 0x0c) << 2) | ((i & 0x0c) >> 2) | (i & 0x0c));
-		settings.ctable[(i*3)+2] = (((i & 0x30) << 2) | ((i & 0x30) >> 4) | ((i & 0x30) >> 2) | (i & 0x30));
-	}
 	settings.audioFrequency = 48000;
 	settings.channels = 1;
 	settings.audioBufferSize = 2048;
@@ -60,7 +54,7 @@ int main() {
 
 	biosFile = malloc(strlen(currentMachine->bios) + 6);
 	sprintf(biosFile, "bios/%s",currentMachine->bios);
-	cartFile = "/home/jonas/Desktop/sms/unsorted/Unlicensed/SMS Bad Apple 1.00.sms";
+	cartFile = "/home/jonas/Desktop/sms/unsorted/Japan/Alex Kidd no Miracle World.sms";
 	init_slots();
 	logfile = fopen("/home/jonas/git/logfile.txt","w");
 	if (logfile==NULL){
@@ -72,7 +66,6 @@ int main() {
 		opdecode();
 	}
 	fclose(logfile);
-	free(settings.ctable);
 	free(biosFile);
 	close_sdl();
 	close_rom();

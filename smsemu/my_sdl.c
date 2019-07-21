@@ -15,11 +15,11 @@
 SDL_AudioSpec wantedAudioSettings, audioSettings;
 SDL_Event event;
 SDL_DisplayMode current;
-uint_fast8_t isPaused = 0, fullscreen = 0, stateSave = 0, stateLoad = 0, vsync = 0;
+uint_fast8_t isPaused = 0, fullscreen = 0, stateSave = 0, stateLoad = 0, vsync = 0, throttle = 1;
 sdlSettings *currentSettings;
 
 
-static inline void render_window (windowHandle *, void *), idle_time(float), update_texture(windowHandle *, uint_fast8_t *), create_handle (windowHandle *);
+static inline void render_window (windowHandle *, uint32_t *), idle_time(float), create_handle (windowHandle *);
 
 void init_sdl(sdlSettings *settings) {
 	currentSettings = settings;
@@ -96,7 +96,8 @@ void idle_time (float time)
 void render_frame()
 {
 	render_window (&currentSettings->window, screenBuffer);
-	idle_time(frameTime);
+	if(throttle)
+		idle_time(frameTime);
 	io_handle();
 	while (isPaused)
 	{
@@ -104,35 +105,7 @@ void render_frame()
 	}
 }
 
-void update_texture(windowHandle *handle, uint_fast8_t * buffer)
-{
-	uint_fast8_t * color;
-	Uint32 *dst;
-	int row, col;
-	void *pixels;
-	int pitch;
-	int texError = SDL_LockTexture(handle->tex, NULL, &pixels, &pitch);
-	if (texError)
-	{
-		printf("SDL_LockTexture failed: %s\n", SDL_GetError());
-		exit(EXIT_FAILURE);
-	}
-
-   	for (row = 0; row < handle->screenHeight; ++row)
-   	{
-   		dst = (Uint32*)((Uint8*)pixels + row * pitch);
-		for (col = 0; col < handle->screenWidth; ++col)
-		{
-    		color = (currentSettings->ctable + ((*(buffer + row * handle->screenWidth + col)) * 3));
-    		*dst++ = (0xFF000000|(color[0]<<16)|(color[1]<<8)|color[2]);
-		}
-    }
-    SDL_UnlockTexture(handle->tex);
-}
-
-
-
-void render_window (windowHandle * handle, void * buffer)
+void render_window (windowHandle * handle, uint32_t * buffer)
 {
 	SDL_Rect SrcR;
 	SrcR.x = handle->xClip;
@@ -144,7 +117,10 @@ void render_window (windowHandle * handle, void * buffer)
 	TrgR.y = 0;
 	TrgR.w = 1440;
 	TrgR.h = 1080;
-	update_texture(handle, buffer);
+	if(SDL_UpdateTexture(handle->tex, NULL, buffer, handle->screenWidth * sizeof(uint32_t))){
+		printf("SDL_UpdateTexture failed: %s\n", SDL_GetError());
+		exit(EXIT_FAILURE);
+	}
 	if (fullscreen)
 		SDL_RenderCopy(handle->rend, handle->tex, &SrcR, &TrgR);
 	else
@@ -155,6 +131,8 @@ void render_window (windowHandle * handle, void * buffer)
 
 void output_sound()
 {
+	if (!throttle)
+		SDL_ClearQueuedAudio(1);
 	if (SDL_QueueAudio(1, sampleBuffer, (sampleCounter<<2)))
 		printf("SDL_QueueAduio failed: %s\n", SDL_GetError());
 	sampleCounter = 0;
@@ -188,9 +166,9 @@ void io_handle()
 				isPaused = 0;
 				break;
 			case SDL_SCANCODE_F10:
-			/*	throttle ^= 1;
+				throttle ^= 1;
 				if (throttle)
-					init_time();*/
+					init_time(frameTime);
 				break;
 			case SDL_SCANCODE_F11:
 				fullscreen ^= 1;
