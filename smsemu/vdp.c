@@ -145,8 +145,7 @@ if (!controlFlag){
 			break;
 		case 0x0100: /* Mode Control No. 2 */
 			modeControl2 = (controlWord & 0xff);
-			if(controlWord & 0x80)						/* RAM size selection */
-				printf("16kb RAM set\n");
+			/*if(controlWord & 0x80)						 RAM size selection */
 			displayEnable = (controlWord & 0x40);
 			frameInterrupt = (controlWord & 0x20);
 			spriteSize = (controlWord & 0x02);			/* dependent on video mode */
@@ -319,13 +318,13 @@ void render_scanline(){
 				}
 				else{
 					targetPixel = (((screenColumn << 3) + pixelIndex + (scroll & 7)) & 0xff);
-					cidx = (cram[pixel + ((ntData & 0x800) ? 0x10 : 0)] * 3);
+					cidx = ((cram[pixel + ((ntData & 0x800) ? 0x10 : 0)] & 0x3f) * 3);
 				}
 				screenBuffer[(yOffset * currentMode->width) + targetPixel] = ((currentClut[cidx] << 16) | (currentClut[cidx + 1] << 8) | currentClut[cidx + 2]);
 				priorityMask[targetPixel] = ((ntData & 0x1000) >> 8);
 				transMask[targetPixel] = pixel ? 1 : 0;
 				if(columnMask && (videoMode & 0x08)){
-					cidx = (cram[bgColor + 0x10] * 3);
+					cidx = ((cram[bgColor + 0x10] & 0x3f) * 3);
 					screenBuffer[(yOffset*currentMode->width) + ((pixelIndex+scroll) & 7)] = ((currentClut[cidx] << 16) | (currentClut[cidx + 1] << 8) | currentClut[cidx + 2]);
 				}
 			}
@@ -370,7 +369,7 @@ void render_scanline(){
 							pixel |= (vram[sgOffset + (((vCounter - spriteY) >> spriteZoom) << 2) + 1] & (1 << (7 - (pixelIndex >> spriteZoom)))) ? 2:0;
 							pixel |= (vram[sgOffset + (((vCounter - spriteY) >> spriteZoom) << 2) + 2] & (1 << (7 - (pixelIndex >> spriteZoom)))) ? 4:0;
 							pixel |= (vram[sgOffset + (((vCounter - spriteY) >> spriteZoom) << 2) + 3] & (1 << (7 - (pixelIndex >> spriteZoom)))) ? 8:0;
-							cidx = cram[pixel+0x10];
+							cidx = (cram[pixel+0x10] & 0x3f);
 						}
 						else{
 							pixel  = (vram[sgOffset + ((((pixelIndex & 0x08) << 1) + (vCounter - spriteY)) >> spriteZoom)] & (1 << (7 - ((pixelIndex & 7) >> spriteZoom)))) ? 1:0;
@@ -396,7 +395,7 @@ void render_scanline(){
 	else{
 		uint8_t fillValue;
 		if(vCounter < (currentMode->bborder))
-			fillValue = cram[bgColor + 0x10];
+			fillValue = (cram[bgColor + 0x10] & 0x3f);
 		/*else if(vCounter < (currentMode->bblank))
 			fillValue = blank;
 		else if(vCounter < (currentMode->vblank))
@@ -404,7 +403,7 @@ void render_scanline(){
 		else if(vCounter < (currentMode->tblank))
 			fillValue = blank;*/
 		else if(vCounter < (currentMode->tborder))
-			fillValue = cram[bgColor + 0x10];
+			fillValue = (cram[bgColor + 0x10] & 0x3f);
 		for (uint16_t p = 0; p<256; p++){
 			screenBuffer[(((yOffset) % currentMode->height)*currentMode->width) + p]
 						 = (0xff000000|(currentClut[fillValue * 3]<<16)|(currentClut[fillValue * 3 + 1]<<8)|currentClut[fillValue * 3 + 2]);

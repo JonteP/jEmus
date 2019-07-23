@@ -47,7 +47,7 @@ struct machine {
 
 extern uint8_t quit, ioPort1, ioPort2, ioControl, region;
 extern char *cartFile, *cardFile, *expFile, *biosFile;
-extern float frameTime;
 extern struct machine *currentMachine;
+void set_timings(uint8_t);
 
 #endif /* SMSEMU_H_ */

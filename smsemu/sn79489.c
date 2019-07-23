@@ -27,11 +27,10 @@ struct ToneChannel tone0, tone1, tone2;
 static inline int parity(int);
 static inline void run_tone_channel(struct ToneChannel *);
 
-void init_sn79489(int freq, int buffer){
+void init_sn79489(int buffer){
 	tone0.volume = tone1.volume = tone2.volume = noiseVolume = 0xf;
 	tone0.reg = tone1.reg = tone2.reg = noiseReload = tone0.phase = tone1.phase = tone2.phase = 0;
 	tone0.output = tone1.output = tone2.output = noiseOutput = 0;
-	originalSampleRate = sampleRate = (float)currentMachine->masterClock /(15 * 16 * freq);
 	noiseShifter = 0x8000;
 	bufferSize = buffer;
 	sampleBuffer = (float *)malloc(bufferSize * sizeof(float));

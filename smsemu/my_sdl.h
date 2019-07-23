@@ -29,6 +29,8 @@ typedef struct sdlSettings {
 	windowHandle window;
 } sdlSettings;
 extern uint_fast8_t isPaused, stateSave, stateLoad;
+extern float frameTime, fps;
+extern int clockRate;
 
 void render_frame(), init_sdl(sdlSettings*), close_sdl(void), init_sounds(void), output_sound(void), destroy_handle (windowHandle *), io_handle(void), init_time(float);
 

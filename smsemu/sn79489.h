@@ -11,7 +11,7 @@
 #include <stdio.h>
 #include <stdint.h>
 
-void init_sn79489(int,int), close_sn79489(void), write_sn79489(uint8_t), run_sn79489(void);
+void init_sn79489(int), close_sn79489(void), write_sn79489(uint8_t), run_sn79489(void);
 
 struct ToneChannel {
 	uint16_t reg;
@@ -24,6 +24,6 @@ struct ToneChannel {
 extern float fps;
 extern const int samplesPerSecond;
 extern float *sampleBuffer, sampleRate, originalSampleRate;
-extern int audioCyclesToRun, accumulatedCycles, sampleCounter;
+extern int audioCyclesToRun, accumulatedCycles, sampleCounter, sCounter;
 
 #endif /* SN79489_H_ */

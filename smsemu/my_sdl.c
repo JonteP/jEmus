@@ -17,9 +17,11 @@ SDL_Event event;
 SDL_DisplayMode current;
 uint_fast8_t isPaused = 0, fullscreen = 0, stateSave = 0, stateLoad = 0, vsync = 0, throttle = 1;
 sdlSettings *currentSettings;
-
+float frameTime, fps;
+int clockRate;
 
 static inline void render_window (windowHandle *, uint32_t *), idle_time(float), create_handle (windowHandle *);
+static inline float diff_time(struct timespec *, struct timespec *);
 
 void init_sdl(sdlSettings *settings) {
 	currentSettings = settings;
@@ -75,29 +77,54 @@ void close_sdl() {
 	SDL_Quit();
 }
 
-struct timespec xClock;
+struct timespec throttleClock, startClock, endClock;
+int frameCounter;
 void init_time (float time)
 {
-	clock_getres(CLOCK_MONOTONIC, &xClock);
-	clock_gettime(CLOCK_MONOTONIC, &xClock);
-	xClock.tv_nsec += time;
-	xClock.tv_sec += xClock.tv_nsec / 1000000000;
-	xClock.tv_nsec %= 1000000000;
+	frameCounter = 0;
+	clock_gettime(CLOCK_MONOTONIC, &startClock);
+	clock_getres(CLOCK_MONOTONIC, &throttleClock);
+	clock_gettime(CLOCK_MONOTONIC, &throttleClock);
+	throttleClock.tv_nsec += time;
+	throttleClock.tv_sec += throttleClock.tv_nsec / 1000000000;
+	throttleClock.tv_nsec %= 1000000000;
 }
-
+float xfps;
 void idle_time (float time)
 {
-	clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &xClock, NULL);
-	xClock.tv_nsec += time;
-	xClock.tv_sec += xClock.tv_nsec / 1000000000;
-	xClock.tv_nsec %= 1000000000;
+	frameCounter++;
+	if(frameCounter == 60){
+		clock_gettime(CLOCK_MONOTONIC, &endClock);
+		xfps = (float)((frameCounter / diff_time(&startClock, &endClock) + xfps) * .5);
+		if(!throttle){
+			fps = xfps;
+			set_timings(2);
+		}
+		frameCounter = 0;
+		clock_gettime(CLOCK_MONOTONIC, &startClock);
+	}
+	if(throttle){
+	clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &throttleClock, NULL);
+	throttleClock.tv_nsec += time;
+	throttleClock.tv_sec += throttleClock.tv_nsec / 1000000000;
+	throttleClock.tv_nsec %= 1000000000;
+	}
 }
-
+float diff_time(struct timespec *start, struct timespec *end){
+	float temp;
+	if ((end->tv_nsec-start->tv_nsec)<0) {
+		temp = end->tv_sec - start->tv_sec - 1;
+		temp += (1 + ((float)(end->tv_nsec-start->tv_nsec) / 1000000000));
+	} else {
+		temp = end->tv_sec - start->tv_sec;
+		temp += ((float)(end->tv_nsec-start->tv_nsec) / 1000000000);
+	}
+	return temp;
+}
 void render_frame()
 {
 	render_window (&currentSettings->window, screenBuffer);
-	if(throttle)
-		idle_time(frameTime);
+	idle_time(frameTime);
 	io_handle();
 	while (isPaused)
 	{
@@ -198,17 +225,16 @@ void io_handle()
 					SDL_GetCurrentDisplayMode(0, &current);
 					SDL_DestroyRenderer(currentSettings->window.rend);
 					currentSettings->window.rend = SDL_CreateRenderer(currentSettings->window.win, -1, SDL_RENDERER_ACCELERATED|SDL_RENDERER_PRESENTVSYNC);
-					currentSettings->window.tex = SDL_CreateTexture(currentSettings->window.rend, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, 256, 240);
+					currentSettings->window.tex = SDL_CreateTexture(currentSettings->window.rend, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, currentSettings->window.screenWidth, currentSettings->window.screenHeight);
 					fps = current.refresh_rate;
-					frameTime = ((1/fps) * 1000000000);
+					set_timings(2);
 				}
 				else
 				{
 					SDL_DestroyRenderer(currentSettings->window.rend);
 					currentSettings->window.rend = SDL_CreateRenderer(currentSettings->window.win, -1, SDL_RENDERER_ACCELERATED);
-					currentSettings->window.tex = SDL_CreateTexture(currentSettings->window.rend, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, 256, 240);
-					fps = 60;
-					frameTime = ((1/fps) * 1000000000);
+					currentSettings->window.tex = SDL_CreateTexture(currentSettings->window.rend, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, currentSettings->window.screenWidth, currentSettings->window.screenHeight);
+					set_timings(1);
 				}
 				break;
 			case SDL_SCANCODE_P:
