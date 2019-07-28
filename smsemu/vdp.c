@@ -1,9 +1,24 @@
-/* TMS9918a: the original used by SG-1000, SC-3000 and MSX
- *
- * 315-5124: TMS9918a with Mode4 added
- * 315-5246: Revision of 315-5124
+/* TMS9918a: the original used by SG-1000/SC-3000 (and MSX and ColecoVision)
+ * 315-5124: Customized TMS9918a with Graphics Mode 4 added
+ * 			 -Extended RGB color palette - defined in CRAM
+ * 			 -4bpp tiles
+ * 			 -support for double the amount of sprites
+ * 			 -line interrupts (for split screen effects)
+ * 			 -big sprites are now 16x8 (instead of 16x16)
+ * 315-5246: Revision of 315-5124 used in later SMS consoles and all(?) SMS2 consoles
+ * 			 -adds extended scanline modes (used by Codemasters games)
+ *			 -fixes the sprite zoom bug in 315-5124
  * 315-5377: 315-5246 with an added graphics mode (Game Gear)
- * 315-5313: The version used in Mega Drive (reduced functionality)
+ * 			 -gg mode:
+ * 			 	-improved palette - 4bit rgb (gg mode)
+ * 			 	-CRAM is doubled in size (gg mode)
+ * 315-5313: The version used in Mega Drive
+ * 			 -adds several modes specific to Mega Drive
+ * 			 -removes support for modes 0-3
+ * 			 -removes support for sprite zooming
+ * 			 -adds mode 5: (http://gendev.spritesmind.net/forum/viewtopic.php?t=1394)
+ * 			 	-improved palette (3bit rgb)
+ * 			 	-64kb VRAM - different addressing
  *
  *TODO: emulate version differences:
  * -screen height
@@ -21,7 +36,7 @@
 
 uint16_t lineCounter, lineReload;
 uint8_t controlFlag = 0, statusFlags = 0, readBuffer = 0, bgColor = 0, textColor, bgXScroll, bgYScroll, lineInt = 0;
-uint8_t vScrollLock, hScrollLock, columnMask, lineInterrupt, spriteShift, syncEnable, displayEnable, frameInterrupt, spriteSize, spriteZoom, videoMode;
+uint8_t vScrollLock, hScrollLock, columnMask, lineInterrupt, spriteShift, externalSync, displayEnable, frameInterrupt, spriteSize, spriteZoom, videoMode;
 
 /* REGISTERS */
 uint8_t modeControl1, modeControl2, codeReg;
@@ -30,7 +45,7 @@ struct DisplayMode ntsc224={256,342,240,262,224,232,235,238,251,262,256};
 struct DisplayMode pal192={256,342,288,313,192,240,243,246,259,313,224};
 struct DisplayMode pal224={256,342,288,313,224,256,259,262,275,313,256};
 int16_t vdpdot;
-uint16_t controlWord, vCounter = 0, hCounter = 0, addReg, ntAddress, sgAddress, saAddress, ctAddress, pgAddress;
+uint16_t controlWord, vCounter = 0, hCounter = 0, addReg, ntAddress, ntMask, sgAddress, saAddress, ctAddress, pgAddress, pgMask;
 int vdpCyclesToRun = 0, frame = 0;
 /* Mapped memory */					/* TODO: dynamically allocate screenBuffer */
 uint32_t *screenBuffer;
@@ -140,7 +155,7 @@ if (!controlFlag){
 			columnMask = ((modeControl1 & 0x20) >> 2);	/* mode 4 only */
 			lineInterrupt = (modeControl1 & 0x10);		/* mode 4 only */
 			spriteShift = (modeControl1 & 0x08);		/* mode 4 only */
-			syncEnable = (modeControl1 & 0x01); 		/* external video */
+			externalSync = (modeControl1 & 0x01); 		/* external video */
 			set_video_mode();
 			break;
 		case 0x0100: /* Mode Control No. 2 */
@@ -153,19 +168,21 @@ if (!controlFlag){
 			set_video_mode();
 			break;
 		case 0x0200: /* Name Table Base Address */
-			ntAddress = ((controlWord & 0x0f) << 10);
+			ntMask = ((controlWord << 10) & NT_MASK); /* TODO: set to 0xf in newer vdp versions */
+			ntAddress = (ntMask & 0x3800);
 			break;
 		case 0x0300: /* Color Table Base Address */
 			if(videoMode == 2)
 				ctAddress = ((controlWord & 0x80) << 6);
 			else
-				ctAddress = ((controlWord & 0xff) << 6);
+				ctAddress = ((controlWord & 0xff) << 6); /* 0x3fc0 */
 			break;
 		case 0x0400: /* Background Pattern Generator Base Address */
+			pgMask = ((controlWord << 11) & PG_MASK);
 			if(videoMode & 0x02)
-				pgAddress = ((controlWord & 0x04) << 11);
+				pgAddress = (pgMask & 0x2000);
 			else
-				pgAddress = ((controlWord & 0x07) << 11);
+				pgAddress = pgMask; /* 0x3800 */
 			break;
 		case 0x0500: /* Sprite Attribute Table Base Address */
 			saAddress = ((controlWord & 0x7e) << 7); /* TODO: mask should depend on mode */
@@ -199,6 +216,7 @@ if (!controlFlag){
 }
 
 void write_vdp_data(uint8_t value){
+	/* addressing works differently in 4k mode */
 	if(codeReg < 3){
 		vram[addReg++ & 0x3fff] = value;
 	}
@@ -229,23 +247,23 @@ while (vdpCyclesToRun) {
 		frame++;
 		render_frame(smsColor);
 	}
-	else if ((vCounter == currentMode->vactive) && (vdpdot == -52)){
-		statusFlags |= 0x80;
+	else if ((vCounter == currentMode->vactive) && (vdpdot == -54)){
+		statusFlags |= INT;
 	}
 	if (vCounter < currentMode->height && !vdpdot){
 		render_scanline();
 	}
-	if ((vCounter <= currentMode->vactive) && (vdpdot == -50)){
+	if ((vCounter <= currentMode->vactive) && (vdpdot == -52)){
 		lineCounter--;
 		if ((lineCounter & 0xff) == 0xff){
 			lineCounter = lineReload;
 			lineInt = 1;
 		}
 	}
-	else if ((vCounter > currentMode->vactive) && !vdpdot)
+	else if ((vCounter > currentMode->vactive) && (vdpdot == -52))
 		lineCounter = lineReload;
 	vdpCyclesToRun--;
-	if (( ((statusFlags & 0x80) && frameInterrupt) || ((lineInt) && lineInterrupt) ) && !irqPulled)
+	if (( ((statusFlags & INT) && frameInterrupt) || ((lineInt) && lineInterrupt) ) && !irqPulled)
 	{
 		irqPulled = 1;
 	}
@@ -274,9 +292,8 @@ void render_scanline(){
 
 			/* Find the address of the current tile name */
 			if(videoMode & 0x08){
-				if(currentMode->vactive == 192) /* TODO: this is currently old behavior only */
-						/*   Name table base address 		 + Name table row (handle masking bug in vdp1)          + Name table column	*/ /* TODO: make vdp1/2 independent of video mode*/
-					ntOffset = ((ntAddress & 0x3800) 		 + ((ntRow & ((ntAddress & 0x400) ? 0xf8 : 0x78)) << 3) + ((ntColumn & 0x1f) << 1));
+				if(currentMode->vactive == 192)
+					ntOffset = ((ntAddress + ((ntRow & 0xf8) << 3) + ((ntColumn & 0x1f) << 1)) & (ntMask | 0x3ff));
 				else if(currentMode->vactive >= 224) /* only on later vdp revisions */
 					ntOffset = ((ntAddress & 0x3000) + 0x700 + ((ntRow & 0xf8) << 3) 							    + ((ntColumn & 0x1f) << 1));
 			}
@@ -290,7 +307,7 @@ void render_scanline(){
 
 			/* Find the address of the corresponding pattern generator */
 			if(videoMode == 2)
-				pgOffset = (pgAddress + ((vCounter & 0xc0) << 5) + ((ntData & 0xff) << 3));
+				pgOffset = ((pgAddress + ((vCounter & 0xc0) << 5) + ((ntData & 0xff) << 3)) & (pgMask >> 3));
 			else if(videoMode & 0x08)
 				pgOffset = ((ntData & 0x1ff) << 5);
 
@@ -320,12 +337,12 @@ void render_scanline(){
 					targetPixel = (((screenColumn << 3) + pixelIndex + (scroll & 7)) & 0xff);
 					cidx = ((cram[pixel + ((ntData & 0x800) ? 0x10 : 0)] & 0x3f) * 3);
 				}
-				screenBuffer[(yOffset * currentMode->width) + targetPixel] = ((currentClut[cidx] << 16) | (currentClut[cidx + 1] << 8) | currentClut[cidx + 2]);
+				screenBuffer[(yOffset * currentMode->width) + targetPixel] = (0xff000000 | (currentClut[cidx] << 16) | (currentClut[cidx + 1] << 8) | currentClut[cidx + 2]);
 				priorityMask[targetPixel] = ((ntData & 0x1000) >> 8);
 				transMask[targetPixel] = pixel ? 1 : 0;
 				if(columnMask && (videoMode & 0x08)){
 					cidx = ((cram[bgColor + 0x10] & 0x3f) * 3);
-					screenBuffer[(yOffset*currentMode->width) + ((pixelIndex+scroll) & 7)] = ((currentClut[cidx] << 16) | (currentClut[cidx + 1] << 8) | currentClut[cidx + 2]);
+					screenBuffer[(yOffset*currentMode->width) + ((pixelIndex+scroll) & 7)] = (0xff000000 | (currentClut[cidx] << 16) | (currentClut[cidx + 1] << 8) | currentClut[cidx + 2]);
 				}
 			}
 		}
@@ -347,7 +364,7 @@ void render_scanline(){
 			if ((vCounter >= spriteY) && (vCounter < (spriteY + spriteHeight))){
 				spriteBuffer++;
 				if (spriteBuffer > spriteLimit)
-					statusFlags |= 0x40; /* TODO: enum for readability */
+					statusFlags |= OVR;
 				else{
 					if(videoMode & 0x08){
 						spriteX = vram[saAddress + (s << 1) + 128];
@@ -379,7 +396,7 @@ void render_scanline(){
 
 						if(pixel && pixelOffset < currentMode->width && pixelOffset >= columnMask){
 							if (spriteMask[pixelOffset])
-								statusFlags |= 0x20; /* set sprite collision flag */
+								statusFlags |= COL; /* set sprite collision flag */
 							else{
 								if((!priorityMask[pixelOffset]) || (!transMask[pixelOffset])){
 									screenBuffer[(yOffset*currentMode->width) + pixelOffset] = (0xff000000|(currentClut[cidx * 3]<<16)|(currentClut[cidx * 3 + 1]<<8)|currentClut[cidx * 3 + 2]);
@@ -412,7 +429,7 @@ void render_scanline(){
 }
 
 void latch_hcounter(uint8_t value){
-	if(value & (IO2_PORTA_TH | IO2_PORTB_TH)){
+	if(value){
 		hCounter = (vdpdot >> 2);
 	}
 }

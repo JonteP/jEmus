@@ -1,5 +1,6 @@
 /* HARDWARE NOTES
- * -there are different hardware implementations with differences...
+ * -in the Master System, Game Gear and Mega Drive, this is integrated in the VDP
+ * -the Game Gear uses a modified version with stereo support, accessed via the 7 first z80 ports
  *
  * TODO:
  * -some writes may reset other regs..

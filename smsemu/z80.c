@@ -250,8 +250,6 @@ static void (*optable[0x100])() = {
 	}
 	else {
 		intDelay = 0;
-		if(cpuPC == 0x6c9)
-			printf("here\n");
 		op = *cpuread(cpuPC++);
 		cpuR = ((cpuR & 0x80) | ((cpuR & 0x7f) + 1));
 	/*	if(cpuPC==0xc41c)
@@ -908,10 +906,10 @@ void deiyi(){ /* DEC (IY+d) */
 
 void daa()	{ /* DAA */
 	uint8_t tmp = *cpuAreg;
-	if((*cpuFreg & 0x10) || ((*cpuAreg & 0x0f) > 9))
-		tmp += (*cpuFreg & 0x02) ? -0x06 : 0x06;
-	if((*cpuFreg & 0x01) || (*cpuAreg > 0x99))
-		tmp += (*cpuFreg & 0x02) ? -0x60 : 0x60;
+	if((*cpuFreg & H_FLAG) || ((*cpuAreg & 0x0f) > 9))
+		tmp += (*cpuFreg & N_FLAG) ? -0x06 : 0x06;
+	if((*cpuFreg & C_FLAG) || (*cpuAreg > 0x99))
+		tmp += (*cpuFreg & N_FLAG) ? -0x60 : 0x60;
 	*cpuFreg = ((tmp & 0x80) | (!tmp << 6) | ((tmp ^ *cpuAreg) & 0x10) | (parcalc(tmp)) | (*cpuFreg & N_FLAG) | ((*cpuFreg & C_FLAG) | (*cpuAreg > 0x99)));
 	*cpuAreg = tmp;
 }
@@ -972,28 +970,20 @@ void adcrp(){ /* ADC HL,ss */
 void sbcrp(){ /* SBC HL,ss */
 	uint16_t *rp[4] = {cpuBCreg, cpuDEreg, cpuHLreg, &cpuSP};
 	uint32_t res = *cpuHLreg - *rp[(op >> 4) & 0x03] - (*cpuFreg & 0x01);
-	*cpuFreg = (res & 0x8000) ? (*cpuFreg | 0x80) : (*cpuFreg & ~0x80); /* S flag */
-	*cpuFreg = (!(res & 0xffff)) ? (*cpuFreg | 0x40) : (*cpuFreg & ~0x40); /* Z flag */
-	*cpuFreg = ((*cpuHLreg ^ *rp[(op >> 4) & 0x03] ^ res) & 0x1000) ? (*cpuFreg | 0x10) : (*cpuFreg & ~0x10); /* H flag */
-	*cpuFreg = ((*cpuHLreg ^ *rp[(op >> 4) & 0x03]) & (*cpuHLreg ^ res) & 0x8000) ? (*cpuFreg | 0x04) : (*cpuFreg & ~0x04); /* P/V flag */
-	*cpuFreg |= 0x02; /* N flag */
-	*cpuFreg = (res & 0x10000) ? (*cpuFreg | 0x01) : (*cpuFreg & ~0x01); /* C flag */
+	*cpuFreg = (((res & 0x8000) >> 8) | (!(res & 0xffff) << 6) | (((*cpuHLreg ^ *rp[(op >> 4) & 0x03] ^ res) & 0x1000) >> 8) |
+			(((*cpuHLreg ^ *rp[(op >> 4) & 0x03]) & (*cpuHLreg ^ res) & 0x8000) >> 13) | N_FLAG | ((res & 0x10000) >> 16));
 	*cpuHLreg = res;
 }
 void addix(){ /* ADD IX,pp */
 	uint16_t *rp[4] = {cpuBCreg, cpuDEreg, cpuIXreg, &cpuSP};
 	uint32_t res = *cpuIXreg + *rp[(op >> 4) & 0x03];
-	*cpuFreg = ((*cpuIXreg & 0xfff) + (*rp[(op >> 4) & 0x03] & 0xfff) > 0xfff) ? (*cpuFreg | 0x10) : (*cpuFreg & ~0x10); /* H flag */
-	*cpuFreg &= ~0x02; /* N flag */
-	*cpuFreg = (res > 0xffff) ? (*cpuFreg | 0x01) : (*cpuFreg & ~0x01); /* C flag */
+	*cpuFreg = ((*cpuFreg & 0xec) | ((((*cpuIXreg & 0xfff) + (*rp[(op >> 4) & 0x03] & 0xfff)) > 0xfff) << 4) | (res > 0xffff));
 	*cpuIXreg = res;
 }
 void addiy(){ /* ADD IY,rr */
 	uint16_t *rp[4] = {cpuBCreg, cpuDEreg, cpuIYreg, &cpuSP};
 	uint32_t res = *cpuIYreg + *rp[(op >> 4) & 0x03];
-	*cpuFreg = (((*cpuIYreg & 0xfff) + (*rp[(op >> 4) & 0x03] & 0xfff)) > 0xfff) ? (*cpuFreg | 0x10) : (*cpuFreg & ~0x10); /* H flag */
-	*cpuFreg &= ~0x02; /* N flag */
-	*cpuFreg = (res > 0xffff) ? (*cpuFreg | 0x01) : (*cpuFreg & ~0x01); /* C flag */
+	*cpuFreg = ((*cpuFreg & 0xec) | ((((*cpuIYreg & 0xfff) + (*rp[(op >> 4) & 0x03] & 0xfff)) > 0xfff) << 4) | (res > 0xffff));
 	*cpuIYreg = res;
 }
 void incrp(){ /* INC ss */
@@ -1023,24 +1013,18 @@ void deciy(){ /* DEC IY */
 void rlca()	{ /* RLCA */
 	uint8_t tmp = *cpuAreg;
 	*cpuAreg = ((*cpuAreg << 1) | (tmp >> 7));
-	*cpuFreg = (*cpuFreg & ~0x10); /* H flag */
-	*cpuFreg = (*cpuFreg & ~0x02); /* N flag */
-	*cpuFreg = (tmp & 0x80) ? (*cpuFreg | 0x01) : (*cpuFreg & ~0x01); /* C flag */
+	*cpuFreg = ((*cpuFreg & 0xec) | (tmp >> 7));
 }
 void rla()	{ /* RLA */
 	uint8_t tmp = *cpuAreg;
 	*cpuAreg = ((*cpuAreg << 1) | (*cpuFreg & 0x01));
-	*cpuFreg = (*cpuFreg & ~0x10); /* H flag */
-	*cpuFreg = (*cpuFreg & ~0x02); /* N flag */
-	*cpuFreg = (tmp & 0x80) ? (*cpuFreg | 0x01) : (*cpuFreg & ~0x01); /* C flag */
+	*cpuFreg = ((*cpuFreg & 0xec) | (tmp >> 7));
 }
 void rrca()	{ /* RRCA */
 	uint8_t tmp = *cpuAreg;
 	*cpuAreg = (*cpuAreg >> 1);
 	*cpuAreg |= (tmp << 7);
-	*cpuFreg = (*cpuFreg & ~0x10); /* H flag */
-	*cpuFreg = (*cpuFreg & ~0x02); /* N flag */
-	*cpuFreg = (tmp & 0x01) ? (*cpuFreg | 0x01) : (*cpuFreg & ~0x01); /* C flag */
+	*cpuFreg = ((*cpuFreg & 0xec) | (tmp & 0x01));
 }
 void rra()	{ /* RRA */
 	uint8_t tmp = *cpuAreg;
@@ -1854,8 +1838,7 @@ uint8_t read_cpu_register(uint8_t reg) {
 	switch (reg & 0xc1){
 	case 0x00:
 	case 0x01:
-		printf("Reading (dummy value) from register: %02x\n",reg);
-		return 0;
+		return 0xff; /* TODO: this is sms2 behavior only */
 	case 0x40: /* Read VDP V Counter */
 		return (currentMode->vcount[vCounter] & 0xff);
 	case 0x41: /* Read VDP H Counter */
@@ -1868,9 +1851,15 @@ uint8_t read_cpu_register(uint8_t reg) {
 		return value;
 	case 0xc0:
 		/* if IO chip disabled, reads from F2 detects FM */
-		return ioPort1;
+		if(ioEnabled)
+			return ioPort1;
+		else
+			return 0xff;
 	case 0xc1:
-		return ioPort2;
+		if(ioEnabled)
+			return ioPort2;
+		else
+			return 0xff;
 	}
 	return 0;
 }
@@ -1881,11 +1870,7 @@ void write_cpu_register(uint8_t reg, uint_fast8_t value) {
 		memory_control(value);
 		break;
 	case 0x01:
-		ioControl = value;
-		uint8_t old = ioPort2;
-		ioPort2 = (ioPort2 & 0x7f) | ((value & 0x80) ^ (((currentMachine->region == JAPAN) && (!(ioControl & 0x08))) ? 0x80 : 0));
-		ioPort2 = (ioPort2 & 0xbf) | (((value & 0x20) << 1) ^ (((currentMachine->region == JAPAN)  && (!(ioControl & 0x02))) ? 0x40 : 0));
-		latch_hcounter(old ^ ioPort2 ^old);
+		iocontrol_write(value);
 		break;
 	case 0x40:
 	case 0x41:

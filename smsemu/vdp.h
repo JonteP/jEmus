@@ -10,10 +10,19 @@
 #include <stdio.h>
 #include <stdint.h>
 
+#define NT_MASK 0x3c00
+#define PG_MASK 0x3800
+
 typedef enum video {
 	NTSC,
 	PAL
 } Video;
+
+typedef enum statusFlags {
+	INT = 0x80,
+	OVR = 0x40,
+	COL = 0x20
+} StatusFlags;
 
 struct DisplayMode {
 	uint16_t width;

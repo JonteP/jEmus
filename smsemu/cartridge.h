@@ -26,7 +26,7 @@ struct RomFile {
 	uint8_t battery;
 };
 
-extern uint8_t fcr[3], *bank[3], bRam[0x8000], memControl, bramReg, cpuRam[0x2000];
+extern uint8_t fcr[3], *bank[3], bRam[0x8000], memControl, bramReg, cpuRam[0x2000], ioEnabled;
 Mapper mapper;
 extern struct RomFile cartRom, *currentRom;
 

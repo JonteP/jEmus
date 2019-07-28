@@ -13,15 +13,14 @@ static inline xmlChar * calculate_checksum(uint8_t *, int);
 static inline uint8_t * read0(uint16_t), * read1(uint16_t), * read2(uint16_t), * read3(uint16_t), * empty(uint16_t);
 static inline void generic_mapper(), sega_mapper(), codemasters_mapper(), setup_banks();
 static inline void extract_xml_data(xmlNode *,struct RomFile *), xml_hash_compare(xmlNode *,struct RomFile *), parse_xml_file(xmlNode *,struct RomFile *);
-uint8_t fcr[3], *bank[3], bRam[0x8000], memControl, bramReg = 0, returnValue[1]={0}, cpuRam[0x2000];
+uint8_t fcr[3], *bank[3], bRam[0x8000], memControl, bramReg = 0, returnValue[1]={0}, cpuRam[0x2000], ioEnabled;
 struct RomFile cartRom, cardRom, biosRom, expRom, *currentRom;
 char *xmlFile = "sms.xml", *bName;
 FILE *bFile;
 xmlDoc *smsXml;
 
-void init_slots()
-{
-	if((smsXml = xmlReadFile(xmlFile, NULL, 0)) == 0){
+void init_slots(){
+	if(!(smsXml = xmlReadFile(xmlFile, NULL, 0))){
 		fprintf(stderr,"Error: %s could not be opened.\n",xmlFile);
 		exit(1);}
 	biosRom = load_rom(biosFile);
@@ -33,7 +32,7 @@ void init_slots()
 }
 
 void memory_control(uint8_t value){
-	/* TODO: wram + ioport enable/disable */
+	/* TODO: wram enable/disable */
 	memControl = value;
 	if(!(memControl & 0x80)){
 		currentRom = &expRom;
@@ -79,10 +78,9 @@ void memory_control(uint8_t value){
 	}
 	if(memControl & 0x10)
 		printf("Work RAM is disabled\n");
-	if(memControl & 0x04)
-		printf("I/O chip is disabled\n");
 	banking();
 	setup_banks();
+	ioEnabled = !(memControl & 0x04);
 }
 
 void generic_mapper(){

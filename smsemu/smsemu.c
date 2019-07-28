@@ -8,6 +8,7 @@
 #include "sn79489.h"
 
 /* Compatibility:
+ * zool - hangs at game start (interrupts?) discussion here: http://www.smspower.org/forums/9366-IRQAndIperiodNightmare
  */
 /* TODO:
  * -FM sound
@@ -18,6 +19,7 @@
  * -remaining z80 opcodes - verify cycle counting
  * -vdp / z80 timing
  * -port access behavior differs between consoles (open bus)
+ * -randomize startup vcounter? - some game rely on "random" R reg values: http://www.smspower.org/forums/11329-ImpossibleMissionAndTheAbuseOfTheRRegister#87153
  */
 
 char *cartFile, *cardFile, *expFile, *biosFile;
@@ -25,7 +27,7 @@ uint8_t quit = 0, ioPort1, ioPort2, ioControl, region;
 struct machine ntsc_us={"mpr-12808.ic2",53693175,NTSC,EXPORT}, pal={"mpr-10052.ic2",53203424,PAL,EXPORT}, ntsc_jp={"mpr-11124.ic2",53693175,NTSC,JAPAN}, *currentMachine;
 sdlSettings settings;
 int main() {
-	currentMachine = &ntsc_jp;
+	currentMachine = &ntsc_us;
 	init_vdp();
 	settings.ctable = smsColor;
 	settings.renderQuality = "1";
@@ -47,7 +49,7 @@ int main() {
 	init_sn79489(settings.audioBufferSize);
 	biosFile = malloc(strlen(currentMachine->bios) + 6);
 	sprintf(biosFile, "bios/%s",currentMachine->bios);
-	cartFile = "/home/jonas/Desktop/sms/sms_test/vdptest/VDPTEST.sms";
+	cartFile = "/home/jonas/Desktop/sms/unsorted/USA/Alex Kidd in Miracle World.sms";
 	init_slots();
 	logfile = fopen("/home/jonas/git/logfile.txt","w");
 	if (logfile==NULL){
@@ -78,5 +80,16 @@ void set_timings(uint8_t mode){
 	init_time(frameTime);
 	originalSampleRate = sampleRate = (float)clockRate /(15 * 16 * settings.audioFrequency);
 	sCounter = 0;
+}
+void iocontrol_write(uint8_t value){
+	/* TH pin function: http://www.smspower.org/forums/16535-HowDoesTHWorkOnTheJapaneseSMS#96462 */
+	uint8_t old = (ioControl & (IOCONTROL_PORTA_TH_LEVEL | IOCONTROL_PORTB_TH_LEVEL));
+	ioControl = value;
+	/* Maybe should be flipped at readback instead? */
+	ioPort1 = ((ioPort1 & ~IO1_PORTA_TR) | (((ioControl & IOCONTROL_PORTA_TR_LEVEL) << 1) ^ (((currentMachine->region == JAPAN) && (!(ioControl & IOCONTROL_PORTA_TR_DIRECTION))) ? IO1_PORTA_TR : 0)));
+	ioPort2 = ((ioPort2 & ~IO2_PORTB_TR) | (((ioControl & IOCONTROL_PORTB_TR_LEVEL) >> 3) ^ (((currentMachine->region == JAPAN) && (!(ioControl & IOCONTROL_PORTB_TR_DIRECTION))) ? IO2_PORTB_TR : 0)));
+	ioPort2 = ((ioPort2 & ~IO2_PORTB_TH) | ((ioControl & IOCONTROL_PORTB_TH_LEVEL) 		  ^ (((currentMachine->region == JAPAN) && (!(ioControl & IOCONTROL_PORTB_TH_DIRECTION))) ? IO2_PORTB_TH : 0)));
+	ioPort2 = ((ioPort2 & ~IO2_PORTA_TH) | (((ioControl & IOCONTROL_PORTA_TH_LEVEL) << 1) ^ (((currentMachine->region == JAPAN) && (!(ioControl & IOCONTROL_PORTA_TH_DIRECTION))) ? IO2_PORTA_TH : 0)));
+	latch_hcounter(old ^ (ioControl & (IOCONTROL_PORTA_TH_LEVEL | IOCONTROL_PORTB_TH_LEVEL)) ^ old);
 }
 /* trace zexdoc.log,0,noloop,{tracelog "%04x,%04x,%04x,%04x,%04x,%04x,%04x,%04x,",pc,(af&ffd7),bc,de,hl,ix,iy,sp}*/

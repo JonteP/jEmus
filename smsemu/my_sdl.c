@@ -15,12 +15,14 @@
 SDL_AudioSpec wantedAudioSettings, audioSettings;
 SDL_Event event;
 SDL_DisplayMode current;
-uint_fast8_t isPaused = 0, fullscreen = 0, stateSave = 0, stateLoad = 0, vsync = 0, throttle = 1;
+SDL_Texture *whiteboard;
+SDL_Rect SrcR, TrgR, MenuR;
+uint_fast8_t isPaused = 0, fullscreen = 0, stateSave = 0, stateLoad = 0, vsync = 0, throttle = 1, showMenu = 0;
 sdlSettings *currentSettings;
 float frameTime, fps;
 int clockRate;
 
-static inline void render_window (windowHandle *, uint32_t *), idle_time(float), create_handle (windowHandle *);
+static inline void render_window (windowHandle *, uint32_t *), idle_time(float), create_handle (windowHandle *), draw_menu(void);
 static inline float diff_time(struct timespec *, struct timespec *);
 
 void init_sdl(sdlSettings *settings) {
@@ -35,6 +37,9 @@ void init_sdl(sdlSettings *settings) {
 	}
 	SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY,currentSettings->renderQuality);
 	create_handle (&currentSettings->window);
+	if((whiteboard = SDL_CreateTexture(currentSettings->window.rend, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_TARGET, currentSettings->window.winWidth, currentSettings->window.winHeight)) == NULL){
+		printf("SDL_CreateTexture failed: %s\n", SDL_GetError());
+		exit(EXIT_FAILURE);}
 	SDL_ShowWindow(currentSettings->window.win);
 	wantedAudioSettings.freq = currentSettings->audioFrequency;
 	wantedAudioSettings.format = AUDIO_F32;
@@ -54,7 +59,7 @@ void create_handle (windowHandle *handle) {
 	if((handle->win = SDL_CreateWindow(handle->name, handle->winXPosition, handle->winYPosition, handle->winWidth, handle->winHeight, SDL_WINDOW_RESIZABLE)) == NULL){
 		printf("SDL_CreateWindow failed: %s\n", SDL_GetError());
 		exit(EXIT_FAILURE);}
-	if((handle->rend = SDL_CreateRenderer(handle->win, -1, SDL_RENDERER_ACCELERATED)) ==NULL){
+	if((handle->rend = SDL_CreateRenderer(handle->win, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_TARGETTEXTURE)) ==NULL){
 		printf("SDL_CreateRenderer failed: %s\n", SDL_GetError());
 		exit(EXIT_FAILURE);}
 	if((handle->tex = SDL_CreateTexture(handle->rend, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, handle->screenWidth, handle->screenHeight)) == NULL){
@@ -98,6 +103,7 @@ void idle_time (float time)
 		xfps = (float)((frameCounter / diff_time(&startClock, &endClock) + xfps) * .5);
 		if(!throttle){
 			fps = xfps;
+			printf("%f\n",fps);
 			set_timings(2);
 		}
 		frameCounter = 0;
@@ -134,26 +140,40 @@ void render_frame()
 
 void render_window (windowHandle * handle, uint32_t * buffer)
 {
-	SDL_Rect SrcR;
 	SrcR.x = handle->xClip;
 	SrcR.y = handle->yClip;
 	SrcR.w = handle->screenWidth - (handle->xClip << 1);
 	SrcR.h = handle->screenHeight - (handle->yClip << 1);
-	SDL_Rect TrgR;
 	TrgR.x = 240;
 	TrgR.y = 0;
 	TrgR.w = 1440;
 	TrgR.h = 1080;
+	MenuR.w = 100;
+	MenuR.x = (handle->winWidth - (handle->winWidth >> 1));
+	MenuR.h = 100;
+	MenuR.x = (handle->winHeight - (handle->winHeight >> 1));
 	if(SDL_UpdateTexture(handle->tex, NULL, buffer, handle->screenWidth * sizeof(uint32_t))){
 		printf("SDL_UpdateTexture failed: %s\n", SDL_GetError());
 		exit(EXIT_FAILURE);
 	}
 	if (fullscreen)
 		SDL_RenderCopy(handle->rend, handle->tex, &SrcR, &TrgR);
-	else
+	else{
+		SDL_SetRenderTarget(handle->rend, whiteboard);
 		SDL_RenderCopy(handle->rend, handle->tex, &SrcR, NULL);
+		if(showMenu)
+			draw_menu();
+	}
+	SDL_SetRenderTarget(handle->rend, NULL);
+	SDL_RenderCopy(handle->rend, whiteboard, NULL, NULL);
 	SDL_RenderPresent(handle->rend);
 	SDL_RenderClear(handle->rend);
+}
+
+void draw_menu(){
+    SDL_RenderDrawRect(currentSettings->window.rend,&MenuR);
+    SDL_SetRenderDrawColor(currentSettings->window.rend, 0xFF, 0x00, 0x00, 0x00);
+    SDL_RenderFillRect(currentSettings->window.rend, &MenuR);
 }
 
 void output_sound()
@@ -282,6 +302,9 @@ void io_handle()
 				break;
 			case SDL_SCANCODE_S:
 				ioPort2 &= ~IO2_PORTB_TR;
+				break;
+			case SDL_SCANCODE_Q:
+				showMenu ^= 1;
 				break;
 			default:
 				break;
