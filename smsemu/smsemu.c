@@ -9,6 +9,9 @@
 
 /* Compatibility:
  * zool - hangs at game start (interrupts?) discussion here: http://www.smspower.org/forums/9366-IRQAndIperiodNightmare
+ * california games - skater sprite is garbage
+ * the ninja - sprites sometimes get stuck
+ * psycho fox - hangs when pausing
  */
 /* TODO:
  * -FM sound
@@ -49,7 +52,7 @@ int main() {
 	init_sn79489(settings.audioBufferSize);
 	biosFile = malloc(strlen(currentMachine->bios) + 6);
 	sprintf(biosFile, "bios/%s",currentMachine->bios);
-	cartFile = "/home/jonas/Desktop/sms/unsorted/USA/Alex Kidd in Miracle World.sms";
+	cartFile = "/home/jonas/Desktop/sms/unsorted/USA/Phantasy Star (Rev 2).sms";
 	init_slots();
 	logfile = fopen("/home/jonas/git/logfile.txt","w");
 	if (logfile==NULL){
