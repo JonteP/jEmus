@@ -11,9 +11,11 @@
 #include <time.h> 	/* clock */
 #include <unistd.h> /* usleep */
 #include <dirent.h>
+#include <sys/stat.h>
 #include "smsemu.h"
 #include "sn79489.h"
 #include "z80.h"
+#include "cartridge.h"
 
 SDL_AudioSpec wantedAudioSettings, audioSettings;
 SDL_Event event;
@@ -38,8 +40,9 @@ float frameTime, fps;
 int clockRate;
 
 static inline void render_window (windowHandle *, uint32_t *), idle_time(float), create_handle (windowHandle *), draw_menu(menuItem *), set_menu(void), get_menu_size(menuItem *, int, int), create_menu(void), call_menu_option(void);
-static inline void option_fullscreen(void), option_quit(void), option_open_file(void), game_io(void), menu_io(void), file_io(void), create_file_list(void);
+static inline void option_fullscreen(void), option_quit(void), option_open_file(void), game_io(void), menu_io(void), file_io(void), create_file_list(void), get_parent_dir(char *);
 static inline float diff_time(struct timespec *, struct timespec *);
+static inline int is_directory(const char *);
 
 void init_sdl(sdlSettings *settings) {
 	io_func = &game_io;
@@ -194,6 +197,27 @@ void render_window (windowHandle * handle, uint32_t * buffer)
 	SDL_RenderCopy(handle->rend, whiteboard, NULL, NULL);
 	SDL_RenderPresent(handle->rend);
 	SDL_RenderClear(handle->rend);
+}
+
+int is_directory(const char *path)
+{
+    struct stat path_stat;
+    if(!stat(path, &path_stat)){
+        return S_ISDIR(path_stat.st_mode);
+    }
+    else
+    	return -1;
+}
+
+void get_parent_dir(char *str){
+	int oldlen = strlen(str);
+	char *ptr = strrchr(str, '/');
+	if(ptr)
+		*ptr = '\0';
+	if(strlen(str) == (oldlen - 1))
+		get_parent_dir(str);
+	if(strcmp(str + strlen(str) - 1, "/"))
+		sprintf(str,"%s/",str);
 }
 
 void create_file_list(){
@@ -482,13 +506,30 @@ void file_io()
 				}
 				break;
 			case SDL_SCANCODE_RETURN: ;
-				char *str = malloc(strlen(workDir) + strlen(fileList.name[currentMenuRow - 1]) + 1);
+				char *str = malloc(strlen(workDir) + strlen(fileList.name[currentMenuRow - 1]) + 2);
 				str[0] = '\0';
-				sprintf(str,"%s%s/",workDir,fileList.name[currentMenuRow - 1]);
-				free(workDir);
-				workDir = malloc(strlen(str));
-				strcpy(workDir,str);
+				sprintf(str,"%s%s",workDir,fileList.name[currentMenuRow - 1]);
+				printf("%s\n",str);
+				if(is_directory(str) == 1){
+					sprintf(str,"%s/",str);
+					printf("workDir: %s\n",workDir);
+					free(workDir);
+					workDir = malloc(strlen(str));
+					strcpy(workDir,str);
+					create_file_list();
+				}
+				else if(!is_directory(str)){
+					cartFile = str;
+					init_slots();
+					power_reset();
+					toggle_menu();
+				}
+				else
+					printf("Error: no such file or directory.\n");
 				free(str);
+				break;
+			case SDL_SCANCODE_ESCAPE:
+				get_parent_dir(workDir);
 				create_file_list();
 				break;
 			case SDL_SCANCODE_Q:

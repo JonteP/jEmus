@@ -30,7 +30,7 @@ uint8_t quit = 0, ioPort1, ioPort2, ioControl, region;
 struct machine ntsc_us={"mpr-12808.ic2",53693175,NTSC,EXPORT}, pal={"mpr-10052.ic2",53203424,PAL,EXPORT}, ntsc_jp={"mpr-11124.ic2",53693175,NTSC,JAPAN}, *currentMachine;
 sdlSettings settings;
 int main() {
-	currentMachine = &ntsc_us;
+	currentMachine = &ntsc_jp;
 	init_vdp();
 	settings.ctable = smsColor;
 	settings.renderQuality = "1";

@@ -5,7 +5,7 @@
 #include "SDL.h"
 
 #define MAX_MENU_ITEMS			10
-#define MAX_MENU_ITEM_LENGTH	25
+#define MAX_MENU_ITEM_LENGTH	50
 
 typedef void (*io_function)();
 typedef struct windowHandle_ {

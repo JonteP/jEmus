@@ -8,7 +8,6 @@
 #include "sha.h"
 #include "smsemu.h"
 
-static inline struct RomFile load_rom(char *);
 static inline xmlChar * calculate_checksum(uint8_t *, int);
 static inline uint8_t * read0(uint16_t), * read1(uint16_t), * read2(uint16_t), * read3(uint16_t), * empty(uint16_t);
 static inline void generic_mapper(), sega_mapper(), codemasters_mapper(), setup_banks();
