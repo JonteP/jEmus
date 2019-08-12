@@ -231,6 +231,8 @@
         	
     </storageModule>
     	
+    <storageModule moduleId="org.eclipse.cdt.internal.ui.text.commentOwnerProjectMappings"/>
+    	
     <storageModule moduleId="scannerConfiguration">
         		
         <autodiscovery enabled="true" problemReportingEnabled="true" selectedProfileId=""/>
@@ -247,12 +249,6 @@
             		
         </scannerConfigBuildInfo>
         		
-        <scannerConfigBuildInfo instanceId="cdt.managedbuild.config.gnu.exe.debug.1298173467;cdt.managedbuild.config.gnu.exe.debug.1298173467.;cdt.managedbuild.tool.gnu.c.compiler.exe.debug.393602230;cdt.managedbuild.tool.gnu.c.compiler.input.197949704">
-            			
-            <autodiscovery enabled="true" problemReportingEnabled="true" selectedProfileId=""/>
-            		
-        </scannerConfigBuildInfo>
-        		
         <scannerConfigBuildInfo instanceId="cdt.managedbuild.config.gnu.cross.exe.debug.255643862;cdt.managedbuild.config.gnu.cross.exe.debug.255643862.;cdt.managedbuild.tool.gnu.cross.c.compiler.344266969;cdt.managedbuild.tool.gnu.c.compiler.input.1101574704">
             			
             <autodiscovery enabled="true" problemReportingEnabled="true" selectedProfileId=""/>
@@ -260,7 +256,5 @@
         </scannerConfigBuildInfo>
         	
     </storageModule>
-    	
-    <storageModule moduleId="org.eclipse.cdt.internal.ui.text.commentOwnerProjectMappings"/>
     
 </cproject>

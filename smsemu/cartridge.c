@@ -26,7 +26,7 @@ void init_slots(){
 	cartRom = load_rom(cartFile);
 	cardRom = load_rom(cardFile);
 	expRom = load_rom(expFile);
-	xmlFree(smsXml);
+	xmlFreeDoc(smsXml);
 	memory_control(0xe7);
 }
 

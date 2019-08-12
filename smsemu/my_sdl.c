@@ -33,16 +33,16 @@ menuItem mainMenu, fileMenu, graphicsMenu, machineMenu, audioMenu, fileList, *cu
 io_function io_func;
 uint8_t currentMenuColumn = 0, currentMenuRow = 0, menuFontSize = 24, filesLeft = 0;
 DIR *currentDir;
-char *defaultDir = "/home/jonas/Desktop/sms/unsorted/", *workDir;
+char *defaultDir = "/home/jonas/", *workDir;
 int fileListOffset = 0;
 struct dirent *entry;
 float frameTime, fps;
 int clockRate;
 
 static inline void render_window (windowHandle *, uint32_t *), idle_time(float), create_handle (windowHandle *), draw_menu(menuItem *), set_menu(void), get_menu_size(menuItem *, int, int), create_menu(void), call_menu_option(void);
-static inline void option_fullscreen(void), option_quit(void), option_open_file(void), game_io(void), menu_io(void), file_io(void), create_file_list(void), get_parent_dir(char *);
+static inline void option_fullscreen(void), option_quit(void), option_open_file(void), game_io(void), menu_io(void), file_io(void), get_parent_dir(char *);
 static inline float diff_time(struct timespec *, struct timespec *);
-static inline int is_directory(const char *);
+static inline int is_directory(const char *), create_file_list(void);
 
 void init_sdl(sdlSettings *settings) {
 	io_func = &game_io;
@@ -220,11 +220,11 @@ void get_parent_dir(char *str){
 		sprintf(str,"%s/",str);
 }
 
-void create_file_list(){
+int create_file_list(){
 	uint8_t counter = 0;
 	if(!(currentDir = opendir(workDir))){
 		printf("Error: failed to open directory: %s\n",workDir);
-		exit(EXIT_FAILURE);
+		return 1;
 	}
 	for(int i = 0; i < fileListOffset; i++)
 		readdir(currentDir);
@@ -244,6 +244,7 @@ void create_file_list(){
 		fileList.xOffset[i] = ((currentSettings->window.winWidth >> 1) - (fileList.width >> 1));
 		fileList.yOffset[i] = ((currentSettings->window.winHeight >> 1) - (fileList.height * (fileList.length >> 1)) + fileList.yOffset[i]);
 	}
+	return 0;
 }
 
 void create_menu(){
@@ -292,7 +293,7 @@ void create_menu(){
 	audioMenu.parent = &mainMenu;
 	get_menu_size(&audioMenu, mainMenu.xOffset[3], mainMenu.height);
 	fileList.ioFunction = &file_io;
-	workDir = malloc(strlen(defaultDir));
+	workDir = malloc(strlen(defaultDir) + 1);
 	strcpy(workDir, defaultDir);
 	currentMenu = &mainMenu;
 }
@@ -354,7 +355,7 @@ void draw_menu(menuItem *menu){
 	for(int i = 0; i < menu->length; i++){
 	    menuText = TTF_RenderText_Blended(Sans, menu->name[i], menuTextColor);
 	    text = SDL_CreateTextureFromSurface(currentSettings->window.rend, menuText);
-	    SDL_free(menuText);
+	    SDL_FreeSurface(menuText);
 	    SDL_QueryTexture(text, NULL, NULL, &menuTextRect.w, &menuTextRect.h);
 		menuTextRect.x = menu->xOffset[i];
 		menuTextRect.y = menu->yOffset[i];
@@ -514,8 +515,10 @@ void file_io()
 					sprintf(str,"%s/",str);
 					printf("workDir: %s\n",workDir);
 					free(workDir);
-					workDir = malloc(strlen(str));
+					workDir = malloc(strlen(str) + 1);
 					strcpy(workDir,str);
+					fileListOffset = 0;
+					currentMenuRow = 1;
 					create_file_list();
 				}
 				else if(!is_directory(str)){
