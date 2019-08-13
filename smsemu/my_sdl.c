@@ -35,14 +35,14 @@ uint8_t currentMenuColumn = 0, currentMenuRow = 0, menuFontSize = 24, filesLeft 
 DIR *currentDir;
 char *defaultDir = "./", *workDir;
 int fileListOffset = 0;
-struct dirent *entry;
 float frameTime, fps;
 int clockRate;
 
 static inline void render_window (windowHandle *, uint32_t *), idle_time(float), create_handle (windowHandle *), draw_menu(menuItem *), set_menu(void), get_menu_size(menuItem *, int, int), create_menu(void), call_menu_option(void);
 static inline void option_fullscreen(void), option_quit(void), option_open_file(void), game_io(void), menu_io(void), file_io(void), get_parent_dir(char *);
 static inline float diff_time(struct timespec *, struct timespec *);
-static inline int is_directory(const char *), create_file_list(void), file_count(char *);
+static inline int is_directory(const char *), create_file_list(void), file_count(DIR *), fileSorter(const void *const, const void *const);
+static inline struct dirent ** read_directory(DIR *);
 
 void init_sdl(sdlSettings *settings) {
 	io_func = &game_io;
@@ -220,37 +220,51 @@ void get_parent_dir(char *str){
 		sprintf(str,"%s/",str);
 }
 
-int file_count(char *dir){
-	DIR *directory;
+int file_count(DIR *dir){
 	int fileCounter = 0;
-	if(!(directory = opendir(dir))){
-			return -1;
-		}
-	else{
-		while (readdir(directory)){
-				fileCounter++;
-		}
-		return fileCounter;
-	}
+	rewinddir(dir);
+	while (readdir(dir))
+		fileCounter++;
+	return fileCounter;
+}
+
+int fileSorter(const void *const file1, const void *const file2){
+    return strcmp((*(struct dirent **) file1)->d_name, (*(struct dirent **) file2)->d_name);
+}
+
+struct dirent ** read_directory(DIR *dir){
+	struct dirent *entry, **files;
+	int counter = 0, length;
+	length = file_count(dir);
+	files = malloc(length * sizeof(*files));
+	rewinddir(dir);
+	while((entry = readdir(dir)) != NULL)
+		files[counter++] = entry;
+	qsort(files, length, sizeof(*files), fileSorter);
+	return files;
 }
 
 int create_file_list(){
+	struct dirent **sortedFiles;
 	uint8_t counter = 0;
+	int length;
 	if(!(currentDir = opendir(workDir))){
 		printf("Error: failed to open directory: %s\n",workDir);
 		return 1;
 	}
-	for(int i = 0; i < fileListOffset; i++)
-		readdir(currentDir);
-	while (((entry = readdir(currentDir)) != NULL) && counter < MAX_MENU_ITEMS){
-	    strcpy(fileList.name[counter], entry->d_name);
-		counter++;
-	  }
-	if((entry = readdir(currentDir)) != NULL)
-		filesLeft = 1;
-	else
-		filesLeft = 0;
+	length = file_count(currentDir);
+	sortedFiles = read_directory(currentDir);
+	filesLeft = 1;
+	for(int i = 0; i < MAX_MENU_ITEMS; i++){
+		if((i + fileListOffset) < length){
+			strcpy(fileList.name[i], sortedFiles[i + fileListOffset]->d_name);
+			counter++;
+		}
+		else
+			filesLeft = 0;
+	}
 	closedir(currentDir);
+	free(sortedFiles);
 	fileList.length = counter;
 	get_menu_size(&fileList, 0, 0);
 	fileList.width = (currentSettings->window.winWidth >> 2);
@@ -405,7 +419,7 @@ void call_menu_option(){
 
 void output_sound()
 {
-	if (!throttle)
+	if (!throttle || (SDL_GetQueuedAudioSize(1) > (currentSettings->audioBufferSize << 1))) /* should depend on size of audio data? */
 		SDL_ClearQueuedAudio(1);
 	if (SDL_QueueAudio(1, sampleBuffer, (sampleCounter<<2)))
 		printf("SDL_QueueAduio failed: %s\n", SDL_GetError());
@@ -536,10 +550,11 @@ void file_io()
 					create_file_list();
 				}
 				else if(!is_directory(str)){
+					toggle_menu();
 					cartFile = str;
 					init_slots();
 					power_reset();
-					toggle_menu();
+					SDL_ClearQueuedAudio(1);
 				}
 				else
 					printf("Error: no such file or directory.\n");
