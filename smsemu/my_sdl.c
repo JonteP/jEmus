@@ -33,7 +33,7 @@ menuItem mainMenu, fileMenu, graphicsMenu, machineMenu, audioMenu, fileList, *cu
 io_function io_func;
 uint8_t currentMenuColumn = 0, currentMenuRow = 0, menuFontSize = 24, filesLeft = 0;
 DIR *currentDir;
-char *defaultDir = "/home/jonas/", *workDir;
+char *defaultDir = "./", *workDir;
 int fileListOffset = 0;
 struct dirent *entry;
 float frameTime, fps;
@@ -42,7 +42,7 @@ int clockRate;
 static inline void render_window (windowHandle *, uint32_t *), idle_time(float), create_handle (windowHandle *), draw_menu(menuItem *), set_menu(void), get_menu_size(menuItem *, int, int), create_menu(void), call_menu_option(void);
 static inline void option_fullscreen(void), option_quit(void), option_open_file(void), game_io(void), menu_io(void), file_io(void), get_parent_dir(char *);
 static inline float diff_time(struct timespec *, struct timespec *);
-static inline int is_directory(const char *), create_file_list(void);
+static inline int is_directory(const char *), create_file_list(void), file_count(char *);
 
 void init_sdl(sdlSettings *settings) {
 	io_func = &game_io;
@@ -218,6 +218,20 @@ void get_parent_dir(char *str){
 		get_parent_dir(str);
 	if(strcmp(str + strlen(str) - 1, "/"))
 		sprintf(str,"%s/",str);
+}
+
+int file_count(char *dir){
+	DIR *directory;
+	int fileCounter = 0;
+	if(!(directory = opendir(dir))){
+			return -1;
+		}
+	else{
+		while (readdir(directory)){
+				fileCounter++;
+		}
+		return fileCounter;
+	}
 }
 
 int create_file_list(){
