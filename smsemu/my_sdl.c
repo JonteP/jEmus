@@ -379,26 +379,38 @@ void toggle_menu(){
 }
 
 void draw_menu(menuItem *menu){
-	SDL_Rect menuTextRect, menuFieldRect;
+	SDL_Rect menuRect, srcRect, destRect;
+	srcRect.x = 0;
+	srcRect.y = 0;
 	for(int i = 0; i < menu->length; i++){
 	    menuText = TTF_RenderText_Blended(Sans, menu->name[i], menuTextColor);
 	    text = SDL_CreateTextureFromSurface(currentSettings->window.rend, menuText);
 	    SDL_FreeSurface(menuText);
-	    SDL_QueryTexture(text, NULL, NULL, &menuTextRect.w, &menuTextRect.h);
-		menuTextRect.x = menu->xOffset[i];
-		menuTextRect.y = menu->yOffset[i];
-		menuFieldRect = menuTextRect;
+	    SDL_QueryTexture(text, NULL, NULL, &menuRect.w, &menuRect.h);
+	    if(menu->width < menuRect.w)
+	    	srcRect.w = menu->width;
+	    else
+	    	srcRect.w = menuRect.w;
+		menuRect.x = menu->xOffset[i];
+		menuRect.y = menu->yOffset[i];
 		if(!menu->orientation)
-			menuFieldRect.w = menu->width;
+			menuRect.w = menu->width;
+
+		/* Highlight active menu item */
 	    if(menu->orientation && currentMenuColumn == i && !currentMenuRow)
 	        SDL_SetRenderDrawColor(currentSettings->window.rend, menuActiveColor[0], menuActiveColor[1], menuActiveColor[2], menuActiveColor[3]);
 	    else if(!menu->orientation && currentMenuRow == i + 1)
 	        SDL_SetRenderDrawColor(currentSettings->window.rend, menuActiveColor[0], menuActiveColor[1], menuActiveColor[2], menuActiveColor[3]);
 	    else
 	    	SDL_SetRenderDrawColor(currentSettings->window.rend, menuBgColor[0], menuBgColor[1], menuBgColor[2], menuBgColor[3]);
-	    SDL_RenderDrawRect(currentSettings->window.rend,&menuFieldRect);
-	    SDL_RenderFillRect(currentSettings->window.rend, &menuFieldRect);
-	    SDL_RenderCopy(currentSettings->window.rend, text, NULL, &menuTextRect);
+
+	    SDL_RenderDrawRect(currentSettings->window.rend,&menuRect);
+	    SDL_RenderFillRect(currentSettings->window.rend, &menuRect);
+	    srcRect.h = menuRect.h;
+	    destRect = srcRect;
+	    destRect.x = menu->xOffset[i];
+	    destRect.y = menu->yOffset[i];
+	    SDL_RenderCopy(currentSettings->window.rend, text, &srcRect, &destRect);
 	}
 }
 
