@@ -31,15 +31,15 @@ uint_fast8_t isPaused = 0, fullscreen = 0, stateSave = 0, stateLoad = 0, vsync =
 sdlSettings *currentSettings;
 menuItem mainMenu, fileMenu, graphicsMenu, machineMenu, audioMenu, fileList, *currentMenu;
 io_function io_func;
-uint8_t currentMenuColumn = 0, currentMenuRow = 0, menuFontSize = 24, filesLeft = 0;
+uint8_t currentMenuColumn = 0, currentMenuRow = 0, oldMenuRow = 0, menuFontSize = 24, filesLeft = 0;
 DIR *currentDir;
-char *defaultDir = "./", *workDir;
-int fileListOffset = 0;
+char *defaultDir = "./", workDir[PATH_MAX];
+int fileListOffset = 0, oldFileListOffset = 0;
 float frameTime, fps;
 int clockRate;
 
 static inline void render_window (windowHandle *, uint32_t *), idle_time(float), create_handle (windowHandle *), draw_menu(menuItem *), set_menu(void), get_menu_size(menuItem *, int, int), create_menu(void), call_menu_option(void);
-static inline void option_fullscreen(void), option_quit(void), option_open_file(void), game_io(void), menu_io(void), file_io(void), get_parent_dir(char *);
+static inline void option_fullscreen(void), option_quit(void), option_open_file(void), game_io(void), menu_io(void), file_io(void), get_parent_dir(char *), add_slash(char *), toggle_menu(void);
 static inline float diff_time(struct timespec *, struct timespec *);
 static inline int is_directory(const char *), create_file_list(void), file_count(DIR *), fileSorter(const void *const, const void *const);
 static inline struct dirent ** read_directory(DIR *);
@@ -104,7 +104,6 @@ void destroy_handle (windowHandle * handle) {
 }
 
 void close_sdl() {
-	free(workDir);
 	destroy_handle (&currentSettings->window);
 	TTF_CloseFont(Sans);
 	SDL_ClearQueuedAudio(1);
@@ -170,6 +169,7 @@ void render_frame()
 
 void render_window (windowHandle * handle, uint32_t * buffer)
 {
+	/* TODO: rects should probably be updated in separate function when necessary only */
 	SrcR.x = handle->xClip;
 	SrcR.y = handle->yClip;
 	SrcR.w = handle->screenWidth - (handle->xClip << 1);
@@ -211,13 +211,47 @@ int is_directory(const char *path)
 
 void get_parent_dir(char *str){
 	int oldlen = strlen(str);
+	add_slash(str);
+	str[oldlen - 1] = '\0';
 	char *ptr = strrchr(str, '/');
 	if(ptr)
 		*ptr = '\0';
-	if(strlen(str) == (oldlen - 1))
-		get_parent_dir(str);
-	if(strcmp(str + strlen(str) - 1, "/"))
-		sprintf(str,"%s/",str);
+	add_slash(str);
+	fileListOffset = oldFileListOffset;
+	currentMenuRow = oldMenuRow;
+	printf("%i %i\n",fileListOffset,currentMenuRow);
+	create_file_list();
+}
+
+void append_to_dir(char *dir, char *str){
+	if(!strcmp(str, ".."))
+		get_parent_dir(dir);
+	else{
+	sprintf(dir,"%s%s",dir,str);
+	printf("%s\n",dir);
+	if(is_directory(dir) == 1){
+		add_slash(dir);
+		oldFileListOffset = fileListOffset;
+		oldMenuRow = currentMenuRow;
+		fileListOffset = 0;
+		currentMenuRow = 1;
+		printf("%i %i\n",fileListOffset,currentMenuRow);
+		create_file_list();
+	}
+	else if(!is_directory(dir)){
+		toggle_menu();
+		if(cartFile)
+			free(cartFile);
+		cartFile = (char *)malloc(strlen(dir) + 1);
+		strcpy(cartFile,dir);
+		get_parent_dir(dir);
+		init_slots();
+		power_reset();
+		init_time(frameTime);
+	}
+	else
+		printf("Error: no such file or directory.\n");
+	}
 }
 
 int file_count(DIR *dir){
@@ -321,9 +355,14 @@ void create_menu(){
 	audioMenu.parent = &mainMenu;
 	get_menu_size(&audioMenu, mainMenu.xOffset[3], mainMenu.height);
 	fileList.ioFunction = &file_io;
-	workDir = malloc(strlen(defaultDir) + 1);
-	strcpy(workDir, defaultDir);
+	getcwd(workDir, sizeof(workDir));
+	add_slash(workDir);
 	currentMenu = &mainMenu;
+}
+
+void add_slash(char *dir){
+	if(strcmp(dir + strlen(dir) - 1, "/"))
+		sprintf(dir,"%s/",dir);
 }
 
 void get_menu_size(menuItem *menu, int xoff, int yoff){
@@ -403,8 +442,6 @@ void draw_menu(menuItem *menu){
 	        SDL_SetRenderDrawColor(currentSettings->window.rend, menuActiveColor[0], menuActiveColor[1], menuActiveColor[2], menuActiveColor[3]);
 	    else
 	    	SDL_SetRenderDrawColor(currentSettings->window.rend, menuBgColor[0], menuBgColor[1], menuBgColor[2], menuBgColor[3]);
-
-	    SDL_RenderDrawRect(currentSettings->window.rend,&menuRect);
 	    SDL_RenderFillRect(currentSettings->window.rend, &menuRect);
 	    srcRect.h = menuRect.h;
 	    destRect = srcRect;
@@ -434,7 +471,7 @@ void output_sound()
 	if (!throttle || (SDL_GetQueuedAudioSize(1) > (currentSettings->audioBufferSize << 1))) /* should depend on size of audio data? */
 		SDL_ClearQueuedAudio(1);
 	if (SDL_QueueAudio(1, sampleBuffer, (sampleCounter<<2)))
-		printf("SDL_QueueAduio failed: %s\n", SDL_GetError());
+		printf("SDL_QueueAudio failed: %s\n", SDL_GetError());
 	sampleCounter = 0;
 }
 
@@ -546,35 +583,12 @@ void file_io()
 					}
 				}
 				break;
-			case SDL_SCANCODE_RETURN: ;
-				char *str = malloc(strlen(workDir) + strlen(fileList.name[currentMenuRow - 1]) + 2);
-				str[0] = '\0';
-				sprintf(str,"%s%s",workDir,fileList.name[currentMenuRow - 1]);
-				printf("%s\n",str);
-				if(is_directory(str) == 1){
-					sprintf(str,"%s/",str);
-					printf("workDir: %s\n",workDir);
-					free(workDir);
-					workDir = malloc(strlen(str) + 1);
-					strcpy(workDir,str);
-					fileListOffset = 0;
-					currentMenuRow = 1;
-					create_file_list();
-				}
-				else if(!is_directory(str)){
-					toggle_menu();
-					cartFile = str;
-					init_slots();
-					power_reset();
-					SDL_ClearQueuedAudio(1);
-				}
-				else
-					printf("Error: no such file or directory.\n");
-				free(str);
+			case SDL_SCANCODE_RETURN:
+				append_to_dir(workDir, fileList.name[currentMenuRow - 1]);
 				break;
 			case SDL_SCANCODE_ESCAPE:
+			case SDL_SCANCODE_BACKSPACE:
 				get_parent_dir(workDir);
-				create_file_list();
 				break;
 			case SDL_SCANCODE_Q:
 				if (!(event.key.repeat))
