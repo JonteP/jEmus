@@ -20,8 +20,7 @@
 SDL_AudioSpec wantedAudioSettings, audioSettings;
 SDL_Event event;
 SDL_DisplayMode current;
-SDL_Texture *whiteboard, *text;
-SDL_Surface *menuText;
+SDL_Texture *whiteboard;
 TTF_Font* Sans;
 SDL_Color menuTextColor = {0xff, 0xff, 0xff, 0x00};
 uint8_t menuBgColor[4] = {0x00, 0x00, 0x00, 0x00};
@@ -43,6 +42,10 @@ static inline void option_fullscreen(void), option_quit(void), option_open_file(
 static inline float diff_time(struct timespec *, struct timespec *);
 static inline int is_directory(const char *), create_file_list(void), file_count(DIR *), fileSorter(const void *const, const void *const);
 static inline struct dirent ** read_directory(DIR *);
+
+/*****************/
+/* SDL FUNCTIONS */
+/*****************/
 
 void init_sdl(sdlSettings *settings) {
 	io_func = &game_io;
@@ -111,6 +114,42 @@ void close_sdl() {
 	SDL_Quit();
 }
 
+void render_window (windowHandle * handle, uint32_t * buffer)
+{
+	/* TODO: rects should probably be updated in separate function when necessary only */
+	SrcR.x = handle->xClip;
+	SrcR.y = handle->yClip;
+	SrcR.w = handle->screenWidth - (handle->xClip << 1);
+	SrcR.h = handle->screenHeight - (handle->yClip << 1);
+	TrgR.x = 240;
+	TrgR.y = 0;
+	TrgR.w = 1440;
+	TrgR.h = 1080;
+	if(SDL_UpdateTexture(handle->tex, NULL, buffer, handle->screenWidth * sizeof(uint32_t))){
+		printf("SDL_UpdateTexture failed: %s\n", SDL_GetError());
+		exit(EXIT_FAILURE);
+	}
+	if (fullscreen)
+		SDL_RenderCopy(handle->rend, handle->tex, &SrcR, &TrgR);
+	else{
+		SDL_SetRenderTarget(handle->rend, whiteboard);
+		SDL_RenderCopy(handle->rend, handle->tex, &SrcR, NULL);
+		if(showMenu){
+			draw_menu(currentMenu);
+			if(currentMenu->parent)
+				draw_menu(currentMenu->parent);
+		}
+	}
+	SDL_SetRenderTarget(handle->rend, NULL);
+	SDL_RenderCopy(handle->rend, whiteboard, NULL, NULL);
+	SDL_RenderPresent(handle->rend);
+}
+
+
+/****************/
+/* TIME KEEPING */
+/****************/
+
 struct timespec throttleClock, startClock, endClock;
 int frameCounter;
 void init_time (float time)
@@ -156,53 +195,21 @@ float diff_time(struct timespec *start, struct timespec *end){
 	}
 	return temp;
 }
-void render_frame()
-{
+
+void render_frame(){
 	render_window (&currentSettings->window, screenBuffer);
 	idle_time(frameTime);
 	io_func();
-	while (isPaused)
-	{
-		render_frame();
-	}
 }
 
-void render_window (windowHandle * handle, uint32_t * buffer)
-{
-	/* TODO: rects should probably be updated in separate function when necessary only */
-	SrcR.x = handle->xClip;
-	SrcR.y = handle->yClip;
-	SrcR.w = handle->screenWidth - (handle->xClip << 1);
-	SrcR.h = handle->screenHeight - (handle->yClip << 1);
-	TrgR.x = 240;
-	TrgR.y = 0;
-	TrgR.w = 1440;
-	TrgR.h = 1080;
-	if(SDL_UpdateTexture(handle->tex, NULL, buffer, handle->screenWidth * sizeof(uint32_t))){
-		printf("SDL_UpdateTexture failed: %s\n", SDL_GetError());
-		exit(EXIT_FAILURE);
-	}
-	if (fullscreen)
-		SDL_RenderCopy(handle->rend, handle->tex, &SrcR, &TrgR);
-	else{
-		SDL_SetRenderTarget(handle->rend, whiteboard);
-		SDL_RenderCopy(handle->rend, handle->tex, &SrcR, NULL);
-		if(showMenu){
-			draw_menu(currentMenu);
-			if(currentMenu->parent)
-				draw_menu(currentMenu->parent);
-		}
-	}
-	SDL_SetRenderTarget(handle->rend, NULL);
-	SDL_RenderCopy(handle->rend, whiteboard, NULL, NULL);
-	SDL_RenderPresent(handle->rend);
-	SDL_RenderClear(handle->rend);
-}
+/****************/
+/* FILE BROWSER */
+/****************/
 
-int is_directory(const char *path)
+int is_directory(const char *str)
 {
     struct stat path_stat;
-    if(!stat(path, &path_stat)){
+    if(!stat(str, &path_stat)){
         return S_ISDIR(path_stat.st_mode);
     }
     else
@@ -210,47 +217,47 @@ int is_directory(const char *path)
 }
 
 void get_parent_dir(char *str){
-	int oldlen = strlen(str);
-	add_slash(str);
-	str[oldlen - 1] = '\0';
+	add_slash(str); /* set string to known state */
+	str[strlen(str) - 1] = '\0';
 	char *ptr = strrchr(str, '/');
 	if(ptr)
 		*ptr = '\0';
 	add_slash(str);
+	/* Retrieve position of parent dir. TODO: more sophisticated */
 	fileListOffset = oldFileListOffset;
 	currentMenuRow = oldMenuRow;
-	printf("%i %i\n",fileListOffset,currentMenuRow);
+	oldFileListOffset = 0;
+	oldMenuRow = 1;
 	create_file_list();
 }
 
-void append_to_dir(char *dir, char *str){
+void append_to_dir(char *dir, const char *str){
 	if(!strcmp(str, ".."))
 		get_parent_dir(dir);
-	else{
-	sprintf(dir,"%s%s",dir,str);
-	printf("%s\n",dir);
-	if(is_directory(dir) == 1){
-		add_slash(dir);
-		oldFileListOffset = fileListOffset;
-		oldMenuRow = currentMenuRow;
-		fileListOffset = 0;
-		currentMenuRow = 1;
-		printf("%i %i\n",fileListOffset,currentMenuRow);
-		create_file_list();
-	}
-	else if(!is_directory(dir)){
-		toggle_menu();
-		if(cartFile)
-			free(cartFile);
-		cartFile = (char *)malloc(strlen(dir) + 1);
-		strcpy(cartFile,dir);
-		get_parent_dir(dir);
-		init_slots();
-		power_reset();
-		init_time(frameTime);
-	}
-	else
-		printf("Error: no such file or directory.\n");
+	else if(strcmp(str, ".")){
+		sprintf(dir,"%s%s",dir,str);
+		if(is_directory(dir) == 1){
+			add_slash(dir);
+			oldFileListOffset = fileListOffset;
+			oldMenuRow = currentMenuRow;
+			fileListOffset = 0;
+			currentMenuRow = 1;
+			create_file_list();
+		}
+		else if(!is_directory(dir)){
+			toggle_menu();
+			SDL_RenderClear(currentSettings->window.rend);
+			if(cartFile)
+				free(cartFile);
+			cartFile = (char *)malloc(strlen(dir) + 1);
+			strcpy(cartFile,dir);
+			get_parent_dir(dir);
+			init_slots();
+			power_reset();
+			init_time(frameTime);
+		}
+		else
+			printf("Error: no such file or directory.\n");
 	}
 }
 
@@ -301,7 +308,7 @@ int create_file_list(){
 	free(sortedFiles);
 	fileList.length = counter;
 	get_menu_size(&fileList, 0, 0);
-	fileList.width = (currentSettings->window.winWidth >> 2);
+	fileList.width = (currentSettings->window.winWidth >> 1);
 	for(int i = 0;i < fileList.length;i++){
 		fileList.xOffset[i] = ((currentSettings->window.winWidth >> 1) - (fileList.width >> 1));
 		fileList.yOffset[i] = ((currentSettings->window.winHeight >> 1) - (fileList.height * (fileList.length >> 1)) + fileList.yOffset[i]);
@@ -414,11 +421,13 @@ void toggle_menu(){
 		io_func = game_io;
 	}
 	currentMenu = &mainMenu;
-	currentMenuColumn = currentMenuRow = 0;
+	currentMenuColumn = currentMenuRow = fileListOffset = 0;
 }
 
 void draw_menu(menuItem *menu){
 	SDL_Rect menuRect, srcRect, destRect;
+	SDL_Texture *text;
+	SDL_Surface *menuText;
 	srcRect.x = 0;
 	srcRect.y = 0;
 	for(int i = 0; i < menu->length; i++){
@@ -448,6 +457,7 @@ void draw_menu(menuItem *menu){
 	    destRect.x = menu->xOffset[i];
 	    destRect.y = menu->yOffset[i];
 	    SDL_RenderCopy(currentSettings->window.rend, text, &srcRect, &destRect);
+	    SDL_DestroyTexture(text);
 	}
 }
 
@@ -466,11 +476,10 @@ void call_menu_option(){
 	}
 }
 
-void output_sound()
-{
-	if (!throttle || (SDL_GetQueuedAudioSize(1) > (currentSettings->audioBufferSize << 1))) /* should depend on size of audio data? */
+void output_sound(){
+	if (!throttle || (SDL_GetQueuedAudioSize(1) > (audioSettings.size * audioSettings.channels)))
 		SDL_ClearQueuedAudio(1);
-	if (SDL_QueueAudio(1, sampleBuffer, (sampleCounter<<2)))
+	if (SDL_QueueAudio(1, sampleBuffer, sampleCounter * sizeof(*sampleBuffer)))
 		printf("SDL_QueueAudio failed: %s\n", SDL_GetError());
 	sampleCounter = 0;
 }
