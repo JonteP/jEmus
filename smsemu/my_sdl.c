@@ -336,14 +336,14 @@ void create_menu(){
 	strcpy(fileMenu.name[3], "Quit");
 	fileMenu.orientation = 0;
 	fileMenu.parent = &mainMenu;
-	get_menu_size(&fileMenu, mainMenu.xOffset[0], mainMenu.height + mainMenu.yOffset[0]);
+	get_menu_size(&fileMenu, mainMenu.xOffset[0], mainMenu.height + (mainMenu.margin << 1));
 	machineMenu.length = 2;
 	machineMenu.margin = 4;
 	strcpy(machineMenu.name[0], "Emulated Machine...");
 	strcpy(machineMenu.name[1], "Throttle (F10)");
 	machineMenu.orientation = 0;
 	machineMenu.parent = &mainMenu;
-	get_menu_size(&machineMenu, mainMenu.xOffset[1], mainMenu.height + mainMenu.yOffset[0]);
+	get_menu_size(&machineMenu, mainMenu.xOffset[1], mainMenu.height + (mainMenu.margin << 1));
 	graphicsMenu.length = 4;
 	graphicsMenu.margin = 4;
 	strcpy(graphicsMenu.name[0], "Fullscreen (F11)");
@@ -352,7 +352,7 @@ void create_menu(){
 	strcpy(graphicsMenu.name[3], "Settings...");
 	graphicsMenu.orientation = 0;
 	graphicsMenu.parent = &mainMenu;
-	get_menu_size(&graphicsMenu, mainMenu.xOffset[2], mainMenu.height + mainMenu.yOffset[0]);
+	get_menu_size(&graphicsMenu, mainMenu.xOffset[2], mainMenu.height + (mainMenu.margin << 1));
 	audioMenu.length = 3;
 	audioMenu.margin = 4;
 	strcpy(audioMenu.name[0], "Set Samplerate");
@@ -360,7 +360,7 @@ void create_menu(){
 	strcpy(audioMenu.name[2], "Mute");
 	audioMenu.orientation = 0;
 	audioMenu.parent = &mainMenu;
-	get_menu_size(&audioMenu, mainMenu.xOffset[3], mainMenu.height + mainMenu.yOffset[0]);
+	get_menu_size(&audioMenu, mainMenu.xOffset[3], mainMenu.height + (mainMenu.margin << 1));
 	fileList.ioFunction = &file_io;
 	getcwd(workDir, sizeof(workDir));
 	add_slash(workDir);
