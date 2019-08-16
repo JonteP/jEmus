@@ -336,14 +336,14 @@ void create_menu(){
 	strcpy(fileMenu.name[3], "Quit");
 	fileMenu.orientation = 0;
 	fileMenu.parent = &mainMenu;
-	get_menu_size(&fileMenu, mainMenu.xOffset[0], mainMenu.height);
+	get_menu_size(&fileMenu, mainMenu.xOffset[0], mainMenu.height + mainMenu.yOffset[0]);
 	machineMenu.length = 2;
 	machineMenu.margin = 4;
 	strcpy(machineMenu.name[0], "Emulated Machine...");
 	strcpy(machineMenu.name[1], "Throttle (F10)");
 	machineMenu.orientation = 0;
 	machineMenu.parent = &mainMenu;
-	get_menu_size(&machineMenu, mainMenu.xOffset[1], mainMenu.height);
+	get_menu_size(&machineMenu, mainMenu.xOffset[1], mainMenu.height + mainMenu.yOffset[0]);
 	graphicsMenu.length = 4;
 	graphicsMenu.margin = 4;
 	strcpy(graphicsMenu.name[0], "Fullscreen (F11)");
@@ -352,7 +352,7 @@ void create_menu(){
 	strcpy(graphicsMenu.name[3], "Settings...");
 	graphicsMenu.orientation = 0;
 	graphicsMenu.parent = &mainMenu;
-	get_menu_size(&graphicsMenu, mainMenu.xOffset[2], mainMenu.height);
+	get_menu_size(&graphicsMenu, mainMenu.xOffset[2], mainMenu.height + mainMenu.yOffset[0]);
 	audioMenu.length = 3;
 	audioMenu.margin = 4;
 	strcpy(audioMenu.name[0], "Set Samplerate");
@@ -360,7 +360,7 @@ void create_menu(){
 	strcpy(audioMenu.name[2], "Mute");
 	audioMenu.orientation = 0;
 	audioMenu.parent = &mainMenu;
-	get_menu_size(&audioMenu, mainMenu.xOffset[3], mainMenu.height);
+	get_menu_size(&audioMenu, mainMenu.xOffset[3], mainMenu.height + mainMenu.yOffset[0]);
 	fileList.ioFunction = &file_io;
 	getcwd(workDir, sizeof(workDir));
 	add_slash(workDir);
@@ -375,8 +375,8 @@ void add_slash(char *dir){
 void get_menu_size(menuItem *menu, int xoff, int yoff){
 	int width, height, maxWidth = 0, maxHeight = 0;
 	for(int i = 0; i < menu->length; i++){
-		menu->xOffset[i] = xoff;
-		menu->yOffset[i] = yoff;
+		menu->xOffset[i] = xoff + menu->margin;
+		menu->yOffset[i] = yoff + menu->margin;
 		TTF_SizeText(Sans, menu->name[i], &width, &height);
 		if(menu->orientation)
 			xoff += (width + (menu->margin << 1));
@@ -428,8 +428,6 @@ void draw_menu(menuItem *menu){
 	SDL_Rect menuRect, srcRect, destRect;
 	SDL_Texture *text;
 	SDL_Surface *menuText;
-	srcRect.x = 0;
-	srcRect.y = 0;
 	for(int i = 0; i < menu->length; i++){
 	    menuText = TTF_RenderText_Blended(Sans, menu->name[i], menuTextColor);
 	    text = SDL_CreateTextureFromSurface(currentSettings->window.rend, menuText);
@@ -439,10 +437,20 @@ void draw_menu(menuItem *menu){
 	    	srcRect.w = menu->width;
 	    else
 	    	srcRect.w = menuRect.w;
-		menuRect.x = menu->xOffset[i];
-		menuRect.y = menu->yOffset[i];
-		if(!menu->orientation)
+	    srcRect.h = menuRect.h;
+		srcRect.x = 0;
+		srcRect.y = 0;
+
+		destRect = srcRect;
+	    destRect.x = menu->xOffset[i];
+	    destRect.y = menu->yOffset[i];
+
+	    if(!menu->orientation)
 			menuRect.w = menu->width;
+	    menuRect.w += (menu->margin << 1);
+	    menuRect.h += (menu->margin << 1);
+	    menuRect.x = (menu->xOffset[i] - menu->margin);
+		menuRect.y = (menu->yOffset[i] - menu->margin);
 
 		/* Highlight active menu item */
 	    if(menu->orientation && currentMenuColumn == i && !currentMenuRow)
@@ -452,10 +460,6 @@ void draw_menu(menuItem *menu){
 	    else
 	    	SDL_SetRenderDrawColor(currentSettings->window.rend, menuBgColor[0], menuBgColor[1], menuBgColor[2], menuBgColor[3]);
 	    SDL_RenderFillRect(currentSettings->window.rend, &menuRect);
-	    srcRect.h = menuRect.h;
-	    destRect = srcRect;
-	    destRect.x = menu->xOffset[i];
-	    destRect.y = menu->yOffset[i];
 	    SDL_RenderCopy(currentSettings->window.rend, text, &srcRect, &destRect);
 	    SDL_DestroyTexture(text);
 	}
