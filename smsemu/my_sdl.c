@@ -41,11 +41,12 @@ int fileListOffset = 0, oldFileListOffset = 0;
 float frameTime, fps;
 int clockRate;
 
-static inline void render_window (windowHandle *, uint32_t *), idle_time(float), create_handle (windowHandle *), draw_menu(menuItem *), set_menu(void), get_menu_size(menuItem *, int, int), get_max_menu_size(menuItem *), create_menu(void), call_menu_option(void), clear_screen(SDL_Renderer *);
+static inline void render_window (windowHandle *, uint32_t *), idle_time(float), create_handle (windowHandle *), draw_menu(menuItem *), set_menu(void), get_menu_size(menuItem *, int, int), get_max_menu_size(menuItem *), create_menu(void), main_menu_option(int), clear_screen(SDL_Renderer *);
 static inline void option_fullscreen(void), option_quit(void), option_open_file(void), game_io(void), menu_io(void), file_io(void), get_parent_dir(char *), add_slash(char *), toggle_menu(void);
 static inline float diff_time(struct timespec *, struct timespec *);
 static inline int is_directory(const char *), create_file_list(void), file_count(DIR *), fileSorter(const void *const, const void *const);
 static inline struct dirent ** read_directory(DIR *);
+void (*current_options)();
 
 /*****************/
 /* SDL FUNCTIONS */
@@ -53,29 +54,23 @@ static inline struct dirent ** read_directory(DIR *);
 
 void init_sdl(sdlSettings *settings) {
 	io_func = &game_io;
+	current_options = &main_menu_option;
 	currentSettings = settings;
 	SDL_version ver;
 	SDL_GetVersion(&ver);
 	printf("Running SDL version: %d.%d.%d\n",ver.major,ver.minor,ver.patch);
-	if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) != 0)
-	{
+	if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) != 0){
 		printf("SDL_Init failed: %s\n", SDL_GetError());
 		exit(EXIT_FAILURE);
 	}
-	SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY,currentSettings->renderQuality);
-	create_handle (&currentSettings->window);
-	if((whiteboard = SDL_CreateTexture(currentSettings->window.rend, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_TARGET, currentSettings->window.winWidth, currentSettings->window.winHeight)) == NULL){
-		printf("SDL_CreateTexture failed: %s\n", SDL_GetError());
-		exit(EXIT_FAILURE);}
 	if(TTF_Init()==-1) {
 	    printf("TTF_Init failed: %s\n", TTF_GetError());
 	    exit(EXIT_FAILURE);}
-	Sans = TTF_OpenFont("/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf", menuFontSize);
-	if(!Sans){
-		printf("TTF_OpenFont failed: %s\n", TTF_GetError());
-		exit(EXIT_FAILURE);}
+
+	init_sdl_video();
+
 	create_menu();
-	SDL_ShowWindow(currentSettings->window.win);
+
 	wantedAudioSettings.freq = currentSettings->audioFrequency;
 	wantedAudioSettings.format = AUDIO_F32;
 	wantedAudioSettings.channels = currentSettings->channels;
@@ -87,6 +82,23 @@ void init_sdl(sdlSettings *settings) {
 	    SDL_Log("The desired audio format is not available.");
 	SDL_PauseAudio(0);
 	SDL_ClearQueuedAudio(1);
+}
+
+void init_sdl_video(){
+	SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY,currentSettings->renderQuality);
+	destroy_handle(&currentSettings->window);
+	create_handle (&currentSettings->window);
+	if(whiteboard)
+		SDL_DestroyTexture(whiteboard);
+	if((whiteboard = SDL_CreateTexture(currentSettings->window.rend, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_TARGET, currentSettings->window.winWidth, currentSettings->window.winHeight)) == NULL){
+		printf("SDL_CreateTexture failed: %s\n", SDL_GetError());
+		exit(EXIT_FAILURE);}
+	if(Sans)
+		TTF_CloseFont(Sans);
+	Sans = TTF_OpenFont("/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf", menuFontSize);
+	if(!Sans){
+		printf("TTF_OpenFont failed: %s\n", TTF_GetError());
+		exit(EXIT_FAILURE);}
 }
 
 void create_handle (windowHandle *handle) {
@@ -101,13 +113,15 @@ void create_handle (windowHandle *handle) {
 		printf("SDL_CreateTexture failed: %s\n", SDL_GetError());
 		exit(EXIT_FAILURE);}
 	handle->windowID = SDL_GetWindowID(handle->win);
-	SDL_HideWindow(handle->win);
 }
 
-void destroy_handle (windowHandle * handle) {
-	SDL_DestroyTexture(currentSettings->window.tex);
-	SDL_DestroyRenderer(currentSettings->window.rend);
-	SDL_DestroyWindow(currentSettings->window.win);
+void destroy_handle (windowHandle *handle) {
+	if(handle->tex)
+		SDL_DestroyTexture(handle->tex);
+	if(handle->rend)
+		SDL_DestroyRenderer(handle->rend);
+	if(handle->win)
+		SDL_DestroyWindow(handle->win);
 }
 
 void close_sdl() {
@@ -269,9 +283,6 @@ void append_to_dir(char *dir, const char *str){
 		else if(!is_directory(dir)){
 			toggle_menu();
 			clear_screen(currentSettings->window.rend);
-			if(cartFile)
-				free(cartFile);
-			cartFile = (char *)malloc(strlen(dir) + 1);
 			strcpy(cartFile,dir);
 			get_parent_dir(dir);
 			reset_emulation();
@@ -461,6 +472,7 @@ void toggle_menu(){
 	}
 	currentMenu = &mainMenu;
 	currentMenuColumn = currentMenuRow = fileListOffset = 0;
+	current_options = &main_menu_option;
 }
 
 void draw_menu(menuItem *menu){
@@ -504,8 +516,8 @@ void draw_menu(menuItem *menu){
 	}
 }
 
-void call_menu_option(){
-	switch((currentMenuColumn << 4) | currentMenuRow){
+void main_menu_option(int option){
+	switch(option){
 	case 0x01:
 		io_func = &file_io;
 		option_open_file();
@@ -515,6 +527,7 @@ void call_menu_option(){
 		break;
 	case 0x11:
 		currentMenu = &machineList;
+		current_options = &machine_menu_option;
 		break;
 	case 0x21:
 		option_fullscreen();
@@ -604,7 +617,7 @@ void menu_io()
 				}
 				break;
 			case SDL_SCANCODE_RETURN:
-				call_menu_option();
+				current_options((currentMenuColumn << 4) | currentMenuRow);
 				break;
 			case SDL_SCANCODE_Q:
 				if (!(event.key.repeat))

@@ -46,7 +46,7 @@ extern uint16_t vCounter, hCounter;
 extern int vdpCyclesToRun;
 extern struct DisplayMode *currentMode, ntsc192, pal192;
 
-void write_vdp_control(uint8_t), run_vdp(), write_vdp_data(uint8_t), init_vdp(), reset_vdp(), close_vdp(), latch_hcounter(uint8_t);
+void write_vdp_control(uint8_t), run_vdp(), write_vdp_data(uint8_t), init_vdp(), reset_vdp(), close_vdp(), latch_hcounter(uint8_t), default_video_mode();
 uint8_t read_vdp_data(void);
 
 #endif /* VDP_H_ */

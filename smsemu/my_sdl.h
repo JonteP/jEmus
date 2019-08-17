@@ -56,6 +56,6 @@ extern uint_fast8_t isPaused, stateSave, stateLoad;
 extern float frameTime, fps;
 extern int clockRate;
 
-void render_frame(), init_sdl(sdlSettings*), close_sdl(void), init_sounds(void), output_sound(void), destroy_handle (windowHandle *), init_time(float);
+void render_frame(), init_sdl(sdlSettings*), init_sdl_video(void), close_sdl(void), init_sounds(void), output_sound(void), destroy_handle (windowHandle *), init_time(float);
 
 #endif /* MY_SDL_H_ */

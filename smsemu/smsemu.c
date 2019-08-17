@@ -27,13 +27,13 @@
  * -randomize startup vcounter? - some game rely on "random" R reg values: http://www.smspower.org/forums/11329-ImpossibleMissionAndTheAbuseOfTheRRegister#87153
  */
 
-char *cartFile, *cardFile, *expFile, *biosFile;
+char cartFile[PATH_MAX], cardFile[PATH_MAX], expFile[PATH_MAX], biosFile[PATH_MAX];
 uint8_t quit = 0, ioPort1, ioPort2, ioControl, region;
 struct machine ntsc_us={"mpr-12808.ic2",53693175,NTSC,EXPORT}, pal={"mpr-10052.ic2",53203424,PAL,EXPORT}, ntsc_jp={"mpr-11124.ic2",53693175,NTSC,JAPAN}, *currentMachine;
 sdlSettings settings;
 int main() {
-	currentMachine = &ntsc_jp;
-	init_vdp();
+	currentMachine = &pal;
+	default_video_mode();
 	settings.ctable = smsColor;
 	settings.renderQuality = "1";
 	settings.audioFrequency = 48000;
@@ -50,23 +50,12 @@ int main() {
 	settings.window.xClip = 0;
 	settings.window.yClip = 0;
 	init_sdl(&settings);
+	reset_emulation();
 
-	init_sn79489(settings.audioBufferSize);
-	biosFile = malloc(strlen(currentMachine->bios) + 6);
-	sprintf(biosFile, "bios/%s",currentMachine->bios);
-	init_slots();
-	logfile = fopen("/home/jonas/git/logfile.txt","w");
-	if (logfile==NULL){
-		printf("Error: Could not create logfile\n");
-		exit(1);
-	}
-	power_reset();
-	set_timings(1);
 	while (quit == 0) {
 		opdecode();
 	}
 	fclose(logfile);
-	free(biosFile);
 	close_sdl();
 	close_rom();
 	close_vdp();
@@ -74,11 +63,13 @@ int main() {
 }
 
 void reset_emulation(){
+
+	init_vdp();
+	init_sn79489(settings.audioBufferSize);
+	sprintf(biosFile, "bios/%s",currentMachine->bios);
 	init_slots();
 	power_reset();
-	init_time(frameTime);
-	reset_vdp();
-	reset_sn79489();
+	set_timings(1);
 }
 
 void set_timings(uint8_t mode){
@@ -105,4 +96,26 @@ void iocontrol_write(uint8_t value){
 	ioPort2 = ((ioPort2 & ~IO2_PORTA_TH) | (((ioControl & IOCONTROL_PORTA_TH_LEVEL) << 1) ^ (((currentMachine->region == JAPAN) && (!(ioControl & IOCONTROL_PORTA_TH_DIRECTION))) ? IO2_PORTA_TH : 0)));
 	latch_hcounter(old ^ (ioControl & (IOCONTROL_PORTA_TH_LEVEL | IOCONTROL_PORTB_TH_LEVEL)) ^ old);
 }
+
+void machine_menu_option(int option){
+	switch(option & 0xf){
+	case 1:
+		currentMachine = &ntsc_jp;
+		break;
+	case 2:
+		currentMachine = &ntsc_us;
+		break;
+	case 3:
+		currentMachine = &pal;
+		break;
+	}
+	init_vdp();
+	init_sdl_video();
+}
+
 /* trace zexdoc.log,0,noloop,{tracelog "%04x,%04x,%04x,%04x,%04x,%04x,%04x,%04x,",pc,(af&ffd7),bc,de,hl,ix,iy,sp}*/
+/*	logfile = fopen("/home/jonas/git/logfile.txt","w");
+	if (logfile==NULL){
+		printf("Error: Could not create logfile\n");
+		exit(1);
+	}*/

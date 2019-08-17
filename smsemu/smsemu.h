@@ -8,6 +8,7 @@
 #ifndef SMSEMU_H_
 #define SMSEMU_H_
 #include <stdint.h>
+#include <linux/limits.h>
 #include "vdp.h"
 
 #define IO1_PORTB_DOWN 		0x80
@@ -54,8 +55,8 @@ struct machine {
 };
 
 extern uint8_t quit, ioPort1, ioPort2, ioControl, region;
-extern char *cartFile, *cardFile, *expFile, *biosFile;
+extern char cartFile[PATH_MAX], cardFile[PATH_MAX], expFile[PATH_MAX], biosFile[PATH_MAX];
 extern struct machine *currentMachine;
-void set_timings(uint8_t), iocontrol_write(uint8_t), reset_emulation(void);
+void set_timings(uint8_t), iocontrol_write(uint8_t), reset_emulation(void), machine_menu_option(int);
 
 #endif /* SMSEMU_H_ */

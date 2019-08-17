@@ -64,44 +64,50 @@ void init_vdp(){
 		smsColor[(i*3)+1] = (((i & 0x0c) << 4) | ((i & 0x0c) << 2) | ((i & 0x0c) >> 2) | (i & 0x0c));
 		smsColor[(i*3)+2] = (((i & 0x30) << 2) | ((i & 0x30) >> 4) | ((i & 0x30) >> 2) | (i & 0x30));
 	}
-	screenBuffer = (uint32_t*)malloc(currentMode->height * currentMode->width * sizeof(uint32_t));
-	/* TODO: can this be simplfied by thinking of v counter as signed 8 bit? */
-	ntsc192.vcount = (uint8_t*) malloc(ntsc192.fullheight * sizeof(uint8_t));
-	for(int i=0;i<0xdb;i++){
-		ntsc192.vcount[i] = i;
-	}
-	for(int i=0xd5;i<0x100;i++){
-		ntsc192.vcount[i+6] = i;
-	}
-	ntsc224.vcount = (uint8_t*) malloc(ntsc224.fullheight * sizeof(uint8_t));
-	for(int i=0;i<0xeb;i++){
-		ntsc224.vcount[i] = i;
-	}
-	for(int i=0xe5;i<0x100;i++){
-		ntsc224.vcount[i+6] = i;
-	}
-	pal192.vcount = (uint8_t*) malloc(pal192.fullheight * sizeof(uint8_t));
-	for(int i=0;i<0xf3;i++){
-		pal192.vcount[i] = i;
-	}
-	for(int i=0xba;i<0x100;i++){
-		pal192.vcount[i+39] = i;
-	}
-	pal224.vcount = (uint8_t*) malloc(pal224.fullheight * sizeof(uint8_t));
-	for(int i=0;i<0x103;i++){
-		pal224.vcount[i] = i;
-	}
-	for(int i=0xca;i<0x100;i++){
-		pal224.vcount[i+39] = i;
-	}
-	reset_vdp();
-}
-
-void reset_vdp(){
 	pgAddress = 0;
-	set_video_mode();
 	vdpdot = -94;
+	if(screenBuffer)
+		free(screenBuffer);
+	screenBuffer = (uint32_t*)malloc(currentMode->height * currentMode->width * sizeof(uint32_t));
 	memset(screenBuffer, 0xff0000ff, currentMode->height * currentMode->width * sizeof(uint32_t));
+
+	/* TODO: can this be simplfied by thinking of v counter as signed 8 bit? */
+	if(!ntsc192.vcount){
+		ntsc192.vcount = (uint8_t*) malloc(ntsc192.fullheight * sizeof(uint8_t));
+		for(int i=0;i<0xdb;i++){
+			ntsc192.vcount[i] = i;
+		}
+		for(int i=0xd5;i<0x100;i++){
+			ntsc192.vcount[i+6] = i;
+		}
+	}
+	if(!ntsc224.vcount){
+		ntsc224.vcount = (uint8_t*) malloc(ntsc224.fullheight * sizeof(uint8_t));
+		for(int i=0;i<0xeb;i++){
+			ntsc224.vcount[i] = i;
+		}
+		for(int i=0xe5;i<0x100;i++){
+			ntsc224.vcount[i+6] = i;
+		}
+	}
+	if(!pal192.vcount){
+		pal192.vcount = (uint8_t*) malloc(pal192.fullheight * sizeof(uint8_t));
+		for(int i=0;i<0xf3;i++){
+			pal192.vcount[i] = i;
+		}
+		for(int i=0xba;i<0x100;i++){
+			pal192.vcount[i+39] = i;
+		}
+	}
+	if(!pal224.vcount){
+		pal224.vcount = (uint8_t*) malloc(pal224.fullheight * sizeof(uint8_t));
+		for(int i=0;i<0x103;i++){
+			pal224.vcount[i] = i;
+		}
+		for(int i=0xca;i<0x100;i++){
+			pal224.vcount[i+39] = i;
+		}
+	}
 }
 
 void close_vdp(){
@@ -110,6 +116,13 @@ void close_vdp(){
 	free (ntsc224.vcount);
 	free (pal192.vcount);
 	free (pal224.vcount);
+}
+
+void default_video_mode(){
+	if(currentMachine->videoSystem == NTSC)
+		currentMode = &ntsc192;
+	else if(currentMachine->videoSystem == PAL)
+		currentMode = &pal192;
 }
 
 void set_video_mode(){
@@ -127,10 +140,7 @@ void set_video_mode(){
 		printf("Sets 240 line mode\n");
 	}
 	else{
-		if(currentMachine->videoSystem == NTSC)
-			currentMode = &ntsc192;
-		else if(currentMachine->videoSystem == PAL)
-			currentMode = &pal192;
+		default_video_mode();
 	}
 	if(videoMode & 0x08)
 		currentClut = smsColor;

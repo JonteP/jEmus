@@ -30,10 +30,9 @@ static inline void run_tone_channel(struct ToneChannel *);
 
 void init_sn79489(int buffer){
 	bufferSize = buffer;
+	if(sampleBuffer)
+		free(sampleBuffer);
 	sampleBuffer = (float *)malloc(bufferSize * sizeof(float));
-}
-
-void reset_sn79489(){
 	tone0.volume = tone1.volume = tone2.volume = noiseVolume = 0xf;
 	tone0.reg = tone1.reg = tone2.reg = noiseReload = tone0.phase = tone1.phase = tone2.phase = 0;
 	tone0.output = tone1.output = tone2.output = noiseOutput = 0;
