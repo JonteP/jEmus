@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include "SDL.h"
 
-#define MAX_MENU_ITEMS			10
+#define MAX_MENU_ITEMS			25
 #define MAX_MENU_ITEM_LENGTH	200
 
 typedef void (*io_function)();
@@ -33,10 +33,17 @@ typedef struct sdlSettings {
 	windowHandle window;
 } sdlSettings;
 typedef struct menuItem menuItem;
+
+typedef enum _type {
+	VERTICAL,
+	HORIZONTAL,
+	CENTERED
+} Type;
+
 struct menuItem {
 	int length;
 	char name[MAX_MENU_ITEMS][MAX_MENU_ITEM_LENGTH];
-	uint8_t orientation;
+	Type type;
 	int xOffset[MAX_MENU_ITEMS];
 	int yOffset[MAX_MENU_ITEMS];
 	int width;

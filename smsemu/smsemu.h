@@ -56,6 +56,6 @@ struct machine {
 extern uint8_t quit, ioPort1, ioPort2, ioControl, region;
 extern char *cartFile, *cardFile, *expFile, *biosFile;
 extern struct machine *currentMachine;
-void set_timings(uint8_t), iocontrol_write(uint8_t);
+void set_timings(uint8_t), iocontrol_write(uint8_t), reset_emulation(void);
 
 #endif /* SMSEMU_H_ */

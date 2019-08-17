@@ -58,16 +58,13 @@ uint8_t *currentClut;
 static inline void render_scanline(void), set_video_mode(void);
 
 void init_vdp(){
+	set_video_mode();
 	for (int i = 0; i < 0x40; i++) {
 		smsColor[i*3]     = (((i & 0x03) << 6) | ((i & 0x03) << 4) | ((i & 0x03) << 2) | (i & 0x03));
 		smsColor[(i*3)+1] = (((i & 0x0c) << 4) | ((i & 0x0c) << 2) | ((i & 0x0c) >> 2) | (i & 0x0c));
 		smsColor[(i*3)+2] = (((i & 0x30) << 2) | ((i & 0x30) >> 4) | ((i & 0x30) >> 2) | (i & 0x30));
 	}
-	pgAddress = 0;
-	set_video_mode();
 	screenBuffer = (uint32_t*)malloc(currentMode->height * currentMode->width * sizeof(uint32_t));
-	memset(screenBuffer, 0xff000000, currentMode->height * currentMode->width * sizeof(uint32_t));
-	vdpdot = -94;
 	/* TODO: can this be simplfied by thinking of v counter as signed 8 bit? */
 	ntsc192.vcount = (uint8_t*) malloc(ntsc192.fullheight * sizeof(uint8_t));
 	for(int i=0;i<0xdb;i++){
@@ -97,6 +94,14 @@ void init_vdp(){
 	for(int i=0xca;i<0x100;i++){
 		pal224.vcount[i+39] = i;
 	}
+	reset_vdp();
+}
+
+void reset_vdp(){
+	pgAddress = 0;
+	set_video_mode();
+	vdpdot = -94;
+	memset(screenBuffer, 0xff0000ff, currentMode->height * currentMode->width * sizeof(uint32_t));
 }
 
 void close_vdp(){
@@ -307,7 +312,7 @@ void render_scanline(){
 
 			/* Find the address of the corresponding pattern generator */
 			if(videoMode == 2)
-				pgOffset = ((pgAddress + ((vCounter & 0xc0) << 5) + ((ntData & 0xff) << 3)) & (pgMask >> 3));
+				pgOffset = (pgAddress + (((vCounter & 0xc0) << 5) & pgMask) + ((ntData & 0xff) << 3));
 			else if(videoMode & 0x08)
 				pgOffset = ((ntData & 0x1ff) << 5);
 
@@ -421,6 +426,8 @@ void render_scanline(){
 			fillValue = blank;*/
 		else if(vCounter < (currentMode->tborder))
 			fillValue = (cram[bgColor + 0x10] & 0x3f);
+		else
+			fillValue = 0;
 		for (uint16_t p = 0; p<256; p++){
 			screenBuffer[(((yOffset) % currentMode->height)*currentMode->width) + p]
 						 = (0xff000000|(currentClut[fillValue * 3]<<16)|(currentClut[fillValue * 3 + 1]<<8)|currentClut[fillValue * 3 + 2]);

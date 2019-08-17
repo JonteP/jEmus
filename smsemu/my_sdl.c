@@ -1,3 +1,7 @@
+/* TODO:
+ * -scaleable menus
+ */
+
 /* Good source for text boxes: https://gamedev.stackexchange.com/questions/140294/what-is-the-most-efficient-way-to-render-a-textbox-in-c-sdl2
  * Good source for file browsing: https://stackoverflow.com/questions/612097/how-can-i-get-the-list-of-files-in-a-directory-using-c-or-c
  */
@@ -28,16 +32,16 @@ uint8_t menuActiveColor[4] = {0x80, 0x80, 0x80, 0x00};
 SDL_Rect SrcR, TrgR;
 uint_fast8_t isPaused = 0, fullscreen = 0, stateSave = 0, stateLoad = 0, vsync = 0, throttle = 1, showMenu = 0;
 sdlSettings *currentSettings;
-menuItem mainMenu, fileMenu, graphicsMenu, machineMenu, audioMenu, fileList, *currentMenu;
+menuItem prototypeMenu, mainMenu, fileMenu, graphicsMenu, machineMenu, audioMenu, fileList, machineList, *currentMenu;
 io_function io_func;
 uint8_t currentMenuColumn = 0, currentMenuRow = 0, oldMenuRow = 0, menuFontSize = 18, filesLeft = 0;
 DIR *currentDir;
-char *defaultDir = "./", workDir[PATH_MAX];
+char *defaultDir = "/home/jonas/Desktop/sms/unsorted/", workDir[PATH_MAX];
 int fileListOffset = 0, oldFileListOffset = 0;
 float frameTime, fps;
 int clockRate;
 
-static inline void render_window (windowHandle *, uint32_t *), idle_time(float), create_handle (windowHandle *), draw_menu(menuItem *), set_menu(void), get_menu_size(menuItem *, int, int), create_menu(void), call_menu_option(void);
+static inline void render_window (windowHandle *, uint32_t *), idle_time(float), create_handle (windowHandle *), draw_menu(menuItem *), set_menu(void), get_menu_size(menuItem *, int, int), get_max_menu_size(menuItem *), create_menu(void), call_menu_option(void), clear_screen(SDL_Renderer *);
 static inline void option_fullscreen(void), option_quit(void), option_open_file(void), game_io(void), menu_io(void), file_io(void), get_parent_dir(char *), add_slash(char *), toggle_menu(void);
 static inline float diff_time(struct timespec *, struct timespec *);
 static inline int is_directory(const char *), create_file_list(void), file_count(DIR *), fileSorter(const void *const, const void *const);
@@ -145,6 +149,11 @@ void render_window (windowHandle * handle, uint32_t * buffer)
 	SDL_RenderPresent(handle->rend);
 }
 
+void clear_screen(SDL_Renderer *rend){
+	SDL_SetRenderDrawColor(rend, 0, 0, 0, 0xff);
+	SDL_RenderClear(rend);
+	SDL_RenderPresent(rend);
+}
 
 /****************/
 /* TIME KEEPING */
@@ -259,15 +268,13 @@ void append_to_dir(char *dir, const char *str){
 		}
 		else if(!is_directory(dir)){
 			toggle_menu();
-			SDL_RenderClear(currentSettings->window.rend);
+			clear_screen(currentSettings->window.rend);
 			if(cartFile)
 				free(cartFile);
 			cartFile = (char *)malloc(strlen(dir) + 1);
 			strcpy(cartFile,dir);
 			get_parent_dir(dir);
-			init_slots();
-			power_reset();
-			init_time(frameTime);
+			reset_emulation();
 		}
 		else
 			printf("Error: no such file or directory.\n");
@@ -312,11 +319,6 @@ int create_file_list(){
 	free(sortedFiles);
 	fileList.length = counter;
 	get_menu_size(&fileList, 0, 0);
-	fileList.width = (currentSettings->window.winWidth >> 1);
-	for(int i = 0;i < fileList.length;i++){
-		fileList.xOffset[i] = ((currentSettings->window.winWidth >> 1) - (fileList.width >> 1));
-		fileList.yOffset[i] = ((currentSettings->window.winHeight >> 1) - (fileList.height * (fileList.length >> 1)) + fileList.yOffset[i]);
-	}
 	return 0;
 }
 
@@ -325,73 +327,107 @@ int create_file_list(){
 /*********/
 
 void create_menu(){	/* define menus */
+	prototypeMenu.margin = 4;
+	prototypeMenu.ioFunction = &menu_io;
+	prototypeMenu.parent = NULL;
+	prototypeMenu.width = -1;
+	prototypeMenu.height = -1;
+	mainMenu = fileMenu = machineMenu = audioMenu = fileList = machineList = prototypeMenu;
+
 	mainMenu.length = 4;
-	mainMenu.margin = 4;
 	strcpy(mainMenu.name[0], "File");
 	strcpy(mainMenu.name[1], "Machine");
 	strcpy(mainMenu.name[2], "Graphics");
 	strcpy(mainMenu.name[3], "Audio");
-	mainMenu.orientation = 1;
-	mainMenu.ioFunction = &menu_io;
-	mainMenu.parent = NULL;
+	mainMenu.type = HORIZONTAL;
 	get_menu_size(&mainMenu, 0, 0);
+
 	fileMenu.length = 4;
-	fileMenu.margin = 4;
 	strcpy(fileMenu.name[0], "Load ROM...");
 	strcpy(fileMenu.name[1], "Load State");
 	strcpy(fileMenu.name[2], "Save State");
 	strcpy(fileMenu.name[3], "Quit");
-	fileMenu.orientation = 0;
+	fileMenu.type = VERTICAL;
 	fileMenu.parent = &mainMenu;
 	get_menu_size(&fileMenu, mainMenu.xOffset[0] - mainMenu.margin, mainMenu.height + (mainMenu.margin << 1));
+
 	machineMenu.length = 2;
-	machineMenu.margin = 4;
 	strcpy(machineMenu.name[0], "Emulated Machine...");
 	strcpy(machineMenu.name[1], "Throttle (F10)");
-	machineMenu.orientation = 0;
+	machineMenu.type = VERTICAL;
 	machineMenu.parent = &mainMenu;
 	get_menu_size(&machineMenu, mainMenu.xOffset[1] - mainMenu.margin, mainMenu.height + (mainMenu.margin << 1));
+
 	graphicsMenu.length = 4;
-	graphicsMenu.margin = 4;
 	strcpy(graphicsMenu.name[0], "Fullscreen (F11)");
 	strcpy(graphicsMenu.name[1], "Toggle Sprites");
 	strcpy(graphicsMenu.name[2], "Toggle Background");
 	strcpy(graphicsMenu.name[3], "Settings...");
-	graphicsMenu.orientation = 0;
+	graphicsMenu.type = VERTICAL;
 	graphicsMenu.parent = &mainMenu;
 	get_menu_size(&graphicsMenu, mainMenu.xOffset[2] - mainMenu.margin, mainMenu.height + (mainMenu.margin << 1));
+
 	audioMenu.length = 3;
-	audioMenu.margin = 4;
 	strcpy(audioMenu.name[0], "Set Samplerate");
 	strcpy(audioMenu.name[1], "Toggle Channels...");
 	strcpy(audioMenu.name[2], "Mute");
-	audioMenu.orientation = 0;
+	audioMenu.type = VERTICAL;
 	audioMenu.parent = &mainMenu;
 	get_menu_size(&audioMenu, mainMenu.xOffset[3] - mainMenu.margin, mainMenu.height + (mainMenu.margin << 1));
+
+	machineList.length = 3;
+	machineList.margin = 0;
+	strcpy(machineList.name[0], "NTSC (Japan)");
+	strcpy(machineList.name[1], "NTSC (US)");
+	strcpy(machineList.name[2], "PAL");
+	machineList.type = CENTERED;
+	get_menu_size(&machineList, 0, 0);
+
 	fileList.ioFunction = &file_io;
-	getcwd(workDir, sizeof(workDir));
+	fileList.type = CENTERED;
+	fileList.width = (currentSettings->window.winWidth >> 1);
+	fileList.margin = 0;
+
+	if(!defaultDir)
+		getcwd(workDir, sizeof(workDir));
+	else
+		strcpy(workDir, defaultDir);
 	add_slash(workDir);
 	currentMenu = &mainMenu;
 }
 
-
-void get_menu_size(menuItem *menu, int xoff, int yoff){
+void get_max_menu_size(menuItem *menu){
 	int width, height, maxWidth = 0, maxHeight = 0;
 	for(int i = 0; i < menu->length; i++){
-		menu->xOffset[i] = xoff + menu->margin;
-		menu->yOffset[i] = yoff + menu->margin;
 		TTF_SizeText(Sans, menu->name[i], &width, &height);
-		if(menu->orientation)
-			xoff += (width + (menu->margin << 1));
-		else
-			yoff += (height + (menu->margin << 1));
 		if(width > maxWidth)
 			maxWidth = width;
 		if(height > maxHeight)
 			maxHeight = height;
 	}
-	menu->height = maxHeight;
-	menu->width = maxWidth;
+	if(menu->height < 0)
+		menu->height = maxHeight;
+	if(menu->width < 0)
+		menu->width = maxWidth;
+}
+
+void get_menu_size(menuItem *menu, int xoff, int yoff){
+	if(menu->height < 0 || menu->width < 0)
+		get_max_menu_size(menu);
+	int width, height;
+		for(int i = 0; i < menu->length; i++){
+			TTF_SizeText(Sans, menu->name[i], &width, &height);
+			menu->xOffset[i] = xoff + menu->margin;
+			menu->yOffset[i] = yoff + menu->margin;
+			if(menu->type == HORIZONTAL)
+				xoff += (width + (menu->margin << 1));
+			else
+				yoff += (height + (menu->margin << 1));
+		if(menu->type == CENTERED){
+			menu->xOffset[i] += ((currentSettings->window.winWidth >> 1) - (menu->width >> 1));
+			menu->yOffset[i] += ((currentSettings->window.winHeight >> 1) - (menu->height * (menu->length >> 1)));
+		}
+}
 }
 
 void set_menu(){
@@ -448,7 +484,7 @@ void draw_menu(menuItem *menu){
 	    destRect.x = menu->xOffset[i];
 	    destRect.y = menu->yOffset[i];
 
-	    if(!menu->orientation)
+	    if(menu->type != HORIZONTAL)
 			menuRect.w = menu->width;
 	    menuRect.w += (menu->margin << 1);
 	    menuRect.h += (menu->margin << 1);
@@ -456,9 +492,9 @@ void draw_menu(menuItem *menu){
 		menuRect.y = (menu->yOffset[i] - menu->margin);
 
 		/* Highlight active menu item */
-	    if(menu->orientation && currentMenuColumn == i && !currentMenuRow)
+	    if(menu->type == HORIZONTAL && currentMenuColumn == i && !currentMenuRow)
 	        SDL_SetRenderDrawColor(currentSettings->window.rend, menuActiveColor[0], menuActiveColor[1], menuActiveColor[2], menuActiveColor[3]);
-	    else if(!menu->orientation && currentMenuRow == i + 1)
+	    else if(menu->type != HORIZONTAL && currentMenuRow == i + 1)
 	        SDL_SetRenderDrawColor(currentSettings->window.rend, menuActiveColor[0], menuActiveColor[1], menuActiveColor[2], menuActiveColor[3]);
 	    else
 	    	SDL_SetRenderDrawColor(currentSettings->window.rend, menuBgColor[0], menuBgColor[1], menuBgColor[2], menuBgColor[3]);
@@ -476,6 +512,9 @@ void call_menu_option(){
 		break;
 	case 0x04:
 		option_quit();
+		break;
+	case 0x11:
+		currentMenu = &machineList;
 		break;
 	case 0x21:
 		option_fullscreen();

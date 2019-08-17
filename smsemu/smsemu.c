@@ -72,6 +72,15 @@ int main() {
 	close_vdp();
 	close_sn79489();
 }
+
+void reset_emulation(){
+	init_slots();
+	power_reset();
+	init_time(frameTime);
+	reset_vdp();
+	reset_sn79489();
+}
+
 void set_timings(uint8_t mode){
 	if(mode == 1){ /* set FPS */
 		clockRate = currentMachine->masterClock;
