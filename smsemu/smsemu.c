@@ -12,6 +12,8 @@
  * california games - skater sprite is garbage
  * the ninja - sprites sometimes get stuck
  * psycho fox - hangs when pausing
+ * loretta no shouzou - corrupt graphics
+ * f-16 corrupt graphics - video mode regression? (sprites seem fine)
  */
 /* TODO:
  * -FM sound

@@ -30,7 +30,7 @@ uint_fast8_t isPaused = 0, fullscreen = 0, stateSave = 0, stateLoad = 0, vsync =
 sdlSettings *currentSettings;
 menuItem mainMenu, fileMenu, graphicsMenu, machineMenu, audioMenu, fileList, *currentMenu;
 io_function io_func;
-uint8_t currentMenuColumn = 0, currentMenuRow = 0, oldMenuRow = 0, menuFontSize = 24, filesLeft = 0;
+uint8_t currentMenuColumn = 0, currentMenuRow = 0, oldMenuRow = 0, menuFontSize = 18, filesLeft = 0;
 DIR *currentDir;
 char *defaultDir = "./", workDir[PATH_MAX];
 int fileListOffset = 0, oldFileListOffset = 0;
@@ -216,6 +216,19 @@ int is_directory(const char *str)
     	return -1;
 }
 
+int file_count(DIR *dir){
+	int fileCounter = 0;
+	rewinddir(dir);
+	while (readdir(dir))
+		fileCounter++;
+	return fileCounter;
+}
+
+void add_slash(char *dir){
+	if(strcmp(dir + strlen(dir) - 1, "/"))
+		sprintf(dir,"%s/",dir);
+}
+
 void get_parent_dir(char *str){
 	add_slash(str); /* set string to known state */
 	str[strlen(str) - 1] = '\0';
@@ -261,22 +274,14 @@ void append_to_dir(char *dir, const char *str){
 	}
 }
 
-int file_count(DIR *dir){
-	int fileCounter = 0;
-	rewinddir(dir);
-	while (readdir(dir))
-		fileCounter++;
-	return fileCounter;
-}
-
 int fileSorter(const void *const file1, const void *const file2){
     return strcmp((*(struct dirent **) file1)->d_name, (*(struct dirent **) file2)->d_name);
 }
 
 struct dirent ** read_directory(DIR *dir){
 	struct dirent *entry, **files;
-	int counter = 0, length;
-	length = file_count(dir);
+	int counter = 0;
+	int length = file_count(dir);
 	files = malloc(length * sizeof(*files));
 	rewinddir(dir);
 	while((entry = readdir(dir)) != NULL)
@@ -288,12 +293,11 @@ struct dirent ** read_directory(DIR *dir){
 int create_file_list(){
 	struct dirent **sortedFiles;
 	uint8_t counter = 0;
-	int length;
 	if(!(currentDir = opendir(workDir))){
 		printf("Error: failed to open directory: %s\n",workDir);
 		return 1;
 	}
-	length = file_count(currentDir);
+	int length = file_count(currentDir);
 	sortedFiles = read_directory(currentDir);
 	filesLeft = 1;
 	for(int i = 0; i < MAX_MENU_ITEMS; i++){
@@ -316,8 +320,11 @@ int create_file_list(){
 	return 0;
 }
 
-void create_menu(){
-	/* define menus */
+/*********/
+/* MENUS */
+/*********/
+
+void create_menu(){	/* define menus */
 	mainMenu.length = 4;
 	mainMenu.margin = 4;
 	strcpy(mainMenu.name[0], "File");
@@ -336,14 +343,14 @@ void create_menu(){
 	strcpy(fileMenu.name[3], "Quit");
 	fileMenu.orientation = 0;
 	fileMenu.parent = &mainMenu;
-	get_menu_size(&fileMenu, mainMenu.xOffset[0], mainMenu.height + (mainMenu.margin << 1));
+	get_menu_size(&fileMenu, mainMenu.xOffset[0] - mainMenu.margin, mainMenu.height + (mainMenu.margin << 1));
 	machineMenu.length = 2;
 	machineMenu.margin = 4;
 	strcpy(machineMenu.name[0], "Emulated Machine...");
 	strcpy(machineMenu.name[1], "Throttle (F10)");
 	machineMenu.orientation = 0;
 	machineMenu.parent = &mainMenu;
-	get_menu_size(&machineMenu, mainMenu.xOffset[1], mainMenu.height + (mainMenu.margin << 1));
+	get_menu_size(&machineMenu, mainMenu.xOffset[1] - mainMenu.margin, mainMenu.height + (mainMenu.margin << 1));
 	graphicsMenu.length = 4;
 	graphicsMenu.margin = 4;
 	strcpy(graphicsMenu.name[0], "Fullscreen (F11)");
@@ -352,7 +359,7 @@ void create_menu(){
 	strcpy(graphicsMenu.name[3], "Settings...");
 	graphicsMenu.orientation = 0;
 	graphicsMenu.parent = &mainMenu;
-	get_menu_size(&graphicsMenu, mainMenu.xOffset[2], mainMenu.height + (mainMenu.margin << 1));
+	get_menu_size(&graphicsMenu, mainMenu.xOffset[2] - mainMenu.margin, mainMenu.height + (mainMenu.margin << 1));
 	audioMenu.length = 3;
 	audioMenu.margin = 4;
 	strcpy(audioMenu.name[0], "Set Samplerate");
@@ -360,17 +367,13 @@ void create_menu(){
 	strcpy(audioMenu.name[2], "Mute");
 	audioMenu.orientation = 0;
 	audioMenu.parent = &mainMenu;
-	get_menu_size(&audioMenu, mainMenu.xOffset[3], mainMenu.height + (mainMenu.margin << 1));
+	get_menu_size(&audioMenu, mainMenu.xOffset[3] - mainMenu.margin, mainMenu.height + (mainMenu.margin << 1));
 	fileList.ioFunction = &file_io;
 	getcwd(workDir, sizeof(workDir));
 	add_slash(workDir);
 	currentMenu = &mainMenu;
 }
 
-void add_slash(char *dir){
-	if(strcmp(dir + strlen(dir) - 1, "/"))
-		sprintf(dir,"%s/",dir);
-}
 
 void get_menu_size(menuItem *menu, int xoff, int yoff){
 	int width, height, maxWidth = 0, maxHeight = 0;
@@ -385,7 +388,7 @@ void get_menu_size(menuItem *menu, int xoff, int yoff){
 		if(width > maxWidth)
 			maxWidth = width;
 		if(height > maxHeight)
-			maxHeight= height;
+			maxHeight = height;
 	}
 	menu->height = maxHeight;
 	menu->width = maxWidth;
@@ -488,6 +491,10 @@ void output_sound(){
 	sampleCounter = 0;
 }
 
+/****************/
+/* MENU OPTIONS */
+/****************/
+
 void option_open_file(){
 	create_file_list();
 	currentMenu = &fileList;
@@ -520,6 +527,10 @@ void option_quit(){
 	quit = 1;
 	isPaused = 0;
 }
+
+/******************/
+/* INPUT HANDLERS */
+/******************/
 
 void menu_io()
 {
