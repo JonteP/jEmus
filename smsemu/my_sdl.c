@@ -42,7 +42,7 @@ float frameTime, fps;
 int clockRate;
 
 static inline void render_window (windowHandle *, uint32_t *), idle_time(float), create_handle (windowHandle *), draw_menu(menuItem *), set_menu(void), get_menu_size(menuItem *, int, int), get_max_menu_size(menuItem *), create_menu(void), main_menu_option(int), clear_screen(SDL_Renderer *);
-static inline void option_fullscreen(void), option_quit(void), option_open_file(void), game_io(void), menu_io(void), file_io(void), get_parent_dir(char *), add_slash(char *), toggle_menu(void);
+static inline void option_fullscreen(void), option_quit(void), option_open_file(void), game_io(void), menu_io(void), file_io(void), get_parent_dir(char *), add_slash(char *);
 static inline float diff_time(struct timespec *, struct timespec *);
 static inline int is_directory(const char *), create_file_list(void), file_count(DIR *), fileSorter(const void *const, const void *const);
 static inline struct dirent ** read_directory(DIR *);
@@ -66,22 +66,6 @@ void init_sdl(sdlSettings *settings) {
 	if(TTF_Init()==-1) {
 	    printf("TTF_Init failed: %s\n", TTF_GetError());
 	    exit(EXIT_FAILURE);}
-
-	init_sdl_video();
-
-	create_menu();
-
-	wantedAudioSettings.freq = currentSettings->audioFrequency;
-	wantedAudioSettings.format = AUDIO_F32;
-	wantedAudioSettings.channels = currentSettings->channels;
-	wantedAudioSettings.callback = NULL;
-	wantedAudioSettings.samples = currentSettings->audioBufferSize>>1; /* Must be less than buffer size to prevent increasing lag... */
-	if (SDL_OpenAudio(&wantedAudioSettings, &audioSettings) < 0)
-	    SDL_Log("Failed to open audio: %s", SDL_GetError());
-	else if (audioSettings.format != wantedAudioSettings.format)
-	    SDL_Log("The desired audio format is not available.");
-	SDL_PauseAudio(0);
-	SDL_ClearQueuedAudio(1);
 }
 
 void init_sdl_video(){
@@ -99,6 +83,22 @@ void init_sdl_video(){
 	if(!Sans){
 		printf("TTF_OpenFont failed: %s\n", TTF_GetError());
 		exit(EXIT_FAILURE);}
+	create_menu();
+}
+
+void init_sdl_audio(){
+	wantedAudioSettings.freq = currentSettings->audioFrequency;
+	wantedAudioSettings.format = AUDIO_F32;
+	wantedAudioSettings.channels = currentSettings->channels;
+	wantedAudioSettings.callback = NULL;
+	wantedAudioSettings.samples = currentSettings->audioBufferSize>>1; /* Must be less than buffer size to prevent increasing lag... */
+	SDL_CloseAudio();
+	if (SDL_OpenAudio(&wantedAudioSettings, &audioSettings) < 0)
+	    SDL_Log("Failed to open audio: %s", SDL_GetError());
+	else if (audioSettings.format != wantedAudioSettings.format)
+	    SDL_Log("The desired audio format is not available.");
+	SDL_PauseAudio(0);
+	SDL_ClearQueuedAudio(1);
 }
 
 void create_handle (windowHandle *handle) {
@@ -343,7 +343,7 @@ void create_menu(){	/* define menus */
 	prototypeMenu.parent = NULL;
 	prototypeMenu.width = -1;
 	prototypeMenu.height = -1;
-	mainMenu = fileMenu = machineMenu = audioMenu = fileList = machineList = prototypeMenu;
+	mainMenu = fileMenu = machineMenu = graphicsMenu = audioMenu = fileList = machineList = prototypeMenu;
 
 	mainMenu.length = 4;
 	strcpy(mainMenu.name[0], "File");
@@ -386,11 +386,12 @@ void create_menu(){	/* define menus */
 	audioMenu.parent = &mainMenu;
 	get_menu_size(&audioMenu, mainMenu.xOffset[3] - mainMenu.margin, mainMenu.height + (mainMenu.margin << 1));
 
-	machineList.length = 3;
+	machineList.length = 4;
 	machineList.margin = 0;
 	strcpy(machineList.name[0], "NTSC (Japan)");
 	strcpy(machineList.name[1], "NTSC (US)");
-	strcpy(machineList.name[2], "PAL");
+	strcpy(machineList.name[2], "PAL [VDP 1]");
+	strcpy(machineList.name[3], "PAL [VDP 2]");
 	machineList.type = CENTERED;
 	get_menu_size(&machineList, 0, 0);
 
@@ -594,8 +595,10 @@ void menu_io()
 			case SDL_SCANCODE_UP:
 				if(currentMenuRow){
 					currentMenuRow--;
-					if(!currentMenuRow)
+					if(!currentMenuRow  && currentMenu->parent != NULL)
 						currentMenu = &mainMenu;
+					else
+						currentMenuRow = 1;
 				}
 				break;
 			case SDL_SCANCODE_DOWN:

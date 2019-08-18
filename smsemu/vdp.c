@@ -130,13 +130,13 @@ void set_video_mode(){
 	videoMode = (((modeControl1 & 0x04) << 1) | ((modeControl2 & 0x08) >> 1) | (modeControl1 & 0x02) | ((modeControl2 & 0x10) >> 4));
 	if(videoMode == 0x9 || videoMode == 0xd) /* text mode TODO: valid for sms2 only */
 		videoMode = 1;
-	else if(videoMode == 0xb){
+	else if(videoMode == 0xb && currentMachine->vdpVersion >= VDP_2){
 		if(currentMachine->videoSystem == NTSC)
 			currentMode = &ntsc224;
 		else if(currentMachine->videoSystem == PAL)
 			currentMode = &pal224;
 	}
-	else if(videoMode == 0xe){
+	else if(videoMode == 0xe  && currentMachine->vdpVersion >= VDP_2){
 		printf("Sets 240 line mode\n");
 	}
 	else{

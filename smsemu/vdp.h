@@ -24,6 +24,14 @@ typedef enum statusFlags {
 	COL = 0x20
 } StatusFlags;
 
+typedef enum version {
+	TMS9918A = 0,
+	VDP_1 = 1,
+	VDP_2 = 2,
+	VDP_GG = 3,
+	VDP_MD = 4
+} VDP_Version;
+
 struct DisplayMode {
 	uint16_t width;
 	uint16_t fullwidth;

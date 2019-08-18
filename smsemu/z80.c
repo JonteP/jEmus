@@ -183,7 +183,7 @@ static inline void cb(), dd(), ed(), fd(), ddcb(), fdcb();
 static inline void dcixh(), dciyh(), dcixl(), dciyl(), inixh(), iniyh(), inixl(), iniyl(), ldixh(), ldiyh(), ldixl(), ldiyl(), lrixh(), lrixl(), lriyh(), lriyl(), lixhr(), lixlr(), liyhr(), liylr();
 
 int8_t displace;
-uint8_t op, irqPulled = 0, nmiPulled = 0, intDelay = 0, halted = 0, reset = 0;
+uint8_t op, irqPulled = 0, nmiPulled = 0, intDelay = 0, halted = 0;
 uint32_t cpucc = 0;
 
 /* Internal registers */
@@ -222,11 +222,7 @@ static void (*optable[0x100])() = {
 	 retc,  pop,  jpc, exhl,callc, push, andi,  rst, retc, jphl,  jpc,   ex,callc,   ed, xori,  rst, /* e */
 	 retc,  pop,  jpc,   di,callc, push,  ori,  rst, retc,lsphl,  jpc,   ei,callc,   fd,  cpn,  rst, /* f */
 };
-	if(reset){
-		reset = 0;
-		power_reset();
-	}
-	else if((irqPulled && iff1 && !intDelay) || nmiPulled){
+if((irqPulled && iff1 && !intDelay) || nmiPulled){
 		if(halted){
 			halted = 0;
 			cpuPC++;

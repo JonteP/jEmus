@@ -45,7 +45,9 @@ struct machine {
 	int  masterClock;
 	Video videoSystem;
 	Region region;
-	/* has card slot
+	VDP_Version vdpVersion;
+	/* All below can probably be inferred:
+	 * has card slot
 	 * has expansion slot
 	 * has bios
 	 * has FM
@@ -54,7 +56,7 @@ struct machine {
 	 */
 };
 
-extern uint8_t quit, ioPort1, ioPort2, ioControl, region;
+extern uint8_t quit, ioPort1, ioPort2, ioControl, region, reset;
 extern char cartFile[PATH_MAX], cardFile[PATH_MAX], expFile[PATH_MAX], biosFile[PATH_MAX];
 extern struct machine *currentMachine;
 void set_timings(uint8_t), iocontrol_write(uint8_t), reset_emulation(void), machine_menu_option(int);

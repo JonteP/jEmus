@@ -26,34 +26,22 @@
  * -port access behavior differs between consoles (open bus)
  * -randomize startup vcounter? - some game rely on "random" R reg values: http://www.smspower.org/forums/11329-ImpossibleMissionAndTheAbuseOfTheRRegister#87153
  */
-
+static inline void init_video(void), init_audio(void);
 char cartFile[PATH_MAX], cardFile[PATH_MAX], expFile[PATH_MAX], biosFile[PATH_MAX];
-uint8_t quit = 0, ioPort1, ioPort2, ioControl, region;
-struct machine ntsc_us={"mpr-12808.ic2",53693175,NTSC,EXPORT}, pal={"mpr-10052.ic2",53203424,PAL,EXPORT}, ntsc_jp={"mpr-11124.ic2",53693175,NTSC,JAPAN}, *currentMachine;
+uint8_t quit = 0, ioPort1, ioPort2, ioControl, region, reset = 0;
+struct machine ntsc_us={"mpr-10052.ic2",53693175,NTSC,EXPORT,VDP_1}, pal1={"mpr-10052.ic2",53203424,PAL,EXPORT,VDP_1}, pal2={"mpr-12808.ic2",53203424,PAL,EXPORT,VDP_2}, ntsc_jp={"mpr-11124.ic2",53693175,NTSC,JAPAN,VDP_1}, *currentMachine;
 sdlSettings settings;
 int main() {
-	currentMachine = &pal;
-	default_video_mode();
-	settings.ctable = smsColor;
-	settings.renderQuality = "1";
-	settings.audioFrequency = 48000;
-	settings.channels = 1;
-	settings.audioBufferSize = 2048;
-	settings.window.name = "smsEmu";
-	settings.window.screenHeight = currentMode->height;
-	settings.window.screenWidth = currentMode->width;
-	settings.window.visible = 1;
-	settings.window.winHeight = 600;
-	settings.window.winWidth = 800;
-	settings.window.winXPosition = 100;
-	settings.window.winYPosition = 100;
-	settings.window.xClip = 0;
-	settings.window.yClip = 0;
+	currentMachine = &pal1;
 	init_sdl(&settings);
 	reset_emulation();
 
 	while (quit == 0) {
 		opdecode();
+		if(reset){
+			reset = 0;
+			reset_emulation();
+		}
 	}
 	fclose(logfile);
 	close_sdl();
@@ -63,9 +51,8 @@ int main() {
 }
 
 void reset_emulation(){
-
-	init_vdp();
-	init_sn79489(settings.audioBufferSize);
+	init_video();
+	init_audio();
 	sprintf(biosFile, "bios/%s",currentMachine->bios);
 	init_slots();
 	power_reset();
@@ -106,11 +93,42 @@ void machine_menu_option(int option){
 		currentMachine = &ntsc_us;
 		break;
 	case 3:
-		currentMachine = &pal;
+		currentMachine = &pal1;
+		break;
+	case 4:
+		currentMachine = &pal2;
 		break;
 	}
+	init_video();
+	set_timings(1);
+	init_audio();
+	toggle_menu();
+}
+
+void init_video(){
+	default_video_mode();
+	settings.renderQuality = "1";
+	settings.ctable = smsColor;
+	settings.window.name = "smsEmu";
+	settings.window.screenHeight = currentMode->height;
+	settings.window.screenWidth = currentMode->width;
+	settings.window.visible = 1;
+	settings.window.winHeight = 600;
+	settings.window.winWidth = 800;
+	settings.window.winXPosition = 100;
+	settings.window.winYPosition = 100;
+	settings.window.xClip = 0;
+	settings.window.yClip = 0;
 	init_vdp();
 	init_sdl_video();
+}
+
+void init_audio(){
+	settings.audioFrequency = 48000;
+	settings.channels = 1;
+	settings.audioBufferSize = 2048;
+	init_sn79489(settings.audioBufferSize);
+	init_sdl_audio();
 }
 
 /* trace zexdoc.log,0,noloop,{tracelog "%04x,%04x,%04x,%04x,%04x,%04x,%04x,%04x,",pc,(af&ffd7),bc,de,hl,ix,iy,sp}*/
