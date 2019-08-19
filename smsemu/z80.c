@@ -13,6 +13,7 @@
 #include "vdp.h"
 #include "my_sdl.h"
 #include "sn79489.h"
+#include "ym2413.h"
 #include <time.h>
 
 static uint_fast8_t ctable[] = {
@@ -1849,6 +1850,8 @@ uint8_t read_cpu_register(uint8_t reg) {
 		/* if IO chip disabled, reads from F2 detects FM */
 		if(ioEnabled)
 			return ioPort1;
+		else if(reg == 0xf2 && currentMachine->region == JAPAN)
+			return muteControl; /* TODO: should include csync counter as well */
 		else
 			return 0xff;
 	case 0xc1:
@@ -1879,8 +1882,16 @@ void write_cpu_register(uint8_t reg, uint_fast8_t value) {
 		write_vdp_control(value);
 		break;
 	case 0xc0: /* Keyboard support? */
+		if(reg == 0xf0 && currentMachine->region == JAPAN)
+			write_ym2413_register(value);
+		else if(reg == 0xf2 && currentMachine->region == JAPAN){
+			muteControl = (value & 0x03);
+			printf("Mute: %02x\n",muteControl);
+		}
+		break;
 	case 0xc1:
-		/*printf("Ineffective write to I/O port: %02x\n",reg); */
+		if(reg == 0xf1 && currentMachine->region == JAPAN)
+			write_ym2413_data(value);
 		break;
 	}
 }

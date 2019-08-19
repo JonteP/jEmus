@@ -32,7 +32,7 @@ uint8_t quit = 0, ioPort1, ioPort2, ioControl, region, reset = 0;
 struct machine ntsc_us={"mpr-10052.ic2",53693175,NTSC,EXPORT,VDP_1}, pal1={"mpr-10052.ic2",53203424,PAL,EXPORT,VDP_1}, pal2={"mpr-12808.ic2",53203424,PAL,EXPORT,VDP_2}, ntsc_jp={"mpr-11124.ic2",53693175,NTSC,JAPAN,VDP_1}, *currentMachine;
 sdlSettings settings;
 int main() {
-	currentMachine = &pal1;
+	currentMachine = &ntsc_jp;
 	init_sdl(&settings);
 	reset_emulation();
 

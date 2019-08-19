@@ -31,7 +31,7 @@ void init_slots(){
 	memory_control(0xe7);
 }
 
-void memory_control(uint8_t value){
+void memory_control(uint8_t value){ /* TODO: dependent on machine version: http://www.smspower.org/Development/Port3E */
 	/* TODO: wram enable/disable */
 	memControl = value;
 	if(!(memControl & 0x80)){
@@ -80,7 +80,7 @@ void memory_control(uint8_t value){
 		printf("Work RAM is disabled\n");
 	banking();
 	setup_banks();
-	ioEnabled = !(memControl & 0x04);
+	ioEnabled = !(memControl & 0x04); /* shared with ym2413 */
 }
 
 void generic_mapper(){
