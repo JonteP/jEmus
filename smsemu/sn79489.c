@@ -16,31 +16,38 @@
 #include <stdint.h>
 #include "my_sdl.h"
 #include "smsemu.h"
-float *sampleBuffer;
-float sampleRate, originalSampleRate, sample = 0;
-float volume_table[16]={ .32767, .26028, .20675, .16422, .13045, .10362, .08231, .06568,
+float *sn79489_SampleBuffer, sn79489_Sample = 0;
+static float sampleRate, originalSampleRate;
+const float volume_table[16]={ .32767, .26028, .20675, .16422, .13045, .10362, .08231, .06568,
     .05193, .04125, .03277, .02603, .02067, .01642, .01304, 0 };
 uint8_t noiseVolume, noiseRegister, currentReg, noisePhase;
 float noiseOutput;
 uint16_t noiseCounter, noiseShifter, noiseReload;
-int audioCyclesToRun = 0, accumulatedCycles = 0, sampleCounter = 0, sCounter = 0, bufferSize;
+static int origSampleCounter = 0, bufferSize;
+int psgAccumulatedCycles = 0, sn79489_SampleCounter = 0, audioCyclesToRun = 0;
 struct ToneChannel tone0, tone1, tone2;
 static inline int parity(int);
 static inline void run_tone_channel(struct ToneChannel *);
 
 void init_sn79489(int buffer){
 	bufferSize = buffer;
-	if(sampleBuffer)
-		free(sampleBuffer);
-	sampleBuffer = (float *)malloc(bufferSize * sizeof(float));
+	if(sn79489_SampleBuffer)
+		free(sn79489_SampleBuffer);
+	sn79489_SampleBuffer = (float *)malloc(bufferSize * sizeof(float));
 	tone0.volume = tone1.volume = tone2.volume = noiseVolume = 0xf;
 	tone0.reg = tone1.reg = tone2.reg = noiseReload = tone0.phase = tone1.phase = tone2.phase = 0;
 	tone0.output = tone1.output = tone2.output = noiseOutput = 0;
 	noiseShifter = 0x8000;
 }
 
+void set_timings_sn79489(int div, int clock){
+	originalSampleRate = sampleRate = (float)clock / div;
+	origSampleCounter = 0;
+}
+
 void close_sn79489(){
-	free(sampleBuffer);
+	//move to smsemu
+	free(sn79489_SampleBuffer);
 }
 
 void write_sn79489(uint8_t value){
@@ -130,17 +137,19 @@ while(audioCyclesToRun){
 	else{
 		noiseCounter = noiseReload;
 	}
-	sample += ((tone0.output + tone1.output + tone2.output + noiseOutput) / (4*volume_table[0])); /* TODO: less hackish */
-	sCounter++;
-	if(sCounter == (int)sampleRate){
-		sampleBuffer[sampleCounter] = (float)(sample / sCounter);
-		sampleCounter++;
-		if(sampleCounter == bufferSize)
-			output_sound();
-		sampleRate = originalSampleRate + sampleRate - sCounter;
-		sample = 0;
-		sCounter = 0;
+	sn79489_Sample += ((tone0.output + tone1.output + tone2.output + noiseOutput) / (4*volume_table[0])); /* TODO: less hackish */
+
+	//move this to smsemu?
+	origSampleCounter++;
+	if(origSampleCounter == (int)sampleRate){
+		sn79489_SampleBuffer[sn79489_SampleCounter] = (float)(sn79489_Sample / origSampleCounter);
+		sn79489_SampleCounter++;
+			sn79489_SampleCounter = 0;
+		sampleRate = originalSampleRate + sampleRate - origSampleCounter;
+		sn79489_Sample = 0;
+		origSampleCounter = 0;
 	}
+
 	audioCyclesToRun--;
 }
 }

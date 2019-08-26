@@ -6,6 +6,7 @@
 #include "my_sdl.h"
 #include "vdp.h"
 #include "sn79489.h"
+#include "ym2413.h"
 
 /* Compatibility:
  * zool - hangs at game start (interrupts?) discussion here: http://www.smspower.org/forums/9366-IRQAndIperiodNightmare
@@ -29,15 +30,23 @@
 static inline void init_video(void), init_audio(void);
 char cartFile[PATH_MAX], cardFile[PATH_MAX], expFile[PATH_MAX], biosFile[PATH_MAX];
 uint8_t quit = 0, ioPort1, ioPort2, ioControl, region, reset = 0;
-struct machine ntsc_us={"mpr-10052.ic2",53693175,NTSC,EXPORT,VDP_1}, pal1={"mpr-10052.ic2",53203424,PAL,EXPORT,VDP_1}, pal2={"mpr-12808.ic2",53203424,PAL,EXPORT,VDP_2}, ntsc_jp={"mpr-11124.ic2",53693175,NTSC,JAPAN,VDP_1}, *currentMachine;
+struct machine ntsc_us={"mpr-10052.ic2",NTSC_MASTER,NTSC,EXPORT,VDP_1}, pal1={"mpr-10052.ic2",PAL_MASTER,PAL,EXPORT,VDP_1}, pal2={"mpr-12808.ic2",PAL_MASTER,PAL,EXPORT,VDP_2}, ntsc_jp={"mpr-11124.ic2",NTSC_MASTER,NTSC,JAPAN,VDP_1}, *currentMachine;
 sdlSettings settings;
+FILE *logfile;
+
 int main() {
+
+	logfile = fopen("/home/jonas/git/logfile.txt","w");
+		if (logfile==NULL){
+			printf("Error: Could not create logfile\n");
+			exit(1);
+		}
 	currentMachine = &ntsc_jp;
 	init_sdl(&settings);
 	reset_emulation();
 
 	while (quit == 0) {
-		opdecode();
+		run_z80();
 		if(reset){
 			reset = 0;
 			reset_emulation();
@@ -69,8 +78,8 @@ void set_timings(uint8_t mode){
 	}
 	frameTime = (float)((1/fps) * 1000000000);
 	init_time(frameTime);
-	originalSampleRate = sampleRate = (float)clockRate /(15 * 16 * settings.audioFrequency);
-	sCounter = 0;
+	set_timings_sn79489(PSG_CLOCK_DIV * settings.audioFrequency, clockRate);
+	set_timings_ym2413(FM_CLOCK_DIV * settings.audioFrequency, clockRate);
 }
 void iocontrol_write(uint8_t value){
 	/* TH pin function: http://www.smspower.org/forums/16535-HowDoesTHWorkOnTheJapaneseSMS#96462 */
@@ -128,6 +137,7 @@ void init_audio(){
 	settings.channels = 1;
 	settings.audioBufferSize = 2048;
 	init_sn79489(settings.audioBufferSize);
+	init_ym2413(settings.audioBufferSize);
 	init_sdl_audio();
 }
 

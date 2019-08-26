@@ -17,9 +17,8 @@
 #define C_FLAG 0x01
 #define XY_FLAG (Y_FLAG | X_FLAG)
 
-void opdecode(void), power_reset(void);
+void run_z80(void), power_reset(void);
 
-extern FILE *logfile;
 extern uint8_t irqPulled, nmiPulled;
 
 #endif /* Z80_H_ */

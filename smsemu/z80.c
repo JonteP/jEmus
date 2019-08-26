@@ -151,7 +151,6 @@ static uint_fast8_t cfdcbtable[] = {
 	99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,/* f */
 };
 
-FILE *logfile;
 static inline void write_cpu_register(uint8_t, uint_fast8_t), cpuwrite(uint16_t, uint_fast8_t), interrupt_polling(), addcycles(uint8_t), noop(), unp();
 static inline uint8_t read_cpu_register(uint8_t), parcalc(uint8_t);
 static inline uint8_t * cpuread(uint16_t);
@@ -202,7 +201,7 @@ uint8_t iff1, iff2, iMode;
 static const uint16_t nmi = 0x66, irq = 0x38;
 
 char opmess[] = "Unimplemented opcode";
-void opdecode() {
+void run_z80() {
 
 static void (*optable[0x100])() = {
   /*  0  |  1  |  2  |  3  |  4  |  5  |  6  |  7  |  8  |  9  |  a  |  b  |  c  |  d  |  e  |  f  |      */
@@ -256,6 +255,7 @@ if((irqPulled && iff1 && !intDelay) || nmiPulled){
 	}
 	run_vdp();
 	run_sn79489();
+	run_ym2413();
 }
 
 /* EXTENDED OPCODE TABLES */
@@ -1993,11 +1993,16 @@ uint8_t parcalc(uint8_t val){
 }
 
 void addcycles(uint8_t val){
-	vdpCyclesToRun += (val * 3);
+	vdpCyclesToRun += (val * VDP_CLOCK_RATIO);
 	cpucc += val;
-	accumulatedCycles += val;
-	while(accumulatedCycles > 16){
+	psgAccumulatedCycles += val;
+	fmAccumulatedCycles += val;
+	while(psgAccumulatedCycles > PSG_CLOCK_RATIO){
 		audioCyclesToRun++;
-		accumulatedCycles -= 16;
+		psgAccumulatedCycles -= PSG_CLOCK_RATIO;
+	}
+	while(fmAccumulatedCycles > FM_CLOCK_RATIO){
+		fmCyclesToRun++;
+		fmAccumulatedCycles -= FM_CLOCK_RATIO;
 	}
 }

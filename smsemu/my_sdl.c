@@ -536,12 +536,11 @@ void main_menu_option(int option){
 	}
 }
 
-void output_sound(){
+void output_sound(float *buffer, int counter){
 	if (!throttle || (SDL_GetQueuedAudioSize(1) > (audioSettings.size * audioSettings.channels)))
 		SDL_ClearQueuedAudio(1);
-	if (SDL_QueueAudio(1, sampleBuffer, sampleCounter * sizeof(*sampleBuffer)))
+	if (SDL_QueueAudio(1, buffer, counter * sizeof(*buffer)))
 		printf("SDL_QueueAudio failed: %s\n", SDL_GetError());
-	sampleCounter = 0;
 }
 
 /****************/

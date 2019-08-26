@@ -11,6 +11,20 @@
 #include <linux/limits.h>
 #include "vdp.h"
 
+// CLOCKS AND DIVIDERS
+#define NTSC_MASTER			53693175
+#define PAL_MASTER			53203424
+#define CLOCK_DIV			15
+#define Z80_CLOCK_DIV		CLOCK_DIV
+#define FM_CLOCK_RATIO		72
+#define FM_CLOCK_DIV		(CLOCK_DIV * FM_CLOCK_RATIO)
+#define PSG_CLOCK_RATIO		16
+#define PSG_CLOCK_DIV		(CLOCK_DIV * PSG_CLOCK_RATIO)
+#define VDP_CLOCK_RATIO		3
+#define VDP_CLOCK_DIV		(CLOCK_DIV / VDP_CLOCK_RATIO)
+
+
+// INPUTS
 #define IO1_PORTB_DOWN 		0x80
 #define IO1_PORTB_UP 		0x40
 #define IO1_PORTA_TR		0x20
@@ -59,6 +73,7 @@ struct machine {
 extern uint8_t quit, ioPort1, ioPort2, ioControl, region, reset;
 extern char cartFile[PATH_MAX], cardFile[PATH_MAX], expFile[PATH_MAX], biosFile[PATH_MAX];
 extern struct machine *currentMachine;
+extern FILE *logfile;
 void set_timings(uint8_t), iocontrol_write(uint8_t), reset_emulation(void), machine_menu_option(int);
 
 #endif /* SMSEMU_H_ */
