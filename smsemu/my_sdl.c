@@ -18,6 +18,7 @@
 #include <sys/stat.h>
 #include "smsemu.h"
 #include "sn79489.h"
+#include "ym2413.h"
 #include "z80.h"
 #include "cartridge.h"
 
@@ -35,6 +36,7 @@ sdlSettings *currentSettings;
 menuItem prototypeMenu, mainMenu, fileMenu, graphicsMenu, machineMenu, audioMenu, fileList, machineList, *currentMenu;
 io_function io_func;
 uint8_t currentMenuColumn = 0, currentMenuRow = 0, oldMenuRow = 0, menuFontSize = 18, filesLeft = 0;
+uint16_t channelMask = 0x1ff, rhythmMask = 0x1f;
 DIR *currentDir;
 char *defaultDir = "/home/jonas/Desktop/sms/unsorted/", workDir[PATH_MAX];
 int fileListOffset = 0, oldFileListOffset = 0;
@@ -537,9 +539,13 @@ void main_menu_option(int option){
 }
 
 void output_sound(float *buffer, int counter){
+	float sample[counter];
 	if (!throttle || (SDL_GetQueuedAudioSize(1) > (audioSettings.size * audioSettings.channels)))
 		SDL_ClearQueuedAudio(1);
-	if (SDL_QueueAudio(1, buffer, counter * sizeof(*buffer)))
+	for(int i = 0;i < counter;i++){
+		sample[i] = (ym2413_SampleBuffer[i] + sn79489_SampleBuffer[i]) / 2;
+	}
+	if (SDL_QueueAudio(1, sample, counter * sizeof(*buffer)))
 		printf("SDL_QueueAudio failed: %s\n", SDL_GetError());
 }
 
@@ -688,6 +694,48 @@ void game_io()
 		switch (event.type) {
 		case SDL_KEYDOWN:
 			switch (event.key.keysym.scancode) {
+			case SDL_SCANCODE_1:
+				channelMask ^= 1;
+				break;
+			case SDL_SCANCODE_2:
+				channelMask ^= (1 << 1);
+				break;
+			case SDL_SCANCODE_3:
+				channelMask ^= (1 << 2);
+				break;
+			case SDL_SCANCODE_4:
+				channelMask ^= (1 << 3);
+				break;
+			case SDL_SCANCODE_5:
+				channelMask ^= (1 << 4);
+				break;
+			case SDL_SCANCODE_6:
+				channelMask ^= (1 << 5);
+				break;
+			case SDL_SCANCODE_7:
+				channelMask ^= (1 << 6);
+				break;
+			case SDL_SCANCODE_8:
+				channelMask ^= (1 << 7);
+				break;
+			case SDL_SCANCODE_9:
+				rhythmMask ^= (1 << 8);
+				break;
+			case SDL_SCANCODE_W:
+				rhythmMask ^= (1 << 0);
+				break;
+			case SDL_SCANCODE_E:
+				rhythmMask ^= (1 << 1);
+				break;
+			case SDL_SCANCODE_R:
+				rhythmMask ^= (1 << 2);
+				break;
+			case SDL_SCANCODE_T:
+				rhythmMask ^= (1 << 3);
+				break;
+			case SDL_SCANCODE_Y:
+				rhythmMask ^= (1 << 4);
+				break;
 			case SDL_SCANCODE_ESCAPE:
 				option_quit();
 				break;

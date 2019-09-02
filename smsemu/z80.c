@@ -1886,7 +1886,6 @@ void write_cpu_register(uint8_t reg, uint_fast8_t value) {
 			write_ym2413_register(value);
 		else if(reg == 0xf2 && currentMachine->region == JAPAN){
 			muteControl = (value & 0x03);
-			printf("Mute: %02x\n",muteControl);
 		}
 		break;
 	case 0xc1:

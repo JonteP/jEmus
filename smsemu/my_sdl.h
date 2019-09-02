@@ -53,6 +53,7 @@ struct menuItem {
 	io_function ioFunction;
 };
 extern uint_fast8_t isPaused, stateSave, stateLoad;
+extern uint16_t channelMask, rhythmMask;
 extern float frameTime, fps;
 extern int clockRate;
 

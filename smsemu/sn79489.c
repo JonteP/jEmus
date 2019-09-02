@@ -142,9 +142,11 @@ while(audioCyclesToRun){
 	//move this to smsemu?
 	origSampleCounter++;
 	if(origSampleCounter == (int)sampleRate){
-		sn79489_SampleBuffer[sn79489_SampleCounter] = (float)(sn79489_Sample / origSampleCounter);
-		sn79489_SampleCounter++;
+		sn79489_SampleBuffer[sn79489_SampleCounter++] = (float)(sn79489_Sample / origSampleCounter);
+		if(sn79489_SampleCounter == bufferSize){
+			output_sound(sn79489_SampleBuffer, sn79489_SampleCounter);
 			sn79489_SampleCounter = 0;
+		}
 		sampleRate = originalSampleRate + sampleRate - origSampleCounter;
 		sn79489_Sample = 0;
 		origSampleCounter = 0;

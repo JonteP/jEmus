@@ -34,8 +34,7 @@ struct machine ntsc_us={"mpr-10052.ic2",NTSC_MASTER,NTSC,EXPORT,VDP_1}, pal1={"m
 sdlSettings settings;
 FILE *logfile;
 
-int main() {
-
+int main(){
 	logfile = fopen("/home/jonas/git/logfile.txt","w");
 		if (logfile==NULL){
 			printf("Error: Could not create logfile\n");
@@ -45,7 +44,7 @@ int main() {
 	init_sdl(&settings);
 	reset_emulation();
 
-	while (quit == 0) {
+	while (quit == 0){
 		run_z80();
 		if(reset){
 			reset = 0;
