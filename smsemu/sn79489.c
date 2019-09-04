@@ -11,13 +11,15 @@
  *
  */
 
+#define FRAC_BITS			16
+
 #include "sn79489.h"
 #include <stdio.h>
 #include <stdint.h>
 #include "my_sdl.h"
 #include "smsemu.h"
 float *sn79489_SampleBuffer, sn79489_Sample = 0;
-static float sampleRate, originalSampleRate;
+static uint32_t sampleRate, originalSampleRate;
 const float volume_table[16]={ .32767, .26028, .20675, .16422, .13045, .10362, .08231, .06568,
     .05193, .04125, .03277, .02603, .02067, .01642, .01304, 0 };
 uint8_t noiseVolume, noiseRegister, currentReg, noisePhase;
@@ -41,7 +43,7 @@ void init_sn79489(int buffer){
 }
 
 void set_timings_sn79489(int div, int clock){
-	originalSampleRate = sampleRate = (float)clock / div;
+	originalSampleRate = sampleRate = ((uint64_t)clock << FRAC_BITS) / div;
 	origSampleCounter = 0;
 }
 
@@ -141,13 +143,13 @@ while(audioCyclesToRun){
 
 	//move this to smsemu?
 	origSampleCounter++;
-	if(origSampleCounter == (int)sampleRate){
+	if(origSampleCounter == (sampleRate >> FRAC_BITS)){
 		sn79489_SampleBuffer[sn79489_SampleCounter++] = (float)(sn79489_Sample / origSampleCounter);
 		if(sn79489_SampleCounter == bufferSize){
-			output_sound(sn79489_SampleBuffer, sn79489_SampleCounter);
+		//	output_sound(sn79489_SampleBuffer, sn79489_SampleCounter);
 			sn79489_SampleCounter = 0;
 		}
-		sampleRate = originalSampleRate + sampleRate - origSampleCounter;
+		sampleRate = originalSampleRate + sampleRate - (origSampleCounter << FRAC_BITS);
 		sn79489_Sample = 0;
 		origSampleCounter = 0;
 	}

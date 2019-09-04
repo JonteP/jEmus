@@ -151,7 +151,7 @@ static uint_fast8_t cfdcbtable[] = {
 	99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,/* f */
 };
 
-static inline void write_cpu_register(uint8_t, uint_fast8_t), cpuwrite(uint16_t, uint_fast8_t), interrupt_polling(), addcycles(uint8_t), noop(), unp();
+static inline void write_cpu_register(uint8_t, uint_fast8_t), cpuwrite(uint16_t, uint_fast8_t), interrupt_polling(), addcycles(uint8_t), noop(), unp(), synchronize();
 static inline uint8_t read_cpu_register(uint8_t), parcalc(uint8_t);
 static inline uint8_t * cpuread(uint16_t);
 /* 8-bit load */
@@ -253,9 +253,7 @@ if((irqPulled && iff1 && !intDelay) || nmiPulled){
 		addcycles(ctable[op]);
 		(*optable[op])();
 	}
-	run_vdp();
-	run_sn79489();
-	run_ym2413();
+synchronize();
 }
 
 /* EXTENDED OPCODE TABLES */
@@ -1848,10 +1846,10 @@ uint8_t read_cpu_register(uint8_t reg) {
 		return value;
 	case 0xc0:
 		/* if IO chip disabled, reads from F2 detects FM */
-		if(ioEnabled)
-			return ioPort1;
-		else if(reg == 0xf2 && currentMachine->region == JAPAN)
+		if(reg == 0xf2 && currentMachine->region == JAPAN)
 			return muteControl; /* TODO: should include csync counter as well */
+		else if(ioEnabled)
+			return ioPort1;
 		else
 			return 0xff;
 	case 0xc1:
@@ -1881,7 +1879,7 @@ void write_cpu_register(uint8_t reg, uint_fast8_t value) {
 	case 0x81:
 		write_vdp_control(value);
 		break;
-	case 0xc0: /* Keyboard support? */
+	case 0xc0: /* YM2413 access; Keyboard support? */
 		if(reg == 0xf0 && currentMachine->region == JAPAN)
 			write_ym2413_register(value);
 		else if(reg == 0xf2 && currentMachine->region == JAPAN){
@@ -1909,7 +1907,7 @@ uint8_t * cpuread(uint16_t address) {
 	return 0;
 }
 
-/* TODO: use cpuwrite for all memory changes to catch register writes */
+/* TODO: use cpuwrite for all memory changes to catch register writes - already done? */
 void cpuwrite(uint16_t address, uint_fast8_t value) {
 	if (address >= 0xc000) /* writing to RAM */
 		cpuRam[address & 0x1fff] = value;
@@ -1979,8 +1977,10 @@ void interrupt_polling() {
 /* mode 1: set cpuPC to 0x38 */
 }
 
-void synchronize(uint_fast8_t x) {
-
+void synchronize() {
+	run_vdp();
+	run_sn79489();
+	run_ym2413();
 }
 
 uint8_t parcalc(uint8_t val){

@@ -40,6 +40,7 @@ int main(){
 			printf("Error: Could not create logfile\n");
 			exit(1);
 		}
+	strcpy(cartFile, "/home/jonas/Desktop/sms/unsorted/Japan/Maou Golvellius.sms");
 	currentMachine = &ntsc_jp;
 	init_sdl(&settings);
 	reset_emulation();

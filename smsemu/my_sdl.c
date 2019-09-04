@@ -542,9 +542,11 @@ void output_sound(float *buffer, int counter){
 	float sample[counter];
 	if (!throttle || (SDL_GetQueuedAudioSize(1) > (audioSettings.size * audioSettings.channels)))
 		SDL_ClearQueuedAudio(1);
+	printf("%i\n",sn79489_SampleCounter);
 	for(int i = 0;i < counter;i++){
 		sample[i] = (ym2413_SampleBuffer[i] + sn79489_SampleBuffer[i]) / 2;
 	}
+	sn79489_SampleCounter = 0;
 	if (SDL_QueueAudio(1, sample, counter * sizeof(*buffer)))
 		printf("SDL_QueueAudio failed: %s\n", SDL_GetError());
 }
