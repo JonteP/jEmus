@@ -33,6 +33,7 @@ void init_slots(){
 
 void memory_control(uint8_t value){ /* TODO: dependent on machine version: http://www.smspower.org/Development/Port3E */
 	/* TODO: wram enable/disable */
+	uint8_t old = memControl;
 	memControl = value;
 	if(!(memControl & 0x80)){
 		currentRom = &expRom;
@@ -40,6 +41,7 @@ void memory_control(uint8_t value){ /* TODO: dependent on machine version: http:
 	}
 	else if(!(memControl & 0x40)){
 		currentRom = &cartRom;
+		if(old & 0x40){//make sure that banking is not overwritten when writing to memory control TODO: better solution?
 		if(currentRom->mapper == CODEMASTERS){
 			banking = &codemasters_mapper;
 			fcr[0] = 0;
@@ -54,6 +56,7 @@ void memory_control(uint8_t value){ /* TODO: dependent on machine version: http:
 		}
 		else
 			banking = &generic_mapper;
+	}
 	}
 	else if(!(memControl & 0x20)){
 		currentRom = &cardRom;
@@ -61,6 +64,7 @@ void memory_control(uint8_t value){ /* TODO: dependent on machine version: http:
 	}
 	else if(!(memControl & 0x08)){
 		currentRom = &biosRom;
+
 		if(currentRom->mapper == CODEMASTERS){
 			banking = &codemasters_mapper;
 			fcr[0] = 0;
@@ -75,6 +79,7 @@ void memory_control(uint8_t value){ /* TODO: dependent on machine version: http:
 		}
 		else
 			banking = &generic_mapper;
+
 	}
 	if(memControl & 0x10)
 		printf("Work RAM is disabled\n");
