@@ -8,11 +8,18 @@
 #include "sha.h"
 #include "smsemu.h"
 
+#define EXPANSION_DISABLE	0x80
+#define CART_DISABLE		0x40
+#define CARD_DISABLE		0x20
+#define RAM_DISABLE			0x10
+#define BIOS_DISABLE		0x08
+#define IO_DISABLE			0x04
+
 static inline xmlChar * calculate_checksum(uint8_t *, int);
 static inline uint8_t * read0(uint16_t), * read1(uint16_t), * read2(uint16_t), * read3(uint16_t), * empty(uint16_t);
 static inline void generic_mapper(), sega_mapper(), codemasters_mapper(), setup_banks(), free_rom(void);
 static inline void extract_xml_data(xmlNode *,struct RomFile *), xml_hash_compare(xmlNode *,struct RomFile *), parse_xml_file(xmlNode *,struct RomFile *);
-uint8_t fcr[3], *bank[3], bRam[0x8000], memControl, bramReg = 0, returnValue[1]={0}, cpuRam[0x2000], ioEnabled;
+uint8_t fcr[3], *bank[3], cartRam[CARTRAM_SIZE], memControl, bramReg = 0, returnValue[1]={0}, systemRam[RAM_SIZE], ioEnabled;
 struct RomFile cartRom, cardRom, biosRom, expRom, *currentRom;
 char *xmlFile = "sms.xml", *bName;
 FILE *bFile;
@@ -26,72 +33,60 @@ void init_slots(){
 	biosRom = load_rom(biosFile);
 	cartRom = load_rom(cartFile);
 	cardRom = load_rom(cardFile);
-	expRom = load_rom(expFile);
+	expRom  = load_rom(expFile);
 	xmlFreeDoc(smsXml);
-	memory_control(0xe7);
+	memory_control(EXPANSION_DISABLE | CART_DISABLE | CARD_DISABLE | IO_DISABLE);
+	if(currentRom->mapper == CODEMASTERS){
+		fcr[0] = 0;
+		fcr[1] = 1;
+		fcr[2] = 0;
+	}else{
+		fcr[0] = 0;
+		fcr[1] = 1;
+		fcr[2] = 2;
+	}
 }
 
 void memory_control(uint8_t value){ /* TODO: dependent on machine version: http://www.smspower.org/Development/Port3E */
 	/* TODO: wram enable/disable */
-	uint8_t old = memControl;
 	memControl = value;
-	if(!(memControl & 0x80)){
+	if(!(memControl & EXPANSION_DISABLE)){
 		currentRom = &expRom;
 		banking = &generic_mapper;
 	}
-	else if(!(memControl & 0x40)){
+	else if(!(memControl & CART_DISABLE)){
 		currentRom = &cartRom;
-		if(old & 0x40){//make sure that banking is not overwritten when writing to memory control TODO: better solution?
-		if(currentRom->mapper == CODEMASTERS){
+		if(currentRom->mapper == CODEMASTERS)
 			banking = &codemasters_mapper;
-			fcr[0] = 0;
-			fcr[1] = 1;
-			fcr[2] = 0;
-		}
-		else if(currentRom->mapper == SEGA){
+		else if(currentRom->mapper == SEGA)
 			banking = &sega_mapper;
-			fcr[0] = 0;
-			fcr[1] = 1;
-			fcr[2] = 2;
-		}
 		else
 			banking = &generic_mapper;
 	}
-	}
-	else if(!(memControl & 0x20)){
+	else if(!(memControl & CARD_DISABLE)){
 		currentRom = &cardRom;
 		banking = &generic_mapper;
 	}
-	else if(!(memControl & 0x08)){
+	else if(!(memControl & BIOS_DISABLE)){
 		currentRom = &biosRom;
-
-		if(currentRom->mapper == CODEMASTERS){
+		if(currentRom->mapper == CODEMASTERS)
 			banking = &codemasters_mapper;
-			fcr[0] = 0;
-			fcr[1] = 1;
-			fcr[2] = 0;
-		}
-		else if(currentRom->mapper == SEGA){
+		else if(currentRom->mapper == SEGA)
 			banking = &sega_mapper;
-			fcr[0] = 0;
-			fcr[1] = 1;
-			fcr[2] = 2;
-		}
 		else
 			banking = &generic_mapper;
-
 	}
-	if(memControl & 0x10)
+	if(memControl & RAM_DISABLE)
 		printf("Work RAM is disabled\n");
 	banking();
 	setup_banks();
-	ioEnabled = !(memControl & 0x04); /* shared with ym2413 */
+	ioEnabled = !(memControl & IO_DISABLE); /* shared with ym2413 */
 }
 
 void generic_mapper(){
 	bank[0] = currentRom->rom;
-	bank[1] = currentRom->rom + 0x4000;
-	bank[2] = currentRom->rom + 0x8000;
+	bank[1] = currentRom->rom + BANK_SIZE;
+	bank[2] = currentRom->rom + (BANK_SIZE << 1);
 }
 
 void sega_mapper(){
@@ -99,16 +94,16 @@ void sega_mapper(){
 	 * bank shifting
 	 * mapping of slot 3
 	 *  */
-	bank[0] = currentRom->rom + ((fcr[0] & currentRom->mask) << 14);
-	bank[1] = currentRom->rom + ((fcr[1] & currentRom->mask) << 14);
-	bank[2] = (bramReg & 0x8) ? (bRam + ((bramReg & 0x4) << 12)) : currentRom->rom + ((fcr[2] & currentRom->mask) << 14);
+	bank[0] = currentRom->rom + ((fcr[0] & currentRom->mask) << BANK_SHIFT);
+	bank[1] = currentRom->rom + ((fcr[1] & currentRom->mask) << BANK_SHIFT);
+	bank[2] = (bramReg & 0x8) ? (cartRam + ((bramReg & 0x4) << 12)) : currentRom->rom + ((fcr[2] & currentRom->mask) << BANK_SHIFT);
 }
 
 void codemasters_mapper(){
 	/* TODO: RAM mapping */
 	bank[0] = currentRom->rom;
-	bank[1] = currentRom->rom + 0x4000;
-	bank[2] = currentRom->rom + ((fcr[2] & currentRom->mask) << 14);
+	bank[1] = currentRom->rom + BANK_SIZE;
+	bank[2] = currentRom->rom + ((fcr[2] & currentRom->mask) << BANK_SHIFT);
 }
 
 void setup_banks(){
@@ -149,7 +144,7 @@ uint8_t * read2(uint16_t address){
 }
 uint8_t * read3(uint16_t address){
 	/* TODO: bankable */
-	uint8_t *value = &cpuRam[address & 0x1fff];
+	uint8_t *value = &systemRam[address & 0x1fff];
 	return value;
 }
 
@@ -165,9 +160,9 @@ struct RomFile load_rom(char *r){/* TODO: add check for cart in card slot etc. *
 	rewind(rfile);
 	uint8_t *tmpRom = malloc(rsize);
 	fread(tmpRom, rsize, 1, rfile);
-	uint8_t mask = ((rsize >> 14) - 1);
+	uint8_t mask = ((rsize >> BANK_SHIFT) - 1);
 	struct RomFile output = { tmpRom, mask };
-	if(rsize > 0x8000)
+	if(rsize > (BANK_SIZE * 3))
 		output.mapper = SEGA;
 	else
 		output.mapper = GENERIC;
@@ -178,7 +173,7 @@ struct RomFile load_rom(char *r){/* TODO: add check for cart in card slot etc. *
 		bName = strdup(r);
 		sprintf(bName+strlen(bName)-3, "sav");
 		if((bFile = fopen(bName,"r")) != NULL){
-			fread(bRam, 0x8000, 1, bFile);
+			fread(cartRam, (CARTRAM_SIZE), 1, bFile);
 			fclose(bFile);
 		}
 	}
@@ -203,12 +198,11 @@ void free_rom(){
 		free(expRom.sha1);
 	}
 }
-void close_rom()
-{
+void close_rom(){
 	free_rom();
 	if(currentRom->battery){
 		bFile = fopen(bName,"w");
-		fwrite(bRam,0x8000,1,bFile);
+		fwrite(cartRam,(CARTRAM_SIZE),1,bFile);
 		fclose(bFile);
 	}
 }
@@ -224,7 +218,7 @@ xmlChar * calculate_checksum(uint8_t *data, int size){
 	return shash;
 }
 
-void extract_xml_data(xmlNode * node, struct RomFile *rom) {
+void extract_xml_data(xmlNode * node, struct RomFile *rom){
 	xmlNode *cur_node = node->children;
 	xmlChar *nam, *val;
 	while (cur_node) {
@@ -239,7 +233,6 @@ void extract_xml_data(xmlNode * node, struct RomFile *rom) {
 				if (!xmlStrcmp(val,(xmlChar *)"yes"))
 					rom->battery = 1;
 			}
-
 			xmlFree(nam);
 			xmlFree(val);
 		}
@@ -247,12 +240,11 @@ void extract_xml_data(xmlNode * node, struct RomFile *rom) {
 	}
 }
 
-void xml_hash_compare(xmlNode * node, struct RomFile *rom)
-{
+void xml_hash_compare(xmlNode * node, struct RomFile *rom){
 	xmlNode *cur_node = NULL;
 	xmlChar *hashkey;
-	for (cur_node = node; cur_node; cur_node = cur_node->next) {
-		if (cur_node->type == XML_ELEMENT_NODE && !xmlStrcmp(cur_node->name, (const xmlChar *) "rom")) {
+	for (cur_node = node; cur_node; cur_node = cur_node->next){
+		if (cur_node->type == XML_ELEMENT_NODE && !xmlStrcmp(cur_node->name, (const xmlChar *) "rom")){
 		    hashkey = xmlGetProp(cur_node, (xmlChar *)"sha1");
 		    if (!xmlStrcmp(hashkey,rom->sha1)) {
 		    	extract_xml_data(cur_node->parent->parent, rom);
@@ -261,11 +253,9 @@ void xml_hash_compare(xmlNode * node, struct RomFile *rom)
 		}
 	}
 }
-void parse_xml_file(xmlNode * node, struct RomFile *rom)
-{
+void parse_xml_file(xmlNode * node, struct RomFile *rom){
 	xmlNode *cur_node = NULL;
 	xmlChar *key;
-
     for (cur_node = node; cur_node; cur_node = cur_node->next) {
     	if (cur_node->type == XML_ELEMENT_NODE && !xmlStrcmp(cur_node->name, (const xmlChar *) "dataarea")) {
     		key = xmlGetProp(cur_node, (xmlChar *)"name");

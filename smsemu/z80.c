@@ -1,5 +1,13 @@
 /*Zilog Z80 microprocessor
  * This is a software compatible extension of the Intel 8080
+ *
+ * Detailed documentation of instructions and their bus responses cycle for cycle: http://baltazarstudios.com/zilog-z80-undocumented-behavior/
+ *
+ * TODO:
+ * -emulate wait states
+ * -emulate the different interrupt modes
+ * -all (undocumented) opcodes
+ * -better synchronization - all writes to (HL); I/O read/write...
  */
 
 #include "z80.h"
@@ -198,7 +206,7 @@ static inline void cb(), dd(), ed(), fd(), ddcb(), fdcb();
 /* undocumented opcodes */
 static inline void dcixh(), dciyh(), dcixl(), dciyl(), inixh(), iniyh(), inixl(), iniyl(), ldixh(), ldiyh(), ldixl(), ldiyl(), lrixh(), lrixl(), lriyh(), lriyl(), lixhr(), lixlr(), liyhr(), liylr();
 
-static int8_t displace;
+static int8_t displace;//int since offset can be both positive and negative
 static uint8_t op, intDelay = 0, halted = 0;
 
 // Globals
@@ -216,6 +224,9 @@ static uint8_t iff1, iff2, iMode;
 
 /* Vector pointers */
 static const uint16_t nmi = 0x66, irq = 0x38;
+
+static uint8_t *r[8];
+static uint16_t *rp[4], *rp2[4];
 
 char opmess[] = "Unimplemented opcode";
 void run_z80(){
@@ -271,7 +282,7 @@ if((irqPulled && iff1 && !intDelay) || nmiPulled){
 		//	exit(1);
 		(*optable[op])();
 	}
-synchronize();
+synchronize(0);
 }
 
 /* EXTENDED OPCODE TABLES */
@@ -509,7 +520,6 @@ void ldra()	{ /* LD R,A */
 /* 16-BIT LOAD GROUP */
 
 void ld16()	{ /* LD dd,nn */
-	uint16_t *rp[4] = {cpuBCreg, cpuDEreg, cpuHLreg, &cpuSP};
 	*rp[((op>>4) & 3)] = (*read_z80_memory(cpuPC) | ((*read_z80_memory(cpuPC + 1)) << 8));
 	cpuPC += 2;
 }
@@ -528,7 +538,6 @@ void ldhli(){ /* LD HL,(nn) */
 	*cpuHreg = *read_z80_memory(address);
 }
 void ldrp()	{ /* LD dd,(nn) */
-	uint16_t *rp[4] = {cpuBCreg, cpuDEreg, cpuHLreg, &cpuSP};
 	uint16_t address = *read_z80_memory(cpuPC++);
 	address |= ((*read_z80_memory(cpuPC++)) << 8);
 	*rp[(op >> 4) & 0x03] = *read_z80_memory(address++);
@@ -553,7 +562,7 @@ void ldihl(){ /* LD (nn),HL */
 	write_z80_memory(address, *cpuHreg);
 }
 void ldidd(){ /* LD (nn),dd */
-	uint16_t *rp[4] = {cpuBCreg, cpuDEreg, cpuHLreg, &cpuSP}, address;
+	uint16_t address;
 	address = *read_z80_memory(cpuPC++);
 	address |= ((*read_z80_memory(cpuPC++)) << 8);
 	write_z80_memory(address++, (*rp[(op >> 4) & 0x03] & 0xff));
@@ -581,7 +590,6 @@ void lspiy(){ /* LD SP,IY */
 	cpuSP = *cpuIYreg;
 }
 void push()	{ /* PUSH qq */
-	uint16_t *rp2[4] = {cpuBCreg, cpuDEreg, cpuHLreg, cpuAFreg};
 	write_z80_memory(--cpuSP, ((*rp2[(op>>4) & 3] & 0xff00) >> 8));
 	write_z80_memory(--cpuSP, ( *rp2[(op>>4) & 3] & 0x00ff));
 }
@@ -594,7 +602,6 @@ void pusiy(){ /* PUSH IY */
 	write_z80_memory(--cpuSP, *cpuIYlreg);
 }
 void pop()	{ /* POP qq */
-	uint16_t *rp2[4] = {cpuBCreg, cpuDEreg, cpuHLreg, cpuAFreg};
 	*rp2[(op>>4) & 3] = (*read_z80_memory(cpuSP) | ((*read_z80_memory(cpuSP + 1)) << 8));
 	cpuSP += 2;
 }
@@ -662,9 +669,9 @@ void ldir()	{ /* LDIR */
 	*cpuFreg = ((*cpuFreg & SZYXC_FLAG) | (*cpuBCreg ? P_FLAG : 0));
 }
 void ldd()	{ /* LDD */
-		write_z80_memory((*cpuDEreg)--, *read_z80_memory((*cpuHLreg)--));
-		(*cpuBCreg)--;
-		*cpuFreg = ((*cpuFreg & SZYXC_FLAG) | (*cpuBCreg ? P_FLAG : 0));
+	write_z80_memory((*cpuDEreg)--, *read_z80_memory((*cpuHLreg)--));
+	(*cpuBCreg)--;
+	*cpuFreg = ((*cpuFreg & SZYXC_FLAG) | (*cpuBCreg ? P_FLAG : 0));
 }
 void lddr()	{ /* LDDR */
 	(*cpuBCreg)--;
@@ -969,39 +976,33 @@ void im()	{ /* IM */
 /* 16-BIT ARITHMETIC GROUP */
 
 void addrp(){ /* ADD HL,ss */
-	uint16_t *rp[4] = {cpuBCreg, cpuDEreg, cpuHLreg, &cpuSP};
 	uint32_t res = *cpuHLreg + *rp[(op >> 4) & 0x03];
 	*cpuFreg = ((*cpuFreg & SZYXP_FLAG) | ((((*cpuHLreg & 0xfff) + (*rp[(op >> 4) & 0x03] & 0xfff)) > 0xfff) << H_FLAG) | (res > 0xffff));
 	*cpuHLreg = res;
 }
 void adcrp(){ /* ADC HL,ss */
-	uint16_t *rp[4] = {cpuBCreg, cpuDEreg, cpuHLreg, &cpuSP};
 	uint32_t res = *cpuHLreg + *rp[(op >> 4) & 0x03] + (*cpuFreg & C_FLAG);
 	*cpuFreg = (((res & 0x8000) >> 8) | (!(res & 0xffff) << Z_SHIFT) | (((*cpuHLreg ^ *rp[(op >> 4) & 0x03] ^ res) & 0x1000) >> 8) |
 			(((*cpuHLreg ^ res) & (*rp[(op >> 4) & 0x03] ^ res) & 0x8000) >> 13) | ((res & 0x10000) >> 16));
 	*cpuHLreg = res;
 }
 void sbcrp(){ /* SBC HL,ss */
-	uint16_t *rp[4] = {cpuBCreg, cpuDEreg, cpuHLreg, &cpuSP};
 	uint32_t res = *cpuHLreg - *rp[(op >> 4) & 0x03] - (*cpuFreg & C_FLAG);
 	*cpuFreg = (((res & 0x8000) >> 8) | (!(res & 0xffff) << Z_SHIFT) | (((*cpuHLreg ^ *rp[(op >> 4) & 0x03] ^ res) & 0x1000) >> 8) |
 			(((*cpuHLreg ^ *rp[(op >> 4) & 0x03]) & (*cpuHLreg ^ res) & 0x8000) >> 13) | N_FLAG | ((res & 0x10000) >> 16));
 	*cpuHLreg = res;
 }
 void addix(){ /* ADD IX,pp */
-	uint16_t *rp[4] = {cpuBCreg, cpuDEreg, cpuIXreg, &cpuSP};
 	uint32_t res = *cpuIXreg + *rp[(op >> 4) & 0x03];
 	*cpuFreg = ((*cpuFreg & SZYXP_FLAG) | ((((*cpuIXreg & 0xfff) + (*rp[(op >> 4) & 0x03] & 0xfff)) > 0xfff) << H_FLAG) | (res > 0xffff));
 	*cpuIXreg = res;
 }
 void addiy(){ /* ADD IY,rr */
-	uint16_t *rp[4] = {cpuBCreg, cpuDEreg, cpuIYreg, &cpuSP};
 	uint32_t res = *cpuIYreg + *rp[(op >> 4) & 0x03];
 	*cpuFreg = ((*cpuFreg & SZYXP_FLAG) | ((((*cpuIYreg & 0xfff) + (*rp[(op >> 4) & 0x03] & 0xfff)) > 0xfff) << H_FLAG) | (res > 0xffff));
 	*cpuIYreg = res;
 }
 void incrp(){ /* INC ss */
-	uint16_t *rp[4] = {cpuBCreg, cpuDEreg, cpuHLreg, &cpuSP};
 	(*rp[(op>>4) & 3])++;
 }
 void incix(){ /* INC IX */
@@ -1011,7 +1012,6 @@ void inciy(){ /* INC IY */
 	(*cpuIYreg)++;
 }
 void decrp(){ /* DEC ss */
-	uint16_t *rp[4] = {cpuBCreg, cpuDEreg, cpuHLreg, &cpuSP};
 	(*rp[(op>>4) & 3])--;
 }
 void decix(){ /* DEC IX */
@@ -1370,16 +1370,19 @@ void rst()	{ /* RST */
 /* INPUT AND OUTPUT GROUP */
 
 void in()	{ /* IN A,(n) */
+	synchronize(0);
 	*cpuAreg = read_z80_register(*read_z80_memory(cpuPC++));
 }
 void inrc()	{ /* IN r,(C) */
 	uint8_t none; /* TODO: neater solution */
 	uint8_t *r[8] = {cpuBreg, cpuCreg, cpuDreg, cpuEreg, cpuHreg, cpuLreg, &none, cpuAreg};
+	synchronize(0);
 	uint8_t tmp = read_z80_register(*cpuCreg);
 	*r[(op >> 3) & 7] = tmp;
 	*cpuFreg = ((*cpuFreg & YXC_FLAG) | (tmp & S_FLAG) | ((!tmp) << Z_SHIFT) | parcalc(tmp));
 }
 void ini()	{ /* INI */
+	synchronize(0);
 	uint8_t tmp = read_z80_register(*cpuCreg);
 	write_z80_memory(*cpuHLreg, tmp);
 	(*cpuBreg)--; /* byte counter */
@@ -1388,6 +1391,7 @@ void ini()	{ /* INI */
 	*cpuFreg = ((*cpuFreg & YX_FLAG) | (*cpuBreg & S_FLAG) | ((!*cpuBreg) << Z_SHIFT) | ((k > 0xff) << H_SHIFT) | parcalc((k & 7) ^ *cpuBreg) | ((tmp & 0x80) >> 6) | (k > 0xff));
 }
 void inir()	{ /* INIR */
+	synchronize(0);
 	uint8_t tmp = read_z80_register(*cpuCreg);
 	write_z80_memory(*cpuHLreg, tmp);
 (*cpuBreg)--; /* byte counter */
@@ -1400,15 +1404,18 @@ uint16_t k = (((*cpuCreg + 1) & 0xff) + tmp);
 *cpuFreg = ((*cpuFreg & YX_FLAG) | (*cpuBreg & S_FLAG) | ((!*cpuBreg) << Z_SHIFT) | ((k > 0xff) << H_SHIFT) | parcalc((k & 7) ^ *cpuBreg) | ((tmp & 0x80) >> 6) | (k > 0xff));
 }
 void out()	{ /* OUT (n),A */
+	synchronize(0);
 	write_z80_register(*read_z80_memory(cpuPC++), *cpuAreg);
 }
 void outc()	{ /* OUT (C),r */
 	uint8_t *r[8] = {cpuBreg, cpuCreg, cpuDreg, cpuEreg, cpuHreg, cpuLreg, read_z80_memory(*cpuHLreg), cpuAreg};
+	synchronize(1);
 	write_z80_register(*cpuCreg, *r[(op >> 3) & 7]);
 }
 void outi()	{ /* OUTI */
 	uint8_t tmp = *read_z80_memory(*cpuHLreg); /* to be written to port */
 	(*cpuBreg)--; /* byte counter */
+	synchronize(1);
 	write_z80_register(*cpuCreg, tmp);
 	(*cpuHLreg)++;
 	uint16_t k = (*cpuLreg + tmp);
@@ -1417,6 +1424,7 @@ void outi()	{ /* OUTI */
 void otir()	{ /* OTIR */
 uint8_t tmp = *read_z80_memory(*cpuHLreg); /* to be written to port */
 (*cpuBreg)--; /* byte counter */
+synchronize(1);
 write_z80_register(*cpuCreg, tmp);
 (*cpuHLreg)++;
 if (*cpuBreg){
@@ -1429,6 +1437,7 @@ uint16_t k = (*cpuLreg + tmp);
 void outd()	{ /* OUTD */
 	uint8_t tmp = *read_z80_memory(*cpuHLreg); /* to be written to port */
 	(*cpuBreg)--; /* byte counter */
+	synchronize(1);
 	write_z80_register(*cpuCreg, tmp);
 	(*cpuHLreg)--;
 	uint16_t k = (*cpuLreg + tmp);
@@ -1437,6 +1446,7 @@ void outd()	{ /* OUTD */
 void otdr()	{ /* OUTD */
 	uint8_t tmp = *read_z80_memory(*cpuHLreg); /* to be written to port */
 	(*cpuBreg)--; /* byte counter */
+	synchronize(1);
 	write_z80_register(*cpuCreg, tmp);
 	(*cpuHLreg)--;
 	if (*cpuBreg){
@@ -1661,6 +1671,22 @@ cpuDEreg = (uint16_t *)&cpuDE;
 cpuHLreg = (uint16_t *)&cpuHL;
 cpuIXreg = (uint16_t *)&cpuIX;
 cpuIYreg = (uint16_t *)&cpuIY;
+r[0] = cpuBreg;
+r[1] = cpuCreg;
+r[2] = cpuDreg;
+r[3] = cpuEreg;
+r[4] = cpuHreg;
+r[5] = cpuLreg;
+r[6] = NULL;
+r[7] = cpuAreg;
+rp[0] = cpuBCreg;
+rp[1] = cpuDEreg;
+rp[2] = cpuHLreg;
+rp[3] = &cpuSP;
+rp2[0] = cpuBCreg;
+rp2[1] = cpuDEreg;
+rp2[2] = cpuHLreg;
+rp2[3] = cpuAFreg;
 }
 
 void interrupt_polling() {

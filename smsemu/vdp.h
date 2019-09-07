@@ -10,6 +10,11 @@
 #include <stdio.h>
 #include <stdint.h>
 
+#define VRAM_SIZE	0x4000
+#define VRAM_MASK	(VRAM_SIZE - 1)
+#define CRAM_SIZE	0x20
+#define CRAM_MASK	(CRAM_SIZE - 1)
+
 #define NT_MASK 0x3c00
 #define PG_MASK 0x3800
 
@@ -51,10 +56,9 @@ extern uint8_t controlFlag, statusFlags, lineInt, smsColor[0xc0];
 extern uint32_t *screenBuffer;
 extern int16_t vdpdot;
 extern uint16_t vCounter, hCounter;
-extern int vdpCyclesToRun;
 extern struct DisplayMode *currentMode, ntsc192, pal192;
 
-void write_vdp_control(uint8_t), run_vdp(), write_vdp_data(uint8_t), init_vdp(), reset_vdp(), close_vdp(), latch_hcounter(uint8_t), default_video_mode();
+void write_vdp_control(uint8_t), run_vdp(int), write_vdp_data(uint8_t), init_vdp(), reset_vdp(), close_vdp(), latch_hcounter(uint8_t), default_video_mode();
 uint8_t read_vdp_data(void);
 
 #endif /* VDP_H_ */

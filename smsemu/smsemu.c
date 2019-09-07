@@ -13,11 +13,8 @@
  * california games - skater sprite is garbage
  * the ninja - sprites sometimes get stuck
  * psycho fox - hangs when pausing
- * loretta no shouzou - corrupt graphics
- * f-16 corrupt graphics - video mode regression? (sprites seem fine)
  */
 /* TODO:
- * -FM sound
  * -special peripherals (lightgun, sports pad, paddle (https://www.raphnet.net/electronique/sms_paddle/index_en.php))
  * -vdp versions
  * -remaining vdp video modes
@@ -31,8 +28,9 @@ static inline void init_video(void), init_audio(void);
 char cartFile[PATH_MAX], cardFile[PATH_MAX], expFile[PATH_MAX], biosFile[PATH_MAX];
 uint8_t quit = 0, ioPort1, ioPort2, ioControl, region, reset = 0;
 uint8_t sms_read_z80_register(uint8_t), * sms_read_z80_memory(uint16_t);
-void sms_write_z80_register(uint8_t, uint8_t), sms_write_z80_memory(uint16_t, uint8_t), sms_addcycles(uint8_t), sms_synchronize(void);
+void sms_write_z80_register(uint8_t, uint8_t), sms_write_z80_memory(uint16_t, uint8_t), sms_addcycles(uint8_t), sms_synchronize(int);
 struct machine ntsc_us={"mpr-10052.ic2",NTSC_MASTER,NTSC,EXPORT,VDP_1}, pal1={"mpr-10052.ic2",PAL_MASTER,PAL,EXPORT,VDP_1}, pal2={"mpr-12808.ic2",PAL_MASTER,PAL,EXPORT,VDP_2}, ntsc_jp={"mpr-11124.ic2",NTSC_MASTER,NTSC,JAPAN,VDP_1}, *currentMachine;
+int vdpCyclesToRun = 0;
 sdlSettings settings;
 FILE *logfile;
 
@@ -145,6 +143,8 @@ void init_video(){
 }
 
 void init_audio(){
+	sn79489_mute = 0;
+	ym2413_mute = 1;
 	settings.audioFrequency = 48000;
 	settings.channels = 1;
 	settings.audioBufferSize = 2048;
@@ -154,7 +154,7 @@ void init_audio(){
 }
 
 // Z80 interfacing instructions:
-uint8_t * sms_read_z80_memory(uint16_t address) {
+uint8_t * sms_read_z80_memory(uint16_t address){
 	switch(address & 0xc000){
 	case 0x0000:
 		return read_bank0(address);
@@ -168,12 +168,11 @@ uint8_t * sms_read_z80_memory(uint16_t address) {
 	return 0;
 }
 
-/* TODO: use cpuwrite for all memory changes to catch register writes - already done? */
-void sms_write_z80_memory(uint16_t address, uint_fast8_t value) {
+void sms_write_z80_memory(uint16_t address, uint_fast8_t value){
 	if (address >= 0xc000) /* writing to RAM */
-		cpuRam[address & 0x1fff] = value;
+		systemRam[address & 0x1fff] = value;
 	else if (address < 0xc000 && address >= 0x8000 && (bramReg & 0x8)){
-		bank[address >> 14][address & 0x3fff] = value;
+		bank[address >> 14][address & VRAM_MASK] = value;
 	}
 	if(address == 0x0000 && currentRom->mapper == CODEMASTERS){
 		fcr[0] = (value & currentRom->mask);
@@ -208,7 +207,7 @@ void sms_write_z80_memory(uint16_t address, uint_fast8_t value) {
 	}
 }
 
-uint8_t sms_read_z80_register(uint8_t reg) {
+uint8_t sms_read_z80_register(uint8_t reg){
 	switch (reg & 0xc1){
 	case 0x00:
 	case 0x01:
@@ -239,7 +238,7 @@ uint8_t sms_read_z80_register(uint8_t reg) {
 	}
 	return 0;
 }
-void sms_write_z80_register(uint8_t reg, uint8_t value) {
+void sms_write_z80_register(uint8_t reg, uint8_t value){
 	switch (reg & 0xc1){
 	case 0x00:
 		memory_control(value);
@@ -262,6 +261,24 @@ void sms_write_z80_register(uint8_t reg, uint8_t value) {
 			write_ym2413_register(value);
 		else if(reg == 0xf2 && currentMachine->region == JAPAN){
 			muteControl = (value & 0x03);
+			switch(muteControl){
+			case 0:
+				sn79489_mute = 0;
+				ym2413_mute = 1;
+				break;
+			case 1:
+				sn79489_mute = 1;
+				ym2413_mute = 0;
+				break;
+			case 2:
+				sn79489_mute = 1;
+				ym2413_mute = 1;
+				break;
+			case 3:
+				sn79489_mute = 0;
+				ym2413_mute = 0;
+				break;
+			}
 		}
 		break;
 	case 0xc1:
@@ -283,8 +300,9 @@ void sms_addcycles(uint8_t val){
 		fmAccumulatedCycles -= FM_CLOCK_RATIO;
 	}
 }
-void sms_synchronize() {
-	run_vdp();
+void sms_synchronize(int cycles){
+	run_vdp(vdpCyclesToRun - (cycles * VDP_CLOCK_RATIO));
+	vdpCyclesToRun = cycles * VDP_CLOCK_RATIO;
 	run_sn79489();
 	run_ym2413();
 }

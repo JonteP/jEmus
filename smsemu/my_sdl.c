@@ -22,15 +22,16 @@
 #include "z80.h"
 #include "cartridge.h"
 
+#define RENDER_FLAGS	(SDL_RENDERER_ACCELERATED | SDL_RENDERER_TARGETTEXTURE)
+
 SDL_AudioSpec wantedAudioSettings, audioSettings;
 SDL_Event event;
 SDL_DisplayMode current;
-SDL_Texture *whiteboard;
+SDL_Texture *whiteboard = NULL;
 TTF_Font* Sans;
 SDL_Color menuTextColor = {0xff, 0xff, 0xff, 0x00};
 uint8_t menuBgColor[4] = {0x00, 0x00, 0x00, 0x00};
 uint8_t menuActiveColor[4] = {0x80, 0x80, 0x80, 0x00};
-SDL_Rect SrcR, TrgR;
 uint_fast8_t isPaused = 0, fullscreen = 0, stateSave = 0, stateLoad = 0, vsync = 0, throttle = 1, showMenu = 0;
 sdlSettings *currentSettings;
 menuItem prototypeMenu, mainMenu, fileMenu, graphicsMenu, machineMenu, audioMenu, fileList, machineList, *currentMenu;
@@ -42,9 +43,11 @@ char *defaultDir = "/home/jonas/Desktop/sms/unsorted/", workDir[PATH_MAX];
 int fileListOffset = 0, oldFileListOffset = 0;
 float frameTime, fps;
 int clockRate;
+SDL_DisplayMode mode;
+SDL_Rect SrcR, TrgR;
 
 static inline void render_window (windowHandle *, uint32_t *), idle_time(float), create_handle (windowHandle *), draw_menu(menuItem *), set_menu(void), get_menu_size(menuItem *, int, int), get_max_menu_size(menuItem *), create_menu(void), main_menu_option(int), clear_screen(SDL_Renderer *);
-static inline void option_fullscreen(void), option_quit(void), option_open_file(void), game_io(void), menu_io(void), file_io(void), get_parent_dir(char *), add_slash(char *);
+static inline void option_fullscreen(void), option_quit(void), option_open_file(void), game_io(void), menu_io(void), file_io(void), get_parent_dir(char *), add_slash(char *), set_screen_size(windowHandle *handle);
 static inline float diff_time(struct timespec *, struct timespec *);
 static inline int is_directory(const char *), create_file_list(void), file_count(DIR *), fileSorter(const void *const, const void *const);
 static inline struct dirent ** read_directory(DIR *);
@@ -74,8 +77,11 @@ void init_sdl_video(){
 	SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY,currentSettings->renderQuality);
 	destroy_handle(&currentSettings->window);
 	create_handle (&currentSettings->window);
-	if(whiteboard)
-		SDL_DestroyTexture(whiteboard);
+	currentSettings->window.index = SDL_GetWindowDisplayIndex(currentSettings->window.win);
+	SDL_GetDesktopDisplayMode(currentSettings->window.index, &mode);
+	currentSettings->desktopWidth = mode.w;
+	currentSettings->desktopHeight = mode.h;
+	SDL_DestroyTexture(whiteboard);
 	if((whiteboard = SDL_CreateTexture(currentSettings->window.rend, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_TARGET, currentSettings->window.winWidth, currentSettings->window.winHeight)) == NULL){
 		printf("SDL_CreateTexture failed: %s\n", SDL_GetError());
 		exit(EXIT_FAILURE);}
@@ -85,6 +91,7 @@ void init_sdl_video(){
 	if(!Sans){
 		printf("TTF_OpenFont failed: %s\n", TTF_GetError());
 		exit(EXIT_FAILURE);}
+	set_screen_size(&currentSettings->window);
 	create_menu();
 }
 
@@ -93,7 +100,7 @@ void init_sdl_audio(){
 	wantedAudioSettings.format = AUDIO_F32;
 	wantedAudioSettings.channels = currentSettings->channels;
 	wantedAudioSettings.callback = NULL;
-	wantedAudioSettings.samples = currentSettings->audioBufferSize>>1; /* Must be less than buffer size to prevent increasing lag... */
+	wantedAudioSettings.samples = currentSettings->audioBufferSize >> 1; /* Must be less than buffer size to prevent increasing lag... */
 	SDL_CloseAudio();
 	if (SDL_OpenAudio(&wantedAudioSettings, &audioSettings) < 0)
 	    SDL_Log("Failed to open audio: %s", SDL_GetError());
@@ -103,12 +110,12 @@ void init_sdl_audio(){
 	SDL_ClearQueuedAudio(1);
 }
 
-void create_handle (windowHandle *handle) {
+void create_handle (windowHandle *handle){
 	/* TODO: add clipping options here */
 	if((handle->win = SDL_CreateWindow(handle->name, handle->winXPosition, handle->winYPosition, handle->winWidth, handle->winHeight, SDL_WINDOW_RESIZABLE)) == NULL){
 		printf("SDL_CreateWindow failed: %s\n", SDL_GetError());
 		exit(EXIT_FAILURE);}
-	if((handle->rend = SDL_CreateRenderer(handle->win, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_TARGETTEXTURE)) ==NULL){
+	if((handle->rend = SDL_CreateRenderer(handle->win, -1, RENDER_FLAGS)) == NULL){
 		printf("SDL_CreateRenderer failed: %s\n", SDL_GetError());
 		exit(EXIT_FAILURE);}
 	if((handle->tex = SDL_CreateTexture(handle->rend, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, handle->screenWidth, handle->screenHeight)) == NULL){
@@ -117,7 +124,7 @@ void create_handle (windowHandle *handle) {
 	handle->windowID = SDL_GetWindowID(handle->win);
 }
 
-void destroy_handle (windowHandle *handle) {
+void destroy_handle (windowHandle *handle){
 	if(handle->tex)
 		SDL_DestroyTexture(handle->tex);
 	if(handle->rend)
@@ -126,7 +133,7 @@ void destroy_handle (windowHandle *handle) {
 		SDL_DestroyWindow(handle->win);
 }
 
-void close_sdl() {
+void close_sdl(){
 	destroy_handle (&currentSettings->window);
 	TTF_CloseFont(Sans);
 	SDL_ClearQueuedAudio(1);
@@ -134,34 +141,37 @@ void close_sdl() {
 	SDL_Quit();
 }
 
-void render_window (windowHandle * handle, uint32_t * buffer)
-{
-	/* TODO: rects should probably be updated in separate function when necessary only */
+void set_screen_size(windowHandle *handle){
 	SrcR.x = handle->xClip;
 	SrcR.y = handle->yClip;
 	SrcR.w = handle->screenWidth - (handle->xClip << 1);
 	SrcR.h = handle->screenHeight - (handle->yClip << 1);
-	TrgR.x = 240;
+	TrgR.x = (currentSettings->desktopWidth >> 3);
 	TrgR.y = 0;
-	TrgR.w = 1440;
-	TrgR.h = 1080;
-	if(SDL_UpdateTexture(handle->tex, NULL, buffer, handle->screenWidth * sizeof(uint32_t))){
-		printf("SDL_UpdateTexture failed: %s\n", SDL_GetError());
-		exit(EXIT_FAILURE);
-	}
-	if (fullscreen)
-		SDL_RenderCopy(handle->rend, handle->tex, &SrcR, &TrgR);
-	else{
-		SDL_SetRenderTarget(handle->rend, whiteboard);
-		SDL_RenderCopy(handle->rend, handle->tex, &SrcR, NULL);
-		if(showMenu){
-			draw_menu(currentMenu);
-			if(currentMenu->parent)
-				draw_menu(currentMenu->parent);
-		}
+	TrgR.w = currentSettings->desktopWidth - (currentSettings->desktopWidth >> 2);
+	TrgR.h = currentSettings->desktopHeight;
+}
+
+void render_window (windowHandle * handle, uint32_t * buffer){
+	void *pix;
+	int pitch;
+	if(SDL_LockTexture(handle->tex, NULL, &pix, &pitch)){
+		printf("SDL_LockTexture failed: %s\n", SDL_GetError());
+		exit(EXIT_FAILURE);}
+	memcpy(pix, buffer, pitch * handle->screenHeight);
+	SDL_UnlockTexture(handle->tex);
+	SDL_SetRenderTarget(handle->rend, whiteboard);
+	SDL_RenderCopy(handle->rend, handle->tex, &SrcR, NULL);
+	if(showMenu){
+		draw_menu(currentMenu);
+		if(currentMenu->parent)
+			draw_menu(currentMenu->parent);
 	}
 	SDL_SetRenderTarget(handle->rend, NULL);
-	SDL_RenderCopy(handle->rend, whiteboard, NULL, NULL);
+	if(fullscreen)
+		SDL_RenderCopy(handle->rend, whiteboard, NULL, &TrgR);
+	else
+		SDL_RenderCopy(handle->rend, whiteboard, NULL, NULL);
 	SDL_RenderPresent(handle->rend);
 }
 
@@ -177,8 +187,7 @@ void clear_screen(SDL_Renderer *rend){
 
 struct timespec throttleClock, startClock, endClock;
 int frameCounter;
-void init_time (float time)
-{
+void init_time (float time){
 	frameCounter = 0;
 	clock_gettime(CLOCK_MONOTONIC, &startClock);
 	clock_getres(CLOCK_MONOTONIC, &throttleClock);
@@ -188,8 +197,7 @@ void init_time (float time)
 	throttleClock.tv_nsec %= 1000000000;
 }
 float xfps;
-void idle_time (float time)
-{
+void idle_time (float time){
 	frameCounter++;
 	if(frameCounter == 60){
 		clock_gettime(CLOCK_MONOTONIC, &endClock);
@@ -231,8 +239,7 @@ void render_frame(){
 /* FILE BROWSER */
 /****************/
 
-int is_directory(const char *str)
-{
+int is_directory(const char *str){
     struct stat path_stat;
     if(!stat(str, &path_stat)){
         return S_ISDIR(path_stat.st_mode);
@@ -441,7 +448,7 @@ void get_menu_size(menuItem *menu, int xoff, int yoff){
 			menu->xOffset[i] += ((currentSettings->window.winWidth >> 1) - (menu->width >> 1));
 			menu->yOffset[i] += ((currentSettings->window.winHeight >> 1) - (menu->height * (menu->length >> 1)));
 		}
-}
+	}
 }
 
 void set_menu(){
@@ -562,20 +569,14 @@ void option_open_file(){
 
 void option_fullscreen(){
 	fullscreen ^= 1;
-	if (fullscreen)
-	{
-		SDL_DisplayMode mode;
-		SDL_GetWindowDisplayMode(currentSettings->window.win, &mode);
-		mode.w = 1920;
-		mode.h = 1080;
-		mode.refresh_rate = 60;
+	if (fullscreen){
 		SDL_SetWindowDisplayMode(currentSettings->window.win, &mode);
 		SDL_SetWindowFullscreen(currentSettings->window.win, SDL_WINDOW_FULLSCREEN);
 	    SDL_ShowCursor(SDL_DISABLE);
 		SDL_SetWindowGrab(currentSettings->window.win, SDL_TRUE);
+		clear_screen(currentSettings->window.rend);
 	}
-	else if (!fullscreen)
-	{
+	else if (!fullscreen){
 		SDL_SetWindowFullscreen(currentSettings->window.win, 0);
 	    SDL_ShowCursor(SDL_ENABLE);
 		SDL_SetWindowGrab(currentSettings->window.win, SDL_FALSE);
@@ -592,62 +593,58 @@ void option_quit(){
 /* INPUT HANDLERS */
 /******************/
 
-void menu_io()
-{
-	while (SDL_PollEvent(&event)) {
-		if (event.window.windowID == currentSettings->window.windowID)
-		{
-		if(event.type == SDL_KEYDOWN){
-			switch (event.key.keysym.scancode) {
-			case SDL_SCANCODE_UP:
-				if(currentMenuRow){
-					currentMenuRow--;
-					if(!currentMenuRow  && currentMenu->parent != NULL)
-						currentMenu = &mainMenu;
-					else
-						currentMenuRow = 1;
+void menu_io(){
+	while (SDL_PollEvent(&event)){
+		if (event.window.windowID == currentSettings->window.windowID){
+			if(event.type == SDL_KEYDOWN){
+				switch (event.key.keysym.scancode){
+				case SDL_SCANCODE_UP:
+					if(currentMenuRow){
+						currentMenuRow--;
+						if(!currentMenuRow  && currentMenu->parent != NULL)
+							currentMenu = &mainMenu;
+						else
+							currentMenuRow = 1;
+					}
+					break;
+				case SDL_SCANCODE_DOWN:
+					if(!currentMenuRow)
+						set_menu();
+					if(currentMenuRow < (currentMenu->length))
+						currentMenuRow++;
+					break;
+				case SDL_SCANCODE_LEFT:
+					if(currentMenuColumn){
+						currentMenuColumn--;
+						set_menu();
+					}
+					break;
+				case SDL_SCANCODE_RIGHT:
+					if((currentMenuColumn < (mainMenu.length) - 1)){
+						currentMenuColumn++;
+						set_menu();
+					}
+					break;
+				case SDL_SCANCODE_RETURN:
+					current_options((currentMenuColumn << 4) | currentMenuRow);
+					break;
+				case SDL_SCANCODE_Q:
+					if (!(event.key.repeat))
+						toggle_menu();
+					break;
+				default:
+					break;
 				}
-				break;
-			case SDL_SCANCODE_DOWN:
-				if(!currentMenuRow)
-					set_menu();
-				if(currentMenuRow < (currentMenu->length))
-					currentMenuRow++;
-				break;
-			case SDL_SCANCODE_LEFT:
-				if(currentMenuColumn){
-					currentMenuColumn--;
-					set_menu();
-				}
-				break;
-			case SDL_SCANCODE_RIGHT:
-				if((currentMenuColumn < (mainMenu.length) - 1)){
-					currentMenuColumn++;
-					set_menu();
-				}
-				break;
-			case SDL_SCANCODE_RETURN:
-				current_options((currentMenuColumn << 4) | currentMenuRow);
-				break;
-			case SDL_SCANCODE_Q:
-				if (!(event.key.repeat))
-					toggle_menu();
-				break;
-			default:
-				break;
 			}
-		}
 		}
 	}
 }
 
-void file_io()
-{
-	while (SDL_PollEvent(&event)) {
-		if (event.window.windowID == currentSettings->window.windowID)
-		{
+void file_io(){
+	while (SDL_PollEvent(&event)){
+		if (event.window.windowID == currentSettings->window.windowID){
 		if(event.type == SDL_KEYDOWN){
-			switch (event.key.keysym.scancode) {
+			switch (event.key.keysym.scancode){
 			case SDL_SCANCODE_UP:
 				currentMenuRow--;
 				if(currentMenuRow <= 0){
@@ -688,14 +685,12 @@ void file_io()
 	}
 }
 
-void game_io()
-{
-	while (SDL_PollEvent(&event)) {
-		if (event.window.windowID == currentSettings->window.windowID)
-		{
-		switch (event.type) {
+void game_io(){
+	while (SDL_PollEvent(&event)){
+		if (event.window.windowID == currentSettings->window.windowID){
+		switch (event.type){
 		case SDL_KEYDOWN:
-			switch (event.key.keysym.scancode) {
+			switch (event.key.keysym.scancode){
 			case SDL_SCANCODE_1:
 				channelMask ^= 1;
 				break;
@@ -764,17 +759,16 @@ void game_io()
 				break;
 			case SDL_SCANCODE_F12:
 				vsync ^= 1;
-				if (vsync)
-				{
-					SDL_GetCurrentDisplayMode(0, &current);
+				if (vsync){
 					SDL_DestroyRenderer(currentSettings->window.rend);
-					currentSettings->window.rend = SDL_CreateRenderer(currentSettings->window.win, -1, SDL_RENDERER_ACCELERATED|SDL_RENDERER_PRESENTVSYNC);
+					currentSettings->window.rend = SDL_CreateRenderer(currentSettings->window.win, -1, SDL_RENDERER_ACCELERATED|SDL_RENDERER_TARGETTEXTURE|SDL_RENDERER_PRESENTVSYNC);
 					currentSettings->window.tex = SDL_CreateTexture(currentSettings->window.rend, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, currentSettings->window.screenWidth, currentSettings->window.screenHeight);
-					fps = current.refresh_rate;
+					fps = mode.refresh_rate;
 					set_timings(2);
+					SDL_SetWindowDisplayMode(currentSettings->window.win, &mode);
+					clear_screen(currentSettings->window.rend);
 				}
-				else
-				{
+				else{
 					SDL_DestroyRenderer(currentSettings->window.rend);
 					currentSettings->window.rend = SDL_CreateRenderer(currentSettings->window.win, -1, SDL_RENDERER_ACCELERATED);
 					currentSettings->window.tex = SDL_CreateTexture(currentSettings->window.rend, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, currentSettings->window.screenWidth, currentSettings->window.screenHeight);
@@ -836,7 +830,7 @@ void game_io()
 			}
 			break;
 		case SDL_KEYUP:
-			switch (event.key.keysym.scancode) {
+			switch (event.key.keysym.scancode){
 			case SDL_SCANCODE_UP:
 				ioPort1 |= IO1_PORTA_UP;
 				break;

@@ -1,15 +1,13 @@
-/*
- * cartridge.h
- *
- *  Created on: May 25, 2019
- *      Author: jonas
- */
-
 #ifndef CARTRIDGE_H_
 #define CARTRIDGE_H_
 #include <stdint.h>
 #include "sha.h"
 #include "parser.h"
+
+#define RAM_SIZE			0x2000
+#define CARTRAM_SIZE		(RAM_SIZE << 2) //maximum supported size
+#define BANK_SHIFT			14
+#define BANK_SIZE			(1 << BANK_SHIFT)
 
 typedef enum _mapper{
 	GENERIC,
@@ -26,7 +24,7 @@ struct RomFile {
 	uint8_t battery;
 };
 
-extern uint8_t fcr[3], *bank[3], bRam[0x8000], memControl, bramReg, cpuRam[0x2000], ioEnabled;
+extern uint8_t fcr[3], *bank[3], cartRam[CARTRAM_SIZE], memControl, bramReg, systemRam[RAM_SIZE], ioEnabled;
 Mapper mapper;
 extern struct RomFile cartRom, *currentRom;
 

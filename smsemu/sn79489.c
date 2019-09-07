@@ -2,6 +2,10 @@
  * -in the Master System, Game Gear and Mega Drive, this is integrated in the VDP
  * -the Game Gear uses a modified version with stereo support, accessed via the 7 first z80 ports
  *
+ * Version differences:
+ * -in SC3000 (and possibly others) noise channel uses 0x0003 for feedback and 15bit shift reg
+ * -the VDP integrated version uses 0x0009 and 16bit register instead
+ *
  * TODO:
  * -some writes may reset other regs..
  * -possibly use lookup tables for speed
@@ -20,9 +24,9 @@
 #include "smsemu.h"
 float *sn79489_SampleBuffer, sn79489_Sample = 0;
 static uint32_t sampleRate, originalSampleRate;
-const float volume_table[16]={ .32767, .26028, .20675, .16422, .13045, .10362, .08231, .06568,
+const float volume_table[16]={ .32767, .26028, .20675, .16422, .13045, .10362, .08231, .06568, //could be made integer?
     .05193, .04125, .03277, .02603, .02067, .01642, .01304, 0 };
-uint8_t noiseVolume, noiseRegister, currentReg, noisePhase;
+uint8_t noiseVolume, noiseRegister, currentReg, noisePhase, sn79489_mute;
 float noiseOutput;
 uint16_t noiseCounter, noiseShifter, noiseReload;
 static int origSampleCounter = 0, bufferSize;
@@ -136,10 +140,12 @@ while(audioCyclesToRun){
 			}
 		}
 	}
-	else{
+	else
 		noiseCounter = noiseReload;
-	}
-	sn79489_Sample += ((tone0.output + tone1.output + tone2.output + noiseOutput) / (4*volume_table[0])); /* TODO: less hackish */
+	if(!sn79489_mute)
+		sn79489_Sample += ((tone0.output + tone1.output + tone2.output + noiseOutput) / (4*volume_table[0])); /* TODO: less hackish */
+	else
+		sn79489_Sample += 0;
 
 	//move this to smsemu?
 	origSampleCounter++;
@@ -153,12 +159,11 @@ while(audioCyclesToRun){
 		sn79489_Sample = 0;
 		origSampleCounter = 0;
 	}
-
 	audioCyclesToRun--;
 }
 }
 
-int parity(int val) {
+int parity(int val){
     val^=val>>8;
     val^=val>>4;
     val^=val>>2;

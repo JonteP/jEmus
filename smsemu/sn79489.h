@@ -1,10 +1,3 @@
-/*
- * sn76489.h
- *
- *  Created on: Jun 24, 2019
- *      Author: jonas
- */
-
 #ifndef SN79489_H_
 #define SN79489_H_
 
@@ -21,6 +14,7 @@ struct ToneChannel {
 	float output;
 };
 
+extern uint8_t sn79489_mute;
 extern float fps;
 extern float *sn79489_SampleBuffer;
 extern int psgAccumulatedCycles, sn79489_SampleCounter, audioCyclesToRun;

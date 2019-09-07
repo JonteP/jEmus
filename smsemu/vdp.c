@@ -1,5 +1,6 @@
 /* TMS9918a: the original used by SG-1000/SC-3000 (and MSX and ColecoVision)
  * 315-5124: Customized TMS9918a with Graphics Mode 4 added
+ * 			 -has 16-bit VRAM address bus (vs 8-bit)
  * 			 -Extended RGB color palette - defined in CRAM
  * 			 -4bpp tiles
  * 			 -support for double the amount of sprites
@@ -24,6 +25,10 @@
  * -screen height
  * -masking of nametable address
  * -zooming: bug in vdp1, works in vdp2, not at all in md http://benryves.com/journal/2889425
+ * -VDP controls NMI
+ * Timings:
+ * 	http://www.smspower.org/forums/8161-SMSDisplayTiming - charles measurements
+ * 	http://www.smspower.org/forums/10695-SMSVDPTester?start=50&sid=20f9ccfe73af4559d1acb2fdb9931e25 - vdp test discussion
  */
 
 #include "vdp.h"
@@ -46,10 +51,10 @@ struct DisplayMode pal192={256,342,288,313,192,240,243,246,259,313,224};
 struct DisplayMode pal224={256,342,288,313,224,256,259,262,275,313,256};
 int16_t vdpdot;
 uint16_t controlWord, vCounter = 0, hCounter = 0, addReg, ntAddress, ntMask, sgAddress, saAddress, ctAddress, pgAddress, pgMask;
-int vdpCyclesToRun = 0, frame = 0;
+int frame = 0;
 /* Mapped memory */					/* TODO: dynamically allocate screenBuffer */
 uint32_t *screenBuffer;
-uint8_t vram[0x4000], cram[0x20], smsColor[0xc0],
+uint8_t vram[VRAM_SIZE], cram[CRAM_SIZE], smsColor[0xc0],
 colorTable[0x30] = {  0,   0,   0,   0,   0,   0,  33, 200,  66,  94, 220, 120,
 					 84,  85, 237, 125, 118, 252, 212,  82,  77,  66, 235, 245,
 					252,  85,  84, 255, 121, 120, 212, 193,  84, 230, 206, 128,
@@ -151,7 +156,7 @@ void set_video_mode(){
 void write_vdp_control(uint8_t value){
 controlWord = controlFlag ? ((controlWord & 0x00ff) | (value << 8)) : ((controlWord & 0xff00) | value);
 controlFlag ^= 1;
-addReg = (controlWord & 0x3fff);
+addReg = (controlWord & VRAM_MASK);
 codeReg = (controlWord >> 14);
 if (!controlFlag){
 	switch (codeReg){
@@ -232,12 +237,10 @@ if (!controlFlag){
 
 void write_vdp_data(uint8_t value){
 	/* addressing works differently in 4k mode */
-	if(codeReg < 3){
-		vram[addReg++ & 0x3fff] = value;
-	}
-	else if(codeReg == 3){
-		cram[addReg++ & 0x1f] = value;
-	}
+	if(codeReg < 3)
+		vram[addReg++ & VRAM_MASK] = value;
+	else if(codeReg == 3)
+		cram[addReg++ & CRAM_MASK] = value;
 	readBuffer = value;
 	controlFlag = 0;
 }
@@ -249,11 +252,14 @@ uint8_t read_vdp_data(){
 	return value;
 }
 
-void run_vdp(){
-while (vdpCyclesToRun) {
-
-	if(vdpdot == 590)
+void run_vdp(int cycles){
+while (cycles) {
+	if(vdpdot == 590){//HCOUNT jumps in the middle of HBLANK
 		vdpdot = -94;
+		if(vCounter < currentMode->height)
+			render_scanline();
+
+	}
 	if(vdpdot == -48)
 		vCounter++;
 	if(vCounter == currentMode->fullheight){
@@ -262,30 +268,23 @@ while (vdpCyclesToRun) {
 		frame++;
 		render_frame(smsColor);
 	}
-	else if ((vCounter == currentMode->vactive) && (vdpdot == -54)){
+	else if ((vCounter == currentMode->vactive) && (vdpdot == -52)){
 		statusFlags |= INT;
 	}
-	if (vCounter < currentMode->height && !vdpdot){
-		render_scanline();
-	}
-	if ((vCounter <= currentMode->vactive) && (vdpdot == -52)){
+	if ((vCounter <= currentMode->vactive) && (vdpdot == -51)){
 		lineCounter--;
 		if ((lineCounter & 0xff) == 0xff){
 			lineCounter = lineReload;
 			lineInt = 1;
 		}
 	}
-	else if ((vCounter > currentMode->vactive) && (vdpdot == -52))
+	else if ((vCounter > currentMode->vactive) && (vdpdot == -51))
 		lineCounter = lineReload;
-	vdpCyclesToRun--;
 	if (( ((statusFlags & INT) && frameInterrupt) || ((lineInt) && lineInterrupt) ) && !irqPulled)
-	{
 		irqPulled = 1;
-	}
 	else if ((!frameInterrupt /*|| (!(mode1 & 0x10))*/) && irqPulled)/* TODO: disabling line interrupt should deassert the IRQ line */
-	{
 			irqPulled = 0;
-	}
+	cycles--;
 	vdpdot++;
 }
 }
@@ -301,6 +300,7 @@ void render_scanline(){
 
 	if ((vCounter < currentMode->vactive) && displayEnable){ /* during active display */
 		uint16_t scroll = (hScrollLock && vCounter < 16) ? 0 : bgXScroll;
+
 		for (uint8_t screenColumn = 0; screenColumn < 32; screenColumn++){
 			ntRow = ((vCounter + ((vScrollLock && screenColumn >= 24) ? 0 : bgYScroll)) % currentMode->vwrap);
 			ntColumn = 32 - ((scroll & 0xf8) >> 3) + screenColumn;

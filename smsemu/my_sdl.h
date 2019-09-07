@@ -13,6 +13,7 @@ typedef struct windowHandle_ {
 	SDL_Renderer *rend;
 	SDL_Texture *tex;
 	char *name;
+	int index;
 	int winXPosition;
 	int winYPosition;
 	int winWidth;
@@ -31,6 +32,8 @@ typedef struct sdlSettings {
 	int channels;
 	int audioBufferSize;
 	windowHandle window;
+	int desktopWidth;
+	int desktopHeight;
 } sdlSettings;
 typedef struct menuItem menuItem;
 
